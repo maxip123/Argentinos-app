@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 450" width="100%" height="100%">
+  <defs>
+    <!-- Ruta del escudo interior para usarla como máscara de recorte -->
+    <clipPath id="innerShield">
+      <path d="M 52,65 Q 110,130 200,82 Q 290,130 348,65 Q 365,245 200,400 Q 35,245 52,65 Z"/>
+    </clipPath>
+  </defs>
+  
+  <!-- Borde exterior (Fondo blanco con delineado oscuro) -->
+  <path d="M 30,30 Q 100,110 200,60 Q 300,110 370,30 Q 390,260 200,430 Q 10,260 30,30 Z" fill="#FFFFFF" stroke="#161c4b" stroke-width="4"/>
+  
+  <!-- Contenido del escudo interior (recortado a los bordes correctos) -->
+  <g clip-path="url(#innerShield)">
+    <!-- Fondo azul oscuro -->
+    <rect x="0" y="0" width="400" height="450" fill="#161c4b"/>
+    
+    <!-- Franja horizontal blanca -->
+    <rect x="0" y="155" width="400" height="105" fill="#FFFFFF"/>
+  </g>
+  
+  <!-- Texto central -->
+  <text x="200" y="198" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="42" fill="#161c4b" text-anchor="middle">ARGENTINOS</text>
+  <text x="200" y="244" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="42" fill="#161c4b" text-anchor="middle">DEL NORTE</text>
+</svg>

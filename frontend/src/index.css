@@ -1,1 +1,75 @@
 @import "tailwindcss";
+
+@theme {
+  --color-primary: #151f89;
+  --color-primary-dark: #0e1666;
+  --color-primary-container: #303a9f;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #a7aeff;
+  --color-surface: #fbf8ff;
+  --color-surface-container-low: #f5f2fc;
+  --color-surface-container: #efecf6;
+  --color-surface-container-high: #e9e7f0;
+  --color-surface-container-highest: #e4e1ea;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface: #1b1b21;
+  --color-on-surface-variant: #454652;
+  --color-outline-variant: #c6c5d4;
+  --color-outline-subtle: #e5e7eb;
+  --color-action-red: #E31B23;
+  --color-stadium-white: #FFFFFF;
+  --color-pitch-dark: #0B111D;
+  --color-gold: #D4AF37;
+  --color-gold-light: #FFDF00;
+  --color-silver: #9E9E9E;
+  --color-bronze: #CD7F32;
+
+  --font-headline: "Anton", sans-serif;
+  --font-display: "Anton", sans-serif;
+  --font-title: "Archivo Narrow", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+/* Tipografías Utilitarias inspiradas en el Mockup */
+.font-headline {
+  font-family: "Anton", Impact, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.font-title {
+  font-family: "Archivo Narrow", sans-serif;
+}
+
+.font-body {
+  font-family: "Inter", sans-serif;
+}
+
+/* Ocultar barra de scroll en contenedores horizontales */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Efectos sutiles de hover en tablas */
+.table-row-hover:hover {
+  background-color: rgba(48, 58, 159, 0.04);
+}
+
+/* Animación sutil de pulso para partidos en vivo */
+@keyframes livePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.08);
+  }
+}
+
+.animate-live {
+  animation: livePulse 2s infinite ease-in-out;
+}
