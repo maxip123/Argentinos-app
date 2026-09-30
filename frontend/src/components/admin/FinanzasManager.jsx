@@ -1,9 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import {
-  FaMoneyBillWave, FaArrowDown, FaArrowUp, FaCheckCircle,
-  FaExclamationCircle, FaClock, FaUserSlash, FaPlus, FaTimes,
-  FaTrash, FaEdit, FaSyncAlt, FaChartLine, FaFilter,
+  FaMoneyBillWave,
+  FaArrowDown,
+  FaArrowUp,
+  FaCheckCircle,
+  FaExclamationCircle,
+  FaClock,
+  FaUserSlash,
+  FaPlus,
+  FaTimes,
+  FaTrash,
+  FaEdit,
+  FaSyncAlt,
+  FaChartLine,
+  FaFilter,
+  FaCoins,
+  FaReceipt,
+  FaTag,
+  FaSearch,
 } from 'react-icons/fa';
 
 /* ─── helpers ──────────────────────────────────────────────────────────────── */
@@ -12,13 +27,34 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-const CATEGORIAS_GASTO = ['General', 'Infraestructura', 'Equipamiento', 'Sueldos', 'Arbitraje', 'Viáticos', 'Otro'];
+const CATEGORIAS_ENTRADA = [
+  'Entradas Partido',
+  'Sponsors y Publicidad',
+  'Cantina / Buffet',
+  'Venta de Indumentaria',
+  'Eventos y Rifas',
+  'Alquiler de Canchas',
+  'Donaciones',
+  'Otro Ingreso',
+];
+
+const CATEGORIAS_GASTO = [
+  'Infraestructura',
+  'Equipamiento Deportivo',
+  'Sueldos y Honorarios',
+  'Arbitraje',
+  'Viáticos y Traslados',
+  'Servicios Públicos',
+  'Mantenimiento',
+  'General',
+  'Otro Gasto',
+];
 
 const ESTADO_CONFIG = {
-  'Al dia':   { label: 'Al día',   color: 'bg-emerald-100 text-emerald-800',  icon: FaCheckCircle,      },
-  'Pendiente':{ label: 'Pendiente', color: 'bg-amber-100 text-amber-800',     icon: FaClock,            },
-  'Inactivo': { label: 'Inactivo',  color: 'bg-slate-100 text-slate-600',     icon: FaUserSlash,        },
-  'Sin cuota':{ label: 'Sin cuota', color: 'bg-red-50 text-red-700',          icon: FaExclamationCircle,},
+  'Al dia':   { label: 'Al día',   color: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: FaCheckCircle },
+  'Pendiente':{ label: 'Pendiente', color: 'bg-amber-50 text-amber-700 border border-amber-200',     icon: FaClock },
+  'Inactivo': { label: 'Inactivo',  color: 'bg-slate-100 text-slate-500 border border-slate-200',    icon: FaUserSlash },
+  'Sin cuota':{ label: 'Sin cuota', color: 'bg-red-50 text-red-700 border border-red-200',          icon: FaExclamationCircle },
 };
 
 function EstadoBadge({ estado }) {
@@ -41,7 +77,7 @@ function formatMoney(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n || 0);
 }
 
-/* ─── Modal de Cobro Rápido ─────────────────────────────────────────────────── */
+/* ─── Modal de Cobro Rápido de Cuota ─────────────────────────────────────────── */
 function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
   const [form, setForm] = useState({
     monto: '',
@@ -77,54 +113,55 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="bg-gradient-to-r from-[#991b1b] to-[#7f1d1d] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div>
-            <h3 className="font-headline text-xl uppercase text-[#151f89]">Cobrar Cuota</h3>
-            <p className="text-sm text-slate-500 font-title mt-0.5">{jugador?.jugador_nombre}</p>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-red-200 font-bold">Tesorería de Cuotas</span>
+            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">Cobrar Cuota</h3>
+            <p className="text-xs text-red-100 font-medium mt-0.5 truncate max-w-[260px] sm:max-w-none">{jugador?.jugador_nombre}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1">
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
             <FaTimes />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto">
           {error && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg border border-red-200 flex items-center gap-2">
-              <FaExclamationCircle /> {error}
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
+              <FaExclamationCircle className="shrink-0" /> {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Monto ($) *</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Monto ($) *</label>
               <input
                 type="number" step="0.01" min="1" required
                 value={form.monto}
                 onChange={e => setForm({ ...form, monto: e.target.value })}
                 placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
               />
             </div>
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Fecha de Pago</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Fecha de Pago</label>
               <input
                 type="date"
                 value={form.fecha_pago}
                 onChange={e => setForm({ ...form, fecha_pago: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Método</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Método</label>
               <select
                 value={form.metodo_pago}
                 onChange={e => setForm({ ...form, metodo_pago: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-title font-bold focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               >
                 <option>Efectivo</option>
                 <option>Transferencia</option>
@@ -134,11 +171,11 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">División</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">División</label>
               <select
                 value={form.id_division}
                 onChange={e => setForm({ ...form, id_division: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-title font-bold focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               >
                 {divisiones.map(d => (
                   <option key={d.id_division} value={d.id_division}>{d.nombre_division}</option>
@@ -148,30 +185,33 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
           </div>
 
           <div>
-            <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Observaciones</label>
+            <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Concepto u Observaciones</label>
             <input
               type="text"
               value={form.observaciones}
               onChange={e => setForm({ ...form, observaciones: e.target.value })}
-              placeholder="Ej: Cuota octubre, descuento aplicado..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+              placeholder="Ej: Cuota mensual, descuento de hermano..."
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
             />
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 font-title">
-            ⏱ Vencimiento calculado automáticamente: <strong>fecha de pago + 31 días</strong>
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-900 flex items-start gap-2">
+            <FaClock className="text-emerald-700 mt-0.5 shrink-0" />
+            <div>
+              El vencimiento se calcula automáticamente: <strong>fecha de pago + 31 días</strong>, actualizando el estado del socio a <span className="text-emerald-700 font-bold">AL DÍA</span>.
+            </div>
           </div>
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex gap-2 pt-2">
             <button
               type="submit" disabled={cargando}
-              className="flex-1 bg-[#151f89] hover:bg-[#303a9f] disabled:opacity-60 text-white py-3 rounded-xl font-headline uppercase text-sm tracking-wider transition-colors shadow-sm"
+              className="flex-1 bg-[#991b1b] hover:bg-[#7f1d1d] disabled:opacity-60 text-white py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
             >
-              {cargando ? 'Registrando...' : 'Confirmar Pago'}
+              {cargando ? 'Registrando...' : 'Confirmar Cobro'}
             </button>
             <button
               type="button" onClick={onClose}
-              className="px-5 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-sm text-slate-700 transition-colors"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-600 transition-colors"
             >
               Cancelar
             </button>
@@ -182,105 +222,184 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
   );
 }
 
-/* ─── Modal de Gasto ─────────────────────────────────────────────────────────── */
-function ModalGasto({ gasto, onClose, onSuccess }) {
-  const isEdit = !!gasto?.id_gasto;
+/* ─── Modal de Movimiento de Caja (Entrada o Gasto) ─────────────────────────── */
+function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSuccess }) {
+  const isEdit = !!movimiento?.id_gasto;
+  const [tipo, setTipo] = useState(movimiento?.tipo || tipoInicial);
   const [form, setForm] = useState({
-    concepto: gasto?.concepto || '',
-    monto: gasto?.monto || '',
-    fecha_gasto: gasto?.fecha_gasto ? gasto.fecha_gasto.split('T')[0] : new Date().toISOString().split('T')[0],
-    categoria: gasto?.categoria || 'General',
+    concepto: movimiento?.concepto || '',
+    monto: movimiento?.monto || '',
+    fecha_gasto: movimiento?.fecha_gasto ? movimiento.fecha_gasto.split('T')[0] : new Date().toISOString().split('T')[0],
+    categoria: movimiento?.categoria || (tipo === 'INGRESO' ? 'Entradas Partido' : 'General'),
+    metodo_pago: movimiento?.metodo_pago || 'Efectivo',
   });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
+  // Sincronizar categorías por defecto al alternar tipo
+  const handleCambioTipo = (nuevoTipo) => {
+    setTipo(nuevoTipo);
+    setForm(prev => ({
+      ...prev,
+      categoria: nuevoTipo === 'INGRESO' ? 'Entradas Partido' : 'General',
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.concepto || !form.monto) { setError('Concepto y monto son requeridos.'); return; }
+    if (!form.concepto || !form.monto) { setError('Concepto y monto son obligatorios.'); return; }
     setCargando(true);
     setError('');
     try {
+      const payload = { ...form, tipo };
       if (isEdit) {
-        await api.put(`/gastos/${gasto.id_gasto}`, form);
-        onSuccess('Gasto actualizado correctamente.');
+        await api.put(`/gastos/${movimiento.id_gasto}`, payload);
+        onSuccess('Movimiento actualizado correctamente.');
       } else {
-        await api.post('/gastos', form);
-        onSuccess('Gasto registrado correctamente.');
+        await api.post('/gastos', payload);
+        onSuccess(tipo === 'INGRESO' ? 'Entrada del club registrada con éxito.' : 'Gasto registrado correctamente.');
       }
       onClose();
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'Error al guardar el gasto.');
+      setError(err.response?.data?.mensaje || 'Error al guardar el movimiento.');
     } finally {
       setCargando(false);
     }
   };
 
+  const categoriasDisponibles = tipo === 'INGRESO' ? CATEGORIAS_ENTRADA : CATEGORIAS_GASTO;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h3 className="font-headline text-xl uppercase text-[#151f89]">
-            {isEdit ? 'Editar Gasto' : 'Nuevo Gasto'}
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+        {/* Encabezado según tipo */}
+        <div className={`p-4 sm:p-5 flex items-center justify-between text-white transition-colors duration-300 shrink-0 ${
+          tipo === 'INGRESO' ? 'bg-gradient-to-r from-emerald-700 to-teal-800' : 'bg-gradient-to-r from-[#991b1b] to-rose-900'
+        }`}>
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-100 font-bold">
+              {tipo === 'INGRESO' ? 'Tesorería — Ingreso Club' : 'Tesorería — Egreso Club'}
+            </span>
+            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">
+              {isEdit ? 'Editar Movimiento' : (tipo === 'INGRESO' ? 'Registrar Entrada / Ingreso' : 'Registrar Gasto / Salida')}
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
             <FaTimes />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           {error && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg border border-red-200">{error}</div>
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
+              <FaExclamationCircle className="shrink-0" /> {error}
+            </div>
           )}
+
+          {/* Selector de Tipo si es nuevo */}
+          {!isEdit && (
+            <div>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1.5">Tipo de Movimiento</label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => handleCambioTipo('INGRESO')}
+                  className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-headline uppercase tracking-wider transition-all ${
+                    tipo === 'INGRESO'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FaArrowDown className="text-[10px]" /> Entrada / Ingreso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCambioTipo('EGRESO')}
+                  className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-headline uppercase tracking-wider transition-all ${
+                    tipo === 'EGRESO'
+                      ? 'bg-[#991b1b] text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FaArrowUp className="text-[10px]" /> Gasto / Salida
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Concepto *</label>
+            <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Concepto *</label>
             <input
               type="text" required
               value={form.concepto}
               onChange={e => setForm({ ...form, concepto: e.target.value })}
-              placeholder="Ej: Compra de redes, pago árbitro..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+              placeholder={tipo === 'INGRESO' ? 'Ej: Venta de 120 entradas vs San Martín, Recaudación Buffet...' : 'Ej: Compra de 10 pelotas, Pago terna arbitral...'}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Monto ($) *</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Monto ($) *</label>
               <input
                 type="number" step="0.01" min="0.01" required
                 value={form.monto}
                 onChange={e => setForm({ ...form, monto: e.target.value })}
                 placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               />
             </div>
             <div>
-              <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Fecha</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Fecha</label>
               <input
                 type="date"
                 value={form.fecha_gasto}
                 onChange={e => setForm({ ...form, fecha_gasto: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-title font-bold text-slate-600 uppercase mb-1">Categoría</label>
-            <select
-              value={form.categoria}
-              onChange={e => setForm({ ...form, categoria: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-title font-bold focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
-            >
-              {CATEGORIAS_GASTO.map(c => <option key={c}>{c}</option>)}
-            </select>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Categoría</label>
+              <select
+                value={form.categoria}
+                onChange={e => setForm({ ...form, categoria: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
+              >
+                {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Método de Cobro/Pago</label>
+              <select
+                value={form.metodo_pago}
+                onChange={e => setForm({ ...form, metodo_pago: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
+              >
+                <option>Efectivo</option>
+                <option>Transferencia</option>
+                <option>MercadoPago</option>
+                <option>Débito</option>
+                <option>Crédito</option>
+                <option>Cheque</option>
+              </select>
+            </div>
           </div>
-          <div className="flex gap-3 pt-1">
+
+          <div className="flex gap-2 pt-2">
             <button
               type="submit" disabled={cargando}
-              className="flex-1 bg-[#151f89] hover:bg-[#303a9f] disabled:opacity-60 text-white py-3 rounded-xl font-headline uppercase text-sm tracking-wider transition-colors shadow-sm"
+              className={`flex-1 py-3 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors shadow-sm text-white ${
+                tipo === 'INGRESO' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#991b1b] hover:bg-[#7f1d1d]'
+              }`}
             >
-              {cargando ? 'Guardando...' : (isEdit ? 'Actualizar' : 'Registrar Gasto')}
+              {cargando ? 'Guardando...' : (isEdit ? 'Actualizar' : (tipo === 'INGRESO' ? 'Confirmar Entrada' : 'Confirmar Gasto'))}
             </button>
             <button
               type="button" onClick={onClose}
-              className="px-5 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-sm text-slate-700 transition-colors"
+              className="px-5 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-700 transition-colors"
             >
               Cancelar
             </button>
@@ -291,19 +410,24 @@ function ModalGasto({ gasto, onClose, onSuccess }) {
   );
 }
 
-/* ─── Componente principal ───────────────────────────────────────────────────── */
-export default function FinanzasManager({ divisiones, mostrarMensaje }) {
+/* ─── Componente Principal FinanzasManager ───────────────────────────────────── */
+export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const [tab, setTab] = useState('cuotas');
   const [jugadores, setJugadores] = useState([]);
-  const [gastos, setGastos] = useState([]);
+  const [movimientos, setMovimientos] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [cargandoJugadores, setCargandoJugadores] = useState(false);
-  const [cargandoGastos, setCargandoGastos] = useState(false);
+  const [cargandoMovimientos, setCargandoMovimientos] = useState(false);
 
   // Filtros de cuotas
   const [divisionFiltro, setDivisionFiltro] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
+
+  // Filtros de movimientos de caja
+  const [filtroTipoMov, setFiltroTipoMov] = useState(''); // '' | 'INGRESO' | 'EGRESO'
+  const [filtroCategoriaMov, setFiltroCategoriaMov] = useState('');
+  const [busquedaMov, setBusquedaMov] = useState('');
 
   // Filtros de resumen
   const now = new Date();
@@ -312,8 +436,9 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
 
   // Modales
   const [jugadorCobro, setJugadorCobro] = useState(null);
-  const [gastoEditar, setGastoEditar] = useState(null);
-  const [mostrarModalGasto, setMostrarModalGasto] = useState(false);
+  const [movimientoEditar, setMovimientoEditar] = useState(null);
+  const [tipoMovimientoModal, setTipoMovimientoModal] = useState('INGRESO');
+  const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
 
   const cargarJugadores = useCallback(async () => {
     setCargandoJugadores(true);
@@ -328,15 +453,15 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
     }
   }, [divisionFiltro]);
 
-  const cargarGastos = useCallback(async () => {
-    setCargandoGastos(true);
+  const cargarMovimientos = useCallback(async () => {
+    setCargandoMovimientos(true);
     try {
       const res = await api.get('/gastos');
-      setGastos(res.data.data || []);
+      setMovimientos(res.data.data || []);
     } catch (err) {
-      console.error('[FinanzasManager] cargarGastos:', err);
+      console.error('[FinanzasManager] cargarMovimientos:', err);
     } finally {
-      setCargandoGastos(false);
+      setCargandoMovimientos(false);
     }
   }, []);
 
@@ -351,91 +476,143 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
 
   useEffect(() => {
     if (tab === 'cuotas') cargarJugadores();
-    if (tab === 'gastos') cargarGastos();
-    if (tab === 'resumen') { cargarGastos(); cargarResumen(); }
-  }, [tab, cargarJugadores, cargarGastos, cargarResumen]);
+    if (tab === 'caja') cargarMovimientos();
+    if (tab === 'resumen') cargarResumen();
+  }, [tab, cargarJugadores, cargarMovimientos, cargarResumen]);
 
-  useEffect(() => {
-    if (tab === 'cuotas') cargarJugadores();
-  }, [divisionFiltro, cargarJugadores, tab]);
-
-  const handleEliminarGasto = async (id) => {
-    if (!window.confirm('¿Eliminar este gasto?')) return;
-    try {
-      await api.delete(`/gastos/${id}`);
-      mostrarMensaje('exito', 'Gasto eliminado.');
-      cargarGastos();
-    } catch {
-      mostrarMensaje('error', 'Error al eliminar el gasto.');
-    }
-  };
-
-  const jugadoresFiltrados = jugadores.filter(j => {
-    const matchEstado = !estadoFiltro || j.estado_cuota === estadoFiltro;
-    const matchBusq = !busqueda || j.jugador_nombre.toLowerCase().includes(busqueda.toLowerCase());
-    return matchEstado && matchBusq;
-  });
-
+  // Conteos rápidos de cuotas
   const conteos = jugadores.reduce((acc, j) => {
-    acc[j.estado_cuota] = (acc[j.estado_cuota] || 0) + 1;
+    const k = j.estado_cuota || 'Sin cuota';
+    acc[k] = (acc[k] || 0) + 1;
     return acc;
   }, {});
 
+  // Filtrado de jugadores
+  const jugadoresFiltrados = jugadores.filter(j => {
+    if (estadoFiltro && j.estado_cuota !== estadoFiltro) return false;
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      const matchNom = j.jugador_nombre?.toLowerCase().includes(q);
+      const matchDni = j.dni?.toLowerCase().includes(q);
+      if (!matchNom && !matchDni) return false;
+    }
+    return true;
+  });
+
+  // Filtrado de movimientos de caja
+  const movimientosFiltrados = movimientos.filter(m => {
+    if (filtroTipoMov && m.tipo !== filtroTipoMov) return false;
+    if (filtroCategoriaMov && m.categoria !== filtroCategoriaMov) return false;
+    if (busquedaMov) {
+      const q = busquedaMov.toLowerCase();
+      const matchConcepto = m.concepto?.toLowerCase().includes(q);
+      const matchCat = m.categoria?.toLowerCase().includes(q);
+      if (!matchConcepto && !matchCat) return false;
+    }
+    return true;
+  });
+
+  // Eliminar movimiento
+  const handleEliminarMovimiento = async (id) => {
+    if (!window.confirm('¿Seguro que deseás anular este movimiento de caja?')) return;
+    try {
+      await api.delete(`/gastos/${id}`);
+      mostrarMensaje && mostrarMensaje('exito', 'Movimiento eliminado correctamente.');
+      cargarMovimientos();
+    } catch (err) {
+      mostrarMensaje && mostrarMensaje('error', 'Error al eliminar movimiento.');
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Encabezado con tabs */}
+      {/* ─── Encabezado Institucional de Finanzas ─────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-          <h2 className="font-headline text-2xl uppercase tracking-wide text-slate-900">
-            Finanzas y Cuotas
-          </h2>
-          <p className="text-xs text-slate-500 font-body mt-1">
-            Control de cuotas de jugadores, gastos del club y balance mensual.
-          </p>
+        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-[#1e1b4b] text-white">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[11px] font-mono tracking-widest text-slate-300 uppercase">Tesorería Central</span>
+            </div>
+            <h1 className="font-headline text-2xl uppercase tracking-wide mt-0.5">Finanzas y Entradas del Club</h1>
+            <p className="text-xs text-slate-300 font-title mt-0.5">
+              Control unificado de Cuotas de Socios, Entradas directas (partidos, sponsors, buffet) y Egresos operativos.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setMovimientoEditar(null);
+                setTipoMovimientoModal('INGRESO');
+                setMostrarModalMovimiento(true);
+              }}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-all shadow-sm hover:scale-102"
+            >
+              <FaPlus /> Nueva Entrada
+            </button>
+            <button
+              onClick={() => {
+                setMovimientoEditar(null);
+                setTipoMovimientoModal('EGRESO');
+                setMostrarModalMovimiento(true);
+              }}
+              className="flex items-center gap-2 bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-all shadow-sm hover:scale-102"
+            >
+              <FaPlus /> Nuevo Gasto
+            </button>
+          </div>
         </div>
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+
+        {/* Pestañas de Navegación */}
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 overflow-x-auto">
           {[
-            { id: 'cuotas',  label: 'Estado de Cuotas', icon: FaCheckCircle },
-            { id: 'gastos',  label: 'Gastos del Club',  icon: FaArrowDown   },
-            { id: 'resumen', label: 'Balance',           icon: FaChartLine   },
+            { id: 'cuotas',  label: 'Estado de Cuotas',        icon: FaMoneyBillWave },
+            { id: 'caja',    label: 'Libro de Caja (Entradas/Salidas)', icon: FaCoins         },
+            { id: 'resumen', label: 'Balance y Tesorería',     icon: FaChartLine     },
           ].map(t => {
             const Icon = t.icon;
+            const activo = tab === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-headline uppercase tracking-wider transition-all whitespace-nowrap border-b-2 ${
-                  tab === t.id
-                    ? 'border-[#151f89] text-[#151f89] bg-blue-50/50'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                className={`flex items-center gap-2.5 py-4 px-4 text-xs font-headline uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                  activo
+                    ? 'border-[#991b1b] text-[#991b1b] bg-white font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Icon className="text-xs" /> {t.label}
+                <Icon className={`text-sm ${activo ? 'text-[#991b1b]' : 'text-slate-400'}`} />
+                {t.label}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ══ TAB 1: ESTADO DE CUOTAS ══ */}
+      {/* ═══ TAB 1: ESTADO DE CUOTAS ═══ */}
       {tab === 'cuotas' && (
-        <div className="space-y-5">
+        <div className="space-y-5 animate-fadeIn">
           {/* Tarjetas resumen */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { estado: 'Al dia',    icon: FaCheckCircle,       bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', num: 'text-emerald-800' },
-              { estado: 'Pendiente', icon: FaClock,             bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700',   num: 'text-amber-800'   },
-              { estado: 'Sin cuota', icon: FaExclamationCircle, bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     num: 'text-red-800'     },
-              { estado: 'Inactivo',  icon: FaUserSlash,         bg: 'bg-slate-50',   border: 'border-slate-200',   text: 'text-slate-500',   num: 'text-slate-700'   },
+              { estado: 'Al dia',    icon: FaCheckCircle,       bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', num: 'text-emerald-800' },
+              { estado: 'Pendiente', icon: FaClock,             bg: 'bg-amber-50/70',   border: 'border-amber-200',   text: 'text-amber-700',   num: 'text-amber-800'   },
+              { estado: 'Sin cuota', icon: FaExclamationCircle, bg: 'bg-red-50/70',     border: 'border-red-200',     text: 'text-red-700',     num: 'text-red-800'     },
+              { estado: 'Inactivo',  icon: FaUserSlash,         bg: 'bg-slate-100',     border: 'border-slate-200',   text: 'text-slate-500',   num: 'text-slate-700'   },
             ].map(({ estado, icon: Icon, bg, border, text, num }) => (
               <button
                 key={estado}
                 onClick={() => setEstadoFiltro(estadoFiltro === estado ? '' : estado)}
-                className={`${bg} border ${border} rounded-2xl p-4 text-left transition-all hover:shadow-md ${
-                  estadoFiltro === estado ? 'ring-2 ring-[#151f89]' : ''
+                className={`${bg} border ${border} rounded-2xl p-4 text-left transition-all hover:shadow-sm ${
+                  estadoFiltro === estado ? 'ring-2 ring-[#991b1b]' : ''
                 }`}
               >
-                <div className={`${text} mb-1`}><Icon /></div>
+                <div className={`${text} mb-1 flex items-center justify-between`}>
+                  <Icon className="text-sm" />
+                  <span className="text-[10px] font-mono uppercase font-bold tracking-wider">Filtrar</span>
+                </div>
                 <div className={`font-headline text-3xl ${num}`}>{conteos[estado] || 0}</div>
                 <div className={`text-xs ${text} font-title font-bold uppercase mt-0.5`}>
                   {ESTADO_CONFIG[estado]?.label}
@@ -445,22 +622,25 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
           </div>
 
           {/* Filtros */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-3">
-            <div className="flex items-center gap-2 text-slate-500 shrink-0">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-3 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-400 shrink-0">
               <FaFilter className="text-xs" />
-              <span className="text-xs font-title font-bold uppercase">Filtrar</span>
+              <span className="text-xs font-title font-bold text-slate-600 uppercase">Filtros</span>
             </div>
-            <input
-              type="text"
-              placeholder="Buscar jugador..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-[#151f89]/30"
-            />
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3 top-3 text-slate-400 text-xs" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre o DNI..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
+              />
+            </div>
             <select
               value={divisionFiltro}
               onChange={e => setDivisionFiltro(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-title font-bold focus:outline-none"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todas las divisiones</option>
               {divisiones.map(d => (
@@ -470,7 +650,7 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
             <select
               value={estadoFiltro}
               onChange={e => setEstadoFiltro(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-title font-bold focus:outline-none"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todos los estados</option>
               <option value="Al dia">Al día</option>
@@ -480,53 +660,92 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
             </select>
             <button
               onClick={cargarJugadores}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 text-sm font-title font-bold transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 text-xs font-title font-bold transition-colors shrink-0"
             >
               <FaSyncAlt className={cargandoJugadores ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Actualizar</span>
+              <span className="hidden sm:inline">Refrescar</span>
             </button>
           </div>
 
-          {/* Tabla */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          {/* Vista móvil: Cards de jugadores */}
+          <div className="block md:hidden space-y-3">
             {cargandoJugadores ? (
-              <div className="p-12 text-center text-slate-400 font-title">Cargando jugadores...</div>
+              <div className="p-8 text-center text-slate-400 font-title text-xs">Cargando estado de cuotas...</div>
             ) : jugadoresFiltrados.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 font-title">No hay jugadores para mostrar.</div>
+              <div className="p-8 text-center text-slate-400 font-title text-xs">No se encontraron jugadores.</div>
+            ) : (
+              jugadoresFiltrados.map(j => (
+                <div key={j.id_jugador} className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 ${j.es_inactivo ? 'opacity-60' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-slate-900 text-sm block leading-tight">{j.jugador_nombre}</span>
+                      <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'} · {j.nombre_division}</span>
+                    </div>
+                    <EstadoBadge estado={j.estado_cuota} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase font-mono">Vencimiento</span>
+                      <span className={`font-mono font-bold ${
+                        j.fecha_vencimiento && new Date(j.fecha_vencimiento) < new Date() ? 'text-red-600' : 'text-slate-800'
+                      }`}>
+                        {formatFecha(j.fecha_vencimiento)}
+                      </span>
+                    </div>
+                    {!j.es_inactivo && (
+                      <button
+                        onClick={() => setJugadorCobro(j)}
+                        className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-4 py-2 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm"
+                      >
+                        Cobrar Cuota
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Vista escritorio: Tabla de Socios / Jugadores */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            {cargandoJugadores ? (
+              <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando estado de cuotas...</div>
+            ) : jugadoresFiltrados.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 font-title text-sm">No se encontraron jugadores.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-xs text-slate-500 uppercase">
-                      <th className="p-3.5">Jugador</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
+                      <th className="p-3.5">Jugador / Socio</th>
                       <th className="p-3.5">División</th>
                       <th className="p-3.5">Último Pago</th>
                       <th className="p-3.5">Vencimiento</th>
-                      <th className="p-3.5">Estado</th>
-                      <th className="p-3.5 text-right">Acción</th>
+                      <th className="p-3.5">Estado Cuota</th>
+                      <th className="p-3.5 text-right">Cobro</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-title">
+                  <tbody className="divide-y divide-slate-100 font-title text-xs">
                     {jugadoresFiltrados.map(j => (
                       <tr
                         key={j.id_jugador}
-                        className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-60' : ''}`}
+                        className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-50' : ''}`}
                       >
                         <td className="p-3.5">
-                          <span className="font-bold text-slate-900 block">{j.jugador_nombre}</span>
-                          <span className="text-xs text-slate-400">DNI: {j.dni || '—'}</span>
+                          <span className="font-bold text-slate-900 block text-sm">{j.jugador_nombre}</span>
+                          <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'}</span>
                         </td>
-                        <td className="p-3.5 text-slate-600 text-xs font-bold">{j.nombre_division}</td>
-                        <td className="p-3.5 text-slate-500 text-xs">{formatFecha(j.fecha_ultimo_pago)}</td>
+                        <td className="p-3.5 text-slate-600 font-bold">{j.nombre_division}</td>
+                        <td className="p-3.5 text-slate-500 font-mono">{formatFecha(j.fecha_ultimo_pago)}</td>
                         <td className="p-3.5">
                           {j.fecha_vencimiento ? (
-                            <span className={`text-xs font-bold ${
-                              new Date(j.fecha_vencimiento) < new Date() ? 'text-red-600' : 'text-slate-700'
+                            <span className={`font-bold font-mono ${
+                              new Date(j.fecha_vencimiento) < new Date() ? 'text-red-600' : 'text-slate-800'
                             }`}>
                               {formatFecha(j.fecha_vencimiento)}
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-400">—</span>
+                            <span className="text-slate-400">—</span>
                           )}
                         </td>
                         <td className="p-3.5">
@@ -536,7 +755,7 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
                           {!j.es_inactivo && (
                             <button
                               onClick={() => setJugadorCobro(j)}
-                              className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider transition-colors"
+                              className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3 py-1.5 rounded-lg text-[11px] font-headline uppercase tracking-wider transition-colors shadow-sm"
                             >
                               Cobrar
                             </button>
@@ -552,82 +771,189 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
         </div>
       )}
 
-      {/* ══ TAB 2: GASTOS ══ */}
-      {tab === 'gastos' && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-500 font-title">
-              {gastos.length} gasto{gastos.length !== 1 ? 's' : ''} registrado{gastos.length !== 1 ? 's' : ''}
-            </p>
-            <button
-              onClick={() => { setGastoEditar(null); setMostrarModalGasto(true); }}
-              className="flex items-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider transition-colors shadow-sm"
+      {/* ═══ TAB 2: LIBRO DE CAJA (ENTRADAS Y GASTOS) ═══ */}
+      {tab === 'caja' && (
+        <div className="space-y-5 animate-fadeIn">
+          {/* Barra de Filtros y Búsqueda */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-3 shadow-sm">
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3 top-3 text-slate-400 text-xs" />
+              <input
+                type="text"
+                placeholder="Buscar por concepto o categoría..."
+                value={busquedaMov}
+                onChange={e => setBusquedaMov(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
+              />
+            </div>
+
+            <select
+              value={filtroTipoMov}
+              onChange={e => setFiltroTipoMov(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
-              <FaPlus /> Nuevo Gasto
+              <option value="">Todos los movimientos</option>
+              <option value="INGRESO">🟢 Solo Entradas / Ingresos</option>
+              <option value="EGRESO">🔴 Solo Gastos / Salidas</option>
+            </select>
+
+            <select
+              value={filtroCategoriaMov}
+              onChange={e => setFiltroCategoriaMov(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
+            >
+              <option value="">Todas las categorías</option>
+              <optgroup label="Ingresos">
+                {CATEGORIAS_ENTRADA.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
+              <optgroup label="Gastos">
+                {CATEGORIAS_GASTO.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
+            </select>
+
+            <button
+              onClick={cargarMovimientos}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 text-xs font-title font-bold transition-colors shrink-0"
+            >
+              <FaSyncAlt className={cargandoMovimientos ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Refrescar</span>
             </button>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            {cargandoGastos ? (
-              <div className="p-12 text-center text-slate-400 font-title">Cargando gastos...</div>
-            ) : gastos.length === 0 ? (
+          {/* Vista móvil: Cards de movimientos */}
+          <div className="block md:hidden space-y-3">
+            {cargandoMovimientos ? (
+              <div className="p-8 text-center text-slate-400 font-title text-xs">Cargando libro de caja...</div>
+            ) : movimientosFiltrados.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 font-title text-xs">No hay movimientos registrados con los filtros aplicados.</div>
+            ) : (
+              movimientosFiltrados.map(m => {
+                const esIngreso = m.tipo === 'INGRESO';
+                return (
+                  <div key={m.id_gasto} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-1.5 ${
+                          esIngreso
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          {esIngreso ? <FaArrowDown className="text-[9px]" /> : <FaArrowUp className="text-[9px]" />}
+                          {esIngreso ? 'Entrada' : 'Gasto'}
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm leading-tight">{m.concepto}</h4>
+                        <span className="text-[11px] text-slate-500 font-medium">{m.categoria} · {m.metodo_pago || 'Efectivo'}</span>
+                      </div>
+                      <div className={`font-headline text-lg font-bold shrink-0 ${esIngreso ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {esIngreso ? '+' : '-'}{formatMoney(m.monto)}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-400 font-mono">
+                      <span>{formatFecha(m.fecha_gasto)}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setMovimientoEditar(m);
+                            setTipoMovimientoModal(m.tipo);
+                            setMostrarModalMovimiento(true);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                          title="Editar movimiento"
+                        >
+                          <FaEdit className="text-xs" />
+                        </button>
+                        <button
+                          onClick={() => handleEliminarMovimiento(m.id_gasto)}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                          title="Anular movimiento"
+                        >
+                          <FaTrash className="text-xs" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Vista escritorio: Tabla de Movimientos */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            {cargandoMovimientos ? (
+              <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando libro de caja...</div>
+            ) : movimientosFiltrados.length === 0 ? (
               <div className="p-12 text-center space-y-2">
-                <FaArrowDown className="mx-auto text-3xl text-slate-300" />
-                <p className="text-slate-400 font-title text-sm">No hay gastos registrados.</p>
+                <FaReceipt className="mx-auto text-3xl text-slate-300" />
+                <p className="text-slate-400 font-title text-sm">No hay movimientos registrados con los filtros aplicados.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-xs text-slate-500 uppercase">
+                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
+                      <th className="p-3.5">Tipo</th>
                       <th className="p-3.5">Concepto</th>
                       <th className="p-3.5">Categoría</th>
+                      <th className="p-3.5">Método</th>
                       <th className="p-3.5">Fecha</th>
                       <th className="p-3.5 text-right">Monto</th>
                       <th className="p-3.5 text-right">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-title">
-                    {gastos.map(g => (
-                      <tr key={g.id_gasto} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3.5 font-bold text-slate-900">{g.concepto}</td>
-                        <td className="p-3.5">
-                          <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-bold">
-                            {g.categoria}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-slate-500 text-xs">{formatFecha(g.fecha_gasto)}</td>
-                        <td className="p-3.5 text-right font-headline text-red-600">{formatMoney(g.monto)}</td>
-                        <td className="p-3.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => { setGastoEditar(g); setMostrarModalGasto(true); }}
-                              className="text-slate-400 hover:text-[#151f89] transition-colors p-1.5"
-                              title="Editar"
-                            >
-                              <FaEdit />
-                            </button>
-                            <button
-                              onClick={() => handleEliminarGasto(g.id_gasto)}
-                              className="text-slate-400 hover:text-red-600 transition-colors p-1.5"
-                              title="Eliminar"
-                            >
-                              <FaTrash />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-100 font-title text-xs">
+                    {movimientosFiltrados.map(m => {
+                      const esIngreso = m.tipo === 'INGRESO';
+                      return (
+                        <tr key={m.id_gasto} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3.5">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              esIngreso
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}>
+                              {esIngreso ? <FaArrowDown className="text-[9px]" /> : <FaArrowUp className="text-[9px]" />}
+                              {esIngreso ? 'Entrada' : 'Gasto'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-900 text-sm">{m.concepto}</td>
+                          <td className="p-3.5">
+                            <span className="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
+                              {m.categoria}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-slate-500 font-medium">{m.metodo_pago || 'Efectivo'}</td>
+                          <td className="p-3.5 text-slate-500 font-mono">{formatFecha(m.fecha_gasto)}</td>
+                          <td className="p-3.5 text-right font-headline text-base">
+                            <span className={esIngreso ? 'text-emerald-600' : 'text-red-600'}>
+                              {esIngreso ? '+' : '-'}{formatMoney(m.monto)}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setMovimientoEditar(m);
+                                  setTipoMovimientoModal(m.tipo);
+                                  setMostrarModalMovimiento(true);
+                                }}
+                                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                title="Editar movimiento"
+                              >
+                                <FaEdit className="text-xs" />
+                              </button>
+                              <button
+                                onClick={() => handleEliminarMovimiento(m.id_gasto)}
+                                className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                title="Anular movimiento"
+                              >
+                                <FaTrash className="text-xs" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-50 border-t-2 border-slate-200">
-                      <td colSpan="3" className="p-3.5 font-headline text-xs uppercase text-slate-500">Total</td>
-                      <td className="p-3.5 text-right font-headline text-red-700 text-base">
-                        {formatMoney(gastos.reduce((s, g) => s + parseFloat(g.monto), 0))}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             )}
@@ -635,134 +961,185 @@ export default function FinanzasManager({ divisiones, mostrarMensaje }) {
         </div>
       )}
 
-      {/* ══ TAB 3: BALANCE ══ */}
+      {/* ═══ TAB 3: BALANCE Y TESORERÍA ═══ */}
       {tab === 'resumen' && (
-        <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-wrap items-center gap-4">
-            <span className="text-xs font-title font-bold text-slate-500 uppercase">Período:</span>
-            <select
-              value={resMes}
-              onChange={e => setResMes(Number(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-title font-bold focus:outline-none"
-            >
-              {MESES.slice(1).map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
-            <input
-              type="number" min="2020" max="2099"
-              value={resAnio}
-              onChange={e => setResAnio(Number(e.target.value))}
-              className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-title font-bold focus:outline-none"
-            />
-            <button
-              onClick={cargarResumen}
-              className="flex items-center gap-2 px-4 py-2 bg-[#151f89] hover:bg-[#303a9f] text-white rounded-xl text-sm font-headline uppercase tracking-wider transition-colors"
-            >
-              <FaSyncAlt /> Ver
-            </button>
+        <div className="space-y-6 animate-fadeIn">
+          {/* Selector de Período */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <FaCoins className="text-[#991b1b]" />
+              <span className="font-headline uppercase text-sm text-slate-800">Período Fiscal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={resMes}
+                onChange={e => setResMes(parseInt(e.target.value))}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none"
+              >
+                {MESES.slice(1).map((m, i) => (
+                  <option key={m} value={i + 1}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={resAnio}
+                onChange={e => setResAnio(parseInt(e.target.value))}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none"
+              >
+                {[2024, 2025, 2026, 2027].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <button
+                onClick={cargarResumen}
+                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors"
+                title="Actualizar balance"
+              >
+                <FaSyncAlt className="text-xs" />
+              </button>
+            </div>
           </div>
 
-          {resumen ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white rounded-2xl border border-emerald-200 p-6 space-y-3">
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <FaArrowUp />
-                  <span className="font-headline uppercase text-sm tracking-wider">Ingresos</span>
-                </div>
-                <div className="font-headline text-3xl text-emerald-700">
-                  {formatMoney(resumen.ingresos.total_cobrado)}
-                </div>
-                <div className="text-xs text-slate-500 font-title space-y-1">
-                  <div>✅ Cuotas pagadas: <strong>{resumen.ingresos.cuotas_pagadas}</strong></div>
-                  <div>⏳ Pendientes: <strong>{resumen.ingresos.cuotas_pendientes}</strong></div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-red-200 p-6 space-y-3">
-                <div className="flex items-center gap-2 text-red-700">
-                  <FaArrowDown />
-                  <span className="font-headline uppercase text-sm tracking-wider">Gastos</span>
-                </div>
-                <div className="font-headline text-3xl text-red-700">
-                  {formatMoney(resumen.egresos.total_gastos)}
-                </div>
-                <div className="text-xs text-slate-500 font-title">
-                  <div>📋 Cantidad: <strong>{resumen.egresos.cantidad_gastos}</strong></div>
-                </div>
-              </div>
-
-              <div className={`bg-white rounded-2xl border-2 p-6 space-y-3 ${
-                resumen.balance >= 0 ? 'border-emerald-400' : 'border-red-400'
-              }`}>
-                <div className={`flex items-center gap-2 ${resumen.balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  <FaChartLine />
-                  <span className="font-headline uppercase text-sm tracking-wider">Balance</span>
-                </div>
-                <div className={`font-headline text-3xl ${resumen.balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {formatMoney(resumen.balance)}
-                </div>
-                <div className="text-xs font-title text-slate-500">
-                  {resumen.balance >= 0
-                    ? `✅ Superávit — ${MESES[resumen.periodo.mes]} ${resumen.periodo.anio}`
-                    : `❌ Déficit — ${MESES[resumen.periodo.mes]} ${resumen.periodo.anio}`}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 font-title">
-              Seleccioná un período y hacé clic en "Ver".
-            </div>
-          )}
-
           {resumen && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-100">
-                <h3 className="font-headline text-base uppercase text-slate-700">
-                  Detalle de Gastos — {MESES[resMes]} {resAnio}
-                </h3>
+            <>
+              {/* Tarjetas de Balance General */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Ingresos Totales */}
+                <div className="bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between text-emerald-700 mb-2">
+                    <span className="text-xs font-headline uppercase tracking-wider">Total Ingresos</span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <FaArrowDown className="text-xs" />
+                    </div>
+                  </div>
+                  <div className="font-headline text-3xl text-emerald-800">
+                    {formatMoney(resumen.ingresos.total_ingresos)}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-emerald-100 space-y-1 text-xs text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Cuotas de Jugadores:</span>
+                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_cuotas)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Entradas del Club:</span>
+                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_entradas)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gastos Totales */}
+                <div className="bg-gradient-to-br from-red-50 via-white to-red-50/30 border border-red-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between text-red-700 mb-2">
+                    <span className="text-xs font-headline uppercase tracking-wider">Total Egresos</span>
+                    <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center">
+                      <FaArrowUp className="text-xs" />
+                    </div>
+                  </div>
+                  <div className="font-headline text-3xl text-red-700">
+                    {formatMoney(resumen.egresos.total_gastos)}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-red-100 space-y-1 text-xs text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Operaciones registradas:</span>
+                      <strong className="text-slate-800">{resumen.egresos.cantidad_gastos}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Promedio por gasto:</span>
+                      <strong className="text-slate-800">
+                        {formatMoney(resumen.egresos.cantidad_gastos ? (resumen.egresos.total_gastos / resumen.egresos.cantidad_gastos) : 0)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Balance Neto */}
+                <div className={`bg-gradient-to-br ${
+                  resumen.balance >= 0
+                    ? 'from-blue-50 via-white to-indigo-50/30 border-blue-200'
+                    : 'from-amber-50 via-white to-red-50/30 border-amber-300'
+                } border rounded-2xl p-5 shadow-sm`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-headline uppercase tracking-wider text-slate-700">Balance Neto</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      resumen.balance >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {resumen.balance >= 0 ? 'Superávit' : 'Déficit'}
+                    </span>
+                  </div>
+                  <div className={`font-headline text-3xl ${resumen.balance >= 0 ? 'text-blue-900' : 'text-red-700'}`}>
+                    {resumen.balance >= 0 ? '+' : ''}{formatMoney(resumen.balance)}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                    {resumen.balance >= 0 ? (
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                        <FaCheckCircle /> Las finanzas del club se mantienen en superávit este mes.
+                      </span>
+                    ) : (
+                      <span className="text-red-700 font-semibold flex items-center gap-1.5">
+                        <FaExclamationCircle /> Los gastos del período superan los ingresos recaudados.
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <tbody className="divide-y divide-slate-100 font-title">
-                    {gastos
-                      .filter(g => {
-                        const f = new Date(g.fecha_gasto);
-                        return f.getMonth() + 1 === resMes && f.getFullYear() === resAnio;
-                      })
-                      .map(g => (
-                        <tr key={g.id_gasto} className="hover:bg-slate-50">
-                          <td className="p-3 text-slate-400 text-xs">{formatFecha(g.fecha_gasto)}</td>
-                          <td className="p-3 font-bold text-slate-800">{g.concepto}</td>
-                          <td className="p-3">
-                            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-bold">{g.categoria}</span>
-                          </td>
-                          <td className="p-3 text-right font-headline text-red-600">{formatMoney(g.monto)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+
+              {/* Desglose por Categorías */}
+              {resumen.categorias && resumen.categorias.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                  <h3 className="font-headline text-sm uppercase text-slate-800 tracking-wider mb-4 flex items-center gap-2">
+                    <FaTag className="text-[#991b1b]" /> Desglose por Categorías del Período
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {resumen.categorias.map((c, i) => {
+                      const esIngreso = c.tipo === 'INGRESO';
+                      return (
+                        <div key={i} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${esIngreso ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                              <span className="font-bold text-xs text-slate-800">{c.categoria}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{c.cantidad} operaciones</span>
+                          </div>
+                          <div className={`font-headline text-sm font-bold ${esIngreso ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {esIngreso ? '+' : '-'}{formatMoney(c.subtotal)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
-      {/* Modales */}
+      {/* ── Modales ── */}
       {jugadorCobro && (
         <ModalCobro
           jugador={jugadorCobro}
           divisiones={divisiones}
           onClose={() => setJugadorCobro(null)}
-          onSuccess={(msg) => { mostrarMensaje('exito', msg); cargarJugadores(); }}
+          onSuccess={(msg) => {
+            mostrarMensaje && mostrarMensaje('exito', msg);
+            cargarJugadores();
+          }}
         />
       )}
 
-      {mostrarModalGasto && (
-        <ModalGasto
-          gasto={gastoEditar}
-          onClose={() => { setMostrarModalGasto(false); setGastoEditar(null); }}
-          onSuccess={(msg) => { mostrarMensaje('exito', msg); cargarGastos(); }}
+      {mostrarModalMovimiento && (
+        <ModalMovimiento
+          movimiento={movimientoEditar}
+          tipoInicial={tipoMovimientoModal}
+          onClose={() => {
+            setMostrarModalMovimiento(false);
+            setMovimientoEditar(null);
+          }}
+          onSuccess={(msg) => {
+            mostrarMensaje && mostrarMensaje('exito', msg);
+            cargarMovimientos();
+            if (tab === 'resumen') cargarResumen();
+          }}
         />
       )}
     </div>

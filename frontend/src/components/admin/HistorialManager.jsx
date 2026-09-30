@@ -1,0 +1,574 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import api from '../../api/axios';
+import ClubShield from '../ui/ClubShield';
+import {
+  FaTrophy,
+  FaMedal,
+  FaHistory,
+  FaCalendarAlt,
+  FaFutbol,
+  FaShieldAlt,
+  FaSearch,
+  FaFilter,
+  FaArrowLeft,
+  FaSyncAlt,
+  FaCheckCircle,
+  FaUndo,
+  FaChartBar,
+  FaProjectDiagram,
+  FaUsers,
+} from 'react-icons/fa';
+
+export default function HistorialManager({ onActualizarTorneos }) {
+  const [torneosHistorial, setTorneosHistorial] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [filtroTemporada, setFiltroTemporada] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+
+  // Torneo seleccionado para ver detalle histórico
+  const [torneoSeleccionado, setTorneoSeleccionado] = useState(null);
+  const [subTab, setSubTab] = useState('tabla'); // 'tabla' | 'partidos' | 'playoff'
+  const [tablaPosiciones, setTablaPosiciones] = useState([]);
+  const [partidosTorneo, setPartidosTorneo] = useState([]);
+  const [llavesPlayoff, setLlavesPlayoff] = useState([]);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
+  const mostrarAviso = (tipo, texto) => {
+    setMensaje({ tipo, texto });
+    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 5000);
+  };
+
+  // Cargar lista de torneos finalizados
+  const cargarHistorial = useCallback(async () => {
+    setCargando(true);
+    try {
+      const res = await api.get('/divisiones/historial');
+      setTorneosHistorial(res.data.data || []);
+    } catch (err) {
+      console.error('[HistorialManager] Error al cargar historial:', err);
+      mostrarAviso('error', 'Error al cargar torneos históricos.');
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarHistorial();
+  }, [cargarHistorial]);
+
+  // Cargar detalles cuando se selecciona un torneo
+  const cargarDetalleTorneo = useCallback(async (idDivision) => {
+    setCargandoDetalle(true);
+    try {
+      const [resClasif, resPartidos, resPlayoff] = await Promise.all([
+        api.get(`/clasificacion/${idDivision}`),
+        api.get(`/partidos?id_division=${idDivision}`),
+        api.get(`/playoff/${idDivision}`),
+      ]);
+      setTablaPosiciones(resClasif.data.data || []);
+      setPartidosTorneo(resPartidos.data.data || []);
+      setLlavesPlayoff(resPlayoff.data.data || []);
+    } catch (err) {
+      console.error('[HistorialManager] Error al cargar detalles:', err);
+      mostrarAviso('error', 'Error al cargar datos del torneo.');
+    } finally {
+      setCargandoDetalle(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (torneoSeleccionado) {
+      cargarDetalleTorneo(torneoSeleccionado.id_division);
+    }
+  }, [torneoSeleccionado, cargarDetalleTorneo]);
+
+  // Reabrir torneo (marcar terminado = false)
+  const handleReabrirTorneo = async (torneo) => {
+    if (!window.confirm(`¿Reabrir el torneo '${torneo.nombre_division}' para reactivarlo en torneos en curso?`)) return;
+    try {
+      await api.put(`/divisiones/${torneo.id_division}`, {
+        nombre_division: torneo.nombre_division,
+        categoria: torneo.categoria,
+        genero: torneo.genero,
+        temporada: Number(torneo.temporada),
+        terminado: false,
+      });
+      mostrarAviso('exito', `Torneo '${torneo.nombre_division}' reabierto como activo.`);
+      setTorneoSeleccionado(null);
+      cargarHistorial();
+      if (onActualizarTorneos) onActualizarTorneos();
+    } catch (err) {
+      mostrarAviso('error', 'Error al reabrir el torneo.');
+    }
+  };
+
+  // Filtrado de temporadas únicas disponibles
+  const temporadasDisponibles = Array.from(
+    new Set(torneosHistorial.map(t => t.temporada))
+  ).sort((a, b) => b - a);
+
+  // Filtrado de torneos
+  const torneosFiltrados = torneosHistorial.filter(t => {
+    if (filtroTemporada && String(t.temporada) !== String(filtroTemporada)) return false;
+    if (filtroCategoria && t.categoria !== filtroCategoria) return false;
+    if (busqueda && !t.nombre_division.toLowerCase().includes(busqueda.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      {/* ─── VISTA DETALLE DE TORNEO HISTÓRICO ─────────────────────────────── */}
+      {torneoSeleccionado ? (
+        <div className="space-y-6">
+          {/* Barra superior con volver */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <button
+                onClick={() => setTorneoSeleccionado(null)}
+                className="p-2.5 sm:p-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors shrink-0"
+                title="Volver al archivo histórico"
+              >
+                <FaArrowLeft className="text-sm" />
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                    <FaTrophy className="text-amber-600" />
+                    Edición Finalizada ({torneoSeleccionado.temporada})
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-title font-bold uppercase">
+                    {torneoSeleccionado.categoria} • {torneoSeleccionado.genero}
+                  </span>
+                </div>
+                <h2 className="font-headline text-xl sm:text-2xl uppercase tracking-wide text-slate-900 mt-0.5 truncate">
+                  {torneoSeleccionado.nombre_division}
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleReabrirTorneo(torneoSeleccionado)}
+                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors"
+                title="Reactivar como torneo en curso"
+              >
+                <FaUndo className="text-xs" />
+                <span>Reabrir Torneo</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Podio de Honor del Torneo */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Campeón */}
+            <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-white rounded-2xl border-2 border-amber-400 p-5 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-headline uppercase tracking-widest text-amber-800 font-bold flex items-center gap-1.5">
+                  <FaMedal className="text-amber-500 text-base" /> 🥇 Campeón
+                </span>
+                <span className="text-xs font-mono font-bold text-amber-800">1° Puesto</span>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white border border-amber-200 flex items-center justify-center p-2 shadow-xs shrink-0">
+                  {torneoSeleccionado.campeon_definitivo?.es_argentinos_del_norte ? (
+                    <ClubShield className="w-8 h-9" />
+                  ) : (
+                    <FaFutbol className="text-slate-400 text-xl" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-headline text-lg uppercase text-slate-900 truncate">
+                    {torneoSeleccionado.campeon_definitivo?.nombre_equipo || 'Por Definir'}
+                  </h3>
+                  <span className="text-[11px] text-amber-900 font-title font-bold block mt-0.5">
+                    {torneoSeleccionado.campeon_playoff ? 'Campeón de Playoffs' : `${torneoSeleccionado.campeon_tabla?.puntos || 0} Puntos en Tabla`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Subcampeón */}
+            <div className="bg-gradient-to-br from-slate-200/40 via-slate-50 to-white rounded-2xl border border-slate-300 p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-headline uppercase tracking-widest text-slate-600 font-bold flex items-center gap-1.5">
+                  <FaMedal className="text-slate-400 text-base" /> 🥈 Subcampeón
+                </span>
+                <span className="text-xs font-mono font-bold text-slate-600">2° Puesto</span>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-2 shadow-xs shrink-0">
+                  <FaFutbol className="text-slate-400 text-xl" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-headline text-lg uppercase text-slate-900 truncate">
+                    {torneoSeleccionado.subcampeon_tabla?.nombre_equipo || '—'}
+                  </h3>
+                  <span className="text-[11px] text-slate-500 font-title block mt-0.5">
+                    {torneoSeleccionado.subcampeon_tabla?.puntos || 0} Puntos
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Estadísticas de la Edición */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+              <span className="text-[10px] font-headline uppercase tracking-widest text-slate-400 font-bold block mb-2">
+                Resumen de la Edición
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <div className="p-3 bg-slate-50 rounded-xl">
+                  <span className="text-[10px] text-slate-500 font-title uppercase block">Partidos Jugados</span>
+                  <strong className="font-headline text-xl text-slate-900">{torneoSeleccionado.partidos_jugados || 0}</strong>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl">
+                  <span className="text-[10px] text-slate-500 font-title uppercase block">Goles Totales</span>
+                  <strong className="font-headline text-xl text-[#991b1b]">{torneoSeleccionado.total_goles || 0}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-tabs: Tabla de Posiciones vs Fixture vs Playoffs */}
+          <div className="flex border-b border-slate-200 gap-4 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setSubTab('tabla')}
+              className={`pb-3 font-headline text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 border-b-2 shrink-0 transition-all ${
+                subTab === 'tabla' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FaChartBar /> Tabla Final de Posiciones ({tablaPosiciones.length})
+            </button>
+            <button
+              onClick={() => setSubTab('partidos')}
+              className={`pb-3 font-headline text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 border-b-2 shrink-0 transition-all ${
+                subTab === 'partidos' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FaCalendarAlt /> Fixture y Partidos ({partidosTorneo.length})
+            </button>
+            {llavesPlayoff.length > 0 && (
+              <button
+                onClick={() => setSubTab('playoff')}
+                className={`pb-3 font-headline text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 border-b-2 shrink-0 transition-all ${
+                  subTab === 'playoff' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <FaProjectDiagram /> Cuadro de Playoffs
+              </button>
+            )}
+          </div>
+
+          {/* TAB 1: TABLA FINAL DE POSICIONES */}
+          {subTab === 'tabla' && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              {cargandoDetalle ? (
+                <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando posiciones...</div>
+              ) : tablaPosiciones.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 font-title text-sm">No hay tabla registrada para esta edición.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
+                        <th className="p-3.5 w-12 text-center">Pos</th>
+                        <th className="p-3.5">Equipo</th>
+                        <th className="p-3.5 text-center font-bold">PTS</th>
+                        <th className="p-3.5 text-center">PJ</th>
+                        <th className="p-3.5 text-center">PG</th>
+                        <th className="p-3.5 text-center">PE</th>
+                        <th className="p-3.5 text-center">PP</th>
+                        <th className="p-3.5 text-center">GF</th>
+                        <th className="p-3.5 text-center">GC</th>
+                        <th className="p-3.5 text-center font-bold">DIF</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-title text-xs">
+                      {tablaPosiciones.map((c, index) => {
+                        const esPrimero = index === 0;
+                        const esSegundo = index === 1;
+                        const esTercero = index === 2;
+                        const esClub = c.es_argentinos_del_norte;
+
+                        return (
+                          <tr
+                            key={c.id_clasificacion || index}
+                            className={`transition-colors ${
+                              esClub ? 'bg-red-50/50 font-bold' : 'hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <td className="p-3.5 text-center font-headline text-xs">
+                              {esPrimero ? (
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400 text-amber-950 font-bold text-xs shadow-xs">
+                                  1
+                                </span>
+                              ) : esSegundo ? (
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-300 text-slate-900 font-bold text-xs">
+                                  2
+                                </span>
+                              ) : esTercero ? (
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-700 text-white font-bold text-xs">
+                                  3
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">{index + 1}</span>
+                              )}
+                            </td>
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2.5">
+                                {esClub ? (
+                                  <ClubShield className="w-5 h-6 shrink-0" />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">
+                                    {c.nombre_equipo?.[0]}
+                                  </div>
+                                )}
+                                <span className="font-bold text-slate-900 text-sm">{c.nombre_equipo}</span>
+                                {esClub && (
+                                  <span className="bg-[#991b1b] text-white text-[9px] px-1.5 py-0.2 rounded-full font-headline uppercase">
+                                    Club
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3.5 text-center font-headline text-sm font-bold text-slate-900 bg-slate-50/50">
+                              {c.puntos}
+                            </td>
+                            <td className="p-3.5 text-center text-slate-600">{c.partidos_jugados}</td>
+                            <td className="p-3.5 text-center text-emerald-700 font-bold">{c.partidos_ganados}</td>
+                            <td className="p-3.5 text-center text-slate-600">{c.partidos_empatados}</td>
+                            <td className="p-3.5 text-center text-red-600">{c.partidos_perdidos}</td>
+                            <td className="p-3.5 text-center text-slate-600">{c.goles_a_favor}</td>
+                            <td className="p-3.5 text-center text-slate-600">{c.goles_en_contra}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">
+                              {c.diferencia_gol > 0 ? `+${c.diferencia_gol}` : c.diferencia_gol}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: PARTIDOS HISTÓRICOS */}
+          {subTab === 'partidos' && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="divide-y divide-slate-100">
+                {partidosTorneo.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 font-title text-sm">No hay partidos registrados en este torneo.</div>
+                ) : (
+                  partidosTorneo.map(p => (
+                    <div key={p.id_partido} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md shrink-0">
+                          {p.nombre_partido || `Fecha ${p.jornada_numero}`}
+                        </span>
+                        <div className="text-xs text-slate-500 font-title">
+                          {p.fecha_partido ? new Date(p.fecha_partido).toLocaleDateString('es-AR') : '—'}
+                          {p.nombre_sede && ` • 📍 ${p.nombre_sede}`}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-center gap-4 flex-1 max-w-md">
+                        <span className={`text-xs text-right flex-1 truncate ${p.goles_local > p.goles_visitante ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                          {p.equipo_local}
+                        </span>
+                        <div className="px-3 py-1 bg-slate-100 rounded-lg font-headline text-base text-slate-900 shrink-0">
+                          {p.estado_partido === 2 ? `${p.goles_local} - ${p.goles_visitante}` : 'vs'}
+                        </div>
+                        <span className={`text-xs text-left flex-1 truncate ${p.goles_visitante > p.goles_local ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                          {p.equipo_visitante}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: PLAYOFFS */}
+          {subTab === 'playoff' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <h3 className="font-headline text-lg uppercase text-slate-900 flex items-center gap-2">
+                <FaProjectDiagram className="text-[#151f89]" />
+                Cuadro Eliminatorio de la Edición
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {llavesPlayoff.map(llave => (
+                  <div key={llave.id_llave} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-headline uppercase text-slate-500 pb-1 border-b border-slate-200">
+                      <span>{llave.fase}</span>
+                      <span>Partido {llave.orden}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-900 truncate">{llave.equipo_local_nombre || 'Por Definir'}</span>
+                      <strong className="font-headline text-sm">{llave.estado_partido === 2 ? llave.goles_local : '-'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-900 truncate">{llave.equipo_visitante_nombre || 'Por Definir'}</span>
+                      <strong className="font-headline text-sm">{llave.estado_partido === 2 ? llave.goles_visitante : '-'}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── VISTA PRINCIPAL: ARCHIVO DE TORNEOS HISTÓRICOS ─────────────────── */
+        <>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono tracking-widest text-amber-700 uppercase font-bold">Archivo Oficial</span>
+                <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-headline uppercase">
+                  {torneosHistorial.length} Torneos Finalizados
+                </span>
+              </div>
+              <h1 className="font-headline text-2xl uppercase tracking-wide text-slate-900 mt-0.5 flex items-center gap-2">
+                <FaHistory className="text-[#991b1b]" />
+                Historial de Torneos y Palmarés
+              </h1>
+              <p className="text-xs text-slate-500 font-body">
+                Consultá las ediciones finalizadas de Futsal AFA Tucumán, campeones consagrados, tablas finales y resultados.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {temporadasDisponibles.length > 0 && (
+                <select
+                  value={filtroTemporada}
+                  onChange={e => setFiltroTemporada(e.target.value)}
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-xs text-slate-800 focus:outline-none"
+                >
+                  <option value="">Todas las temporadas</option>
+                  {temporadasDisponibles.map(t => (
+                    <option key={t} value={t}>Año {t}</option>
+                  ))}
+                </select>
+              )}
+
+              <select
+                value={filtroCategoria}
+                onChange={e => setFiltroCategoria(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-xs text-slate-800 focus:outline-none"
+              >
+                <option value="">Todas las categorías</option>
+                <option value="Primera">Primera</option>
+                <option value="Reserva">Reserva</option>
+                <option value="Sub-17">Sub-17</option>
+                <option value="Sub-15">Sub-15</option>
+                <option value="Infantiles">Infantiles</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Notificaciones */}
+          {mensaje.texto && (
+            <div className={`p-4 rounded-xl text-xs font-bold ${
+              mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              {mensaje.texto}
+            </div>
+          )}
+
+          {/* Grid de Torneos Finalizados */}
+          {cargando ? (
+            <div className="bg-white rounded-2xl p-12 text-center text-slate-400 font-title text-sm border border-slate-200">
+              Cargando archivo histórico de torneos...
+            </div>
+          ) : torneosFiltrados.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center space-y-3 border border-slate-200">
+              <FaHistory className="mx-auto text-4xl text-slate-300" />
+              <h3 className="font-headline text-lg uppercase text-slate-700">Sin torneos finalizados en el archivo</h3>
+              <p className="text-xs text-slate-400 font-body max-w-md mx-auto">
+                Los torneos marcados como "Finalizados" desde el gestor de Torneos aparecerán aquí con su cuadro de honor, estadísticas y tablas definitivas.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {torneosFiltrados.map(torneo => {
+                const campeon = torneo.campeon_definitivo;
+                const subcampeon = torneo.subcampeon_tabla;
+
+                return (
+                  <div
+                    key={torneo.id_division}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-400/80 transition-all p-5 flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Cabecera de la tarjeta */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full inline-block mb-1">
+                            Temporada {torneo.temporada}
+                          </span>
+                          <h3 className="font-headline text-lg uppercase text-slate-900 leading-tight">
+                            {torneo.nombre_division}
+                          </h3>
+                          <span className="text-[11px] text-slate-400 font-title">
+                            {torneo.categoria} • {torneo.genero}
+                          </span>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                          <FaTrophy className="text-lg" />
+                        </div>
+                      </div>
+
+                      {/* Palmarés: Campeón y Subcampeón */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                        <div className="p-2.5 bg-amber-50/60 border border-amber-200/80 rounded-xl flex items-center gap-2.5">
+                          <span className="text-base shrink-0">🥇</span>
+                          <div className="min-w-0">
+                            <span className="text-[10px] uppercase font-headline tracking-wider text-amber-800 block">Campeón</span>
+                            <strong className="text-xs font-title text-slate-900 block truncate">
+                              {campeon?.nombre_equipo || 'Por Definir'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {subcampeon && (
+                          <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2.5">
+                            <span className="text-base shrink-0">🥈</span>
+                            <div className="min-w-0">
+                              <span className="text-[10px] uppercase font-headline tracking-wider text-slate-500 block">Subcampeón</span>
+                              <strong className="text-xs font-title text-slate-700 block truncate">
+                                {subcampeon.nombre_equipo}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Métricas breves */}
+                      <div className="mt-4 flex items-center justify-between text-xs text-slate-500 font-title">
+                        <span>Equipos: <strong>{torneo.cantidad_equipos || 0}</strong></span>
+                        <span>Partidos: <strong>{torneo.partidos_jugados || 0}</strong></span>
+                        <span>Goles: <strong>{torneo.total_goles || 0}</strong></span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setTorneoSeleccionado(torneo)}
+                        className="w-full bg-[#991b1b] hover:bg-[#7f1d1d] text-white py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-all shadow-sm text-center flex items-center justify-center gap-2"
+                      >
+                        <FaChartBar className="text-xs" />
+                        <span>Ver Tabla y Estadísticas</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
