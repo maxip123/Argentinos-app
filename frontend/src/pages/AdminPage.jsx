@@ -6,8 +6,9 @@ import ClubShield from '../components/ui/ClubShield';
 import TorneosManager from '../components/admin/TorneosManager';
 import EquiposManager from '../components/admin/EquiposManager';
 import JugadoresManager from '../components/admin/JugadoresManager';
-import PlayoffsManager from '../components/admin/PlayoffsManager';
 import FinanzasManager from '../components/admin/FinanzasManager';
+import HistorialManager from '../components/admin/HistorialManager';
+import UsuariosManager from '../components/admin/UsuariosManager';
 import {
   FaTrophy,
   FaCalendarAlt,
@@ -23,6 +24,8 @@ import {
   FaShieldAlt,
   FaUsers,
   FaProjectDiagram,
+  FaHistory,
+  FaUserShield,
 } from 'react-icons/fa';
 
 export default function AdminPage() {
@@ -30,7 +33,7 @@ export default function AdminPage() {
   const { usuario, estaAutenticado } = useAuthStore();
   const autenticado = estaAutenticado();
 
-  // Módulo activo: 'menu' | 'torneos' | 'equipos' | 'jugadores' | 'partidos' | 'clasificacion' | 'cuotas' | 'sedes'
+  // Módulo activo: 'menu' | 'torneos' | 'equipos' | 'jugadores' | 'partidos' | 'clasificacion' | 'cuotas' | 'sedes' | 'historial' | 'usuarios'
   const [moduloActivo, setModuloActivo] = useState('menu');
 
   // Estados comunes
@@ -313,39 +316,39 @@ export default function AdminPage() {
                 Torneos y Ediciones
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Crear torneos, clonar planteles para Apertura/Clausura y consultar historial
+                Crear torneos, clonar planteles para Apertura/Clausura, playoffs y cuadros de llaves
               </p>
             </article>
 
             {/* Tarjeta 2: Equipos */}
             <article
               onClick={() => setModuloActivo('equipos')}
-              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
+              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#991b1b] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
             >
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#151f89] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#151f89] group-hover:text-white transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#991b1b] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#991b1b] group-hover:text-white transition-all shadow-sm">
                 <FaShieldAlt className="text-2xl" />
               </div>
-              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#151f89] transition-colors uppercase">
-                Equipos y Club
+              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#991b1b] transition-colors uppercase">
+                Equipos y Planteles
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Registrar clubes, configurar equipos de Argentinos del Norte y rivales
+                Configurar planteles de Argentinos del Norte, incorporar jugadores del padrón y asignar cuerpo técnico
               </p>
             </article>
 
-            {/* Tarjeta 3: Jugadores y Planteles */}
+            {/* Tarjeta 3: Padrón de Jugadores */}
             <article
               onClick={() => setModuloActivo('jugadores')}
-              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
+              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#991b1b] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
             >
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#151f89] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#151f89] group-hover:text-white transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#991b1b] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#991b1b] group-hover:text-white transition-all shadow-sm">
                 <FaUsers className="text-2xl" />
               </div>
-              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#151f89] transition-colors uppercase">
-                Jugadores y Planteles
+              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#991b1b] transition-colors uppercase">
+                Padrón de Jugadores
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Ingresar jugadores con DNI, planteles y cuotas
+                Directorio único de socios y jugadores del club por DNI, fichas personales y estado multi-equipo
               </p>
             </article>
 
@@ -381,19 +384,19 @@ export default function AdminPage() {
               </p>
             </article>
 
-            {/* Tarjeta 6: Finanzas y Cuotas */}
+            {/* Tarjeta 6: Finanzas y Tesorería */}
             <article
               onClick={() => setModuloActivo('cuotas')}
-              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
+              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-600 transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
             >
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#151f89] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#151f89] group-hover:text-white transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-sm">
                 <FaWallet className="text-2xl" />
               </div>
-              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#151f89] transition-colors uppercase">
-                Finanzas y Cuotas
+              <h2 className="font-headline text-xl text-slate-900 group-hover:text-emerald-700 transition-colors uppercase">
+                Finanzas y Tesorería
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Estado de cuotas por jugador, gastos del club y balance mensual
+                Cuotas de socios, Entradas del club (partidos, buffet, sponsors), egresos y balance neto
               </p>
             </article>
 
@@ -413,19 +416,36 @@ export default function AdminPage() {
               </p>
             </article>
 
-            {/* Tarjeta 8: Playoffs y Brackets */}
+
+            {/* Tarjeta 9: Historial de Torneos */}
             <article
-              onClick={() => setModuloActivo('playoffs')}
-              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
+              onClick={() => setModuloActivo('historial')}
+              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-500 transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
             >
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#151f89] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#151f89] group-hover:text-white transition-all shadow-sm">
-                <FaProjectDiagram className="text-2xl" />
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-sm">
+                <FaHistory className="text-2xl" />
               </div>
-              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#151f89] transition-colors uppercase">
-                Playoffs y Brackets
+              <h2 className="font-headline text-xl text-slate-900 group-hover:text-amber-600 transition-colors uppercase">
+                Historial de Torneos
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Armar llaves eliminatorias por torneo, cargar resultados y visualizar el cuadro
+                Archivo de torneos disputados, podio de campeones, tablas finales y resultados históricos
+              </p>
+            </article>
+
+            {/* Tarjeta 10: Usuarios y Accesos */}
+            <article
+              onClick={() => setModuloActivo('usuarios')}
+              className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-[#151f89] flex items-center justify-center group-hover:scale-110 group-hover:bg-[#151f89] group-hover:text-white transition-all shadow-sm">
+                <FaUserShield className="text-2xl" />
+              </div>
+              <h2 className="font-headline text-xl text-slate-900 group-hover:text-[#151f89] transition-colors uppercase">
+                Usuarios y Accesos
+              </h2>
+              <p className="text-xs text-slate-500 font-body">
+                Gestión de administradores y planilleros, asignación de roles, altas, bajas y reseteo de claves
               </p>
             </article>
           </section>
@@ -482,16 +502,6 @@ export default function AdminPage() {
               Partidos
             </button>
             <button
-              onClick={() => setModuloActivo('playoffs')}
-              className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
-                moduloActivo === 'playoffs'
-                  ? 'bg-[#151f89] text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-              }`}
-            >
-              Playoffs
-            </button>
-            <button
               onClick={() => setModuloActivo('clasificacion')}
               className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
                 moduloActivo === 'clasificacion'
@@ -505,11 +515,11 @@ export default function AdminPage() {
               onClick={() => setModuloActivo('cuotas')}
               className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
                 moduloActivo === 'cuotas'
-                  ? 'bg-[#151f89] text-white shadow-xs'
+                  ? 'bg-emerald-700 text-white shadow-xs'
                   : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
               }`}
             >
-              Cuotas
+              Finanzas
             </button>
             <button
               onClick={() => setModuloActivo('sedes')}
@@ -520,6 +530,26 @@ export default function AdminPage() {
               }`}
             >
               Sedes
+            </button>
+            <button
+              onClick={() => setModuloActivo('historial')}
+              className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
+                moduloActivo === 'historial'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              }`}
+            >
+              Historial
+            </button>
+            <button
+              onClick={() => setModuloActivo('usuarios')}
+              className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
+                moduloActivo === 'usuarios'
+                  ? 'bg-[#151f89] text-white shadow-xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+              }`}
+            >
+              Usuarios
             </button>
           </nav>
         )}
@@ -558,13 +588,6 @@ export default function AdminPage() {
           />
         )}
 
-        {/* VISTA: PLAYOFFS Y BRACKETS */}
-        {moduloActivo === 'playoffs' && (
-          <PlayoffsManager
-            divisiones={divisiones}
-            divisionInicialId={divisionSel}
-          />
-        )}
 
         {/* VISTA 2: GESTIÓN DE PARTIDOS Y RESULTADOS */}
         {moduloActivo === 'partidos' && (
@@ -758,46 +781,47 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Tabla de partidos */}
+            {/* Lista y Tabla de partidos */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 font-headline text-xs text-slate-600 uppercase">
-                    <th className="p-3.5">Jornada</th>
-                    <th className="p-3.5">Local</th>
-                    <th className="p-3.5 text-center">Goles</th>
-                    <th className="p-3.5">Visitante</th>
-                    <th className="p-3.5">Estado</th>
-                    <th className="p-3.5 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-title">
-                  {partidos.map((p) => (
-                    <tr key={p.id_partido} className="hover:bg-slate-50/80">
-                      <td className="p-3.5 font-bold text-slate-500">
-                        {p.nombre_partido || `Fecha ${p.jornada_numero}`}
-                      </td>
-                      <td className="p-3.5 font-bold text-slate-900">{p.equipo_local}</td>
-                      <td className="p-3.5 text-center font-headline text-base text-slate-900">
-                        {p.estado_partido === 2 ? `${p.goles_local} - ${p.goles_visitante}` : 'vs'}
-                      </td>
-                      <td className="p-3.5 font-bold text-slate-900">{p.equipo_visitante}</td>
-                      <td className="p-3.5">
+              {/* Vista Móvil: Cards */}
+              <div className="block md:hidden divide-y divide-slate-100">
+                {partidos.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 font-title text-xs">No hay partidos programados en esta división.</div>
+                ) : (
+                  partidos.map((p) => (
+                    <div key={p.id_partido} className="p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-500 font-mono">
+                          {p.nombre_partido || `Fecha ${p.jornada_numero}`}
+                        </span>
                         {p.estado_partido === 2 ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
                             Finalizado
                           </span>
                         ) : p.estado_partido === 1 ? (
-                          <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded font-bold animate-pulse">
+                          <span className="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">
                             En Vivo
                           </span>
                         ) : (
-                          <span className="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded font-bold">
+                          <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
                             Programado
                           </span>
                         )}
-                      </td>
-                      <td className="p-3.5 text-right">
+                      </div>
+
+                      <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
+                        <div className="flex-1 font-bold text-slate-900 text-xs text-left truncate pr-2">
+                          {p.equipo_local}
+                        </div>
+                        <div className="font-headline text-lg font-bold text-slate-900 px-3 shrink-0">
+                          {p.estado_partido === 2 ? `${p.goles_local} - ${p.goles_visitante}` : 'VS'}
+                        </div>
+                        <div className="flex-1 font-bold text-slate-900 text-xs text-right truncate pl-2">
+                          {p.equipo_visitante}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end pt-1">
                         <button
                           onClick={() => {
                             setPartidoEditando(p);
@@ -807,15 +831,75 @@ export default function AdminPage() {
                               estado_partido: 2,
                             });
                           }}
-                          className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider"
+                          className="w-full sm:w-auto bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider text-center transition-colors"
                         >
                           Cargar Resultado
                         </button>
-                      </td>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Vista Desktop: Tabla */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-xs text-slate-600 uppercase">
+                      <th className="p-3.5">Jornada</th>
+                      <th className="p-3.5">Local</th>
+                      <th className="p-3.5 text-center">Goles</th>
+                      <th className="p-3.5">Visitante</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5 text-right">Acción</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-title">
+                    {partidos.map((p) => (
+                      <tr key={p.id_partido} className="hover:bg-slate-50/80">
+                        <td className="p-3.5 font-bold text-slate-500">
+                          {p.nombre_partido || `Fecha ${p.jornada_numero}`}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900">{p.equipo_local}</td>
+                        <td className="p-3.5 text-center font-headline text-base text-slate-900">
+                          {p.estado_partido === 2 ? `${p.goles_local} - ${p.goles_visitante}` : 'vs'}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900">{p.equipo_visitante}</td>
+                        <td className="p-3.5">
+                          {p.estado_partido === 2 ? (
+                            <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">
+                              Finalizado
+                            </span>
+                          ) : p.estado_partido === 1 ? (
+                            <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded font-bold animate-pulse">
+                              En Vivo
+                            </span>
+                          ) : (
+                            <span className="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded font-bold">
+                              Programado
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => {
+                              setPartidoEditando(p);
+                              setFormResultado({
+                                goles_local: p.goles_local || 0,
+                                goles_visitante: p.goles_visitante || 0,
+                                estado_partido: 2,
+                              });
+                            }}
+                            className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider transition-colors"
+                          >
+                            Cargar Resultado
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -899,6 +983,16 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* VISTA 7: HISTORIAL DE TORNEOS */}
+        {moduloActivo === 'historial' && (
+          <HistorialManager onActualizarTorneos={cargarDivisiones} />
+        )}
+
+        {/* VISTA 8: GESTIÓN DE USUARIOS */}
+        {moduloActivo === 'usuarios' && (
+          <UsuariosManager divisiones={divisiones} />
         )}
       </main>
     </div>

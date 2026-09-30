@@ -14,11 +14,13 @@ import {
   FaSave,
   FaEdit,
   FaEye,
+  FaArrowLeft,
 } from 'react-icons/fa';
 
 export default function PlayoffsManager({
   divisiones = [],
   divisionInicialId = '',
+  onVolver,
 }) {
   const [divisionSel, setDivisionSel] = useState(
     divisionInicialId || (divisiones[0]?.id_division || '')
@@ -217,6 +219,15 @@ export default function PlayoffsManager({
       {/* ─── Encabezado Principal y Selector ─────────────────────────────── */}
       <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
+          {onVolver && (
+            <button
+              onClick={onVolver}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-title font-bold text-xs uppercase mb-3 transition-colors"
+            >
+              <FaArrowLeft className="text-[10px]" />
+              <span>Volver a Lista de Torneos</span>
+            </button>
+          )}
           <div className="flex items-center gap-2 text-[#151f89] font-headline text-xs tracking-widest uppercase">
             <FaProjectDiagram />
             <span>Fase de Playoff y Cruces Eliminatorios</span>

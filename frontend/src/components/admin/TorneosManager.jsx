@@ -1,8 +1,20 @@
 import React, { useState } from 'react';
 import api from '../../api/axios';
-import { FaTrophy, FaPlus, FaCopy, FaCheck, FaHistory, FaTrash, FaEdit } from 'react-icons/fa';
+import PlayoffsManager from './PlayoffsManager';
+import {
+  FaTrophy,
+  FaPlus,
+  FaCopy,
+  FaCheck,
+  FaHistory,
+  FaTrash,
+  FaEdit,
+  FaProjectDiagram,
+  FaArrowLeft,
+} from 'react-icons/fa';
 
 export default function TorneosManager({ divisiones = [], onActualizar, onSeleccionarTorneo }) {
+  const [torneoPlayoff, setTorneoPlayoff] = useState(null);
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [torneoClonando, setTorneoClonando] = useState(null);
   const [torneoEditando, setTorneoEditando] = useState(null);
@@ -105,6 +117,19 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
       setCargando(false);
     }
   };
+
+  // Si se seleccionó gestionar Playoffs para un torneo específico
+  if (torneoPlayoff) {
+    return (
+      <div className="space-y-4">
+        <PlayoffsManager
+          divisiones={divisiones}
+          divisionInicialId={torneoPlayoff.id_division}
+          onVolver={() => setTorneoPlayoff(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -344,7 +369,112 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
       {/* Lista de Torneos */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Vista Móvil: Cards */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {divisiones.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 font-title text-xs">No hay torneos registrados.</div>
+          ) : (
+            divisiones.map((div) => {
+              const esFinalizado = div.terminado;
+              return (
+                <div key={div.id_division} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-base leading-tight">
+                        {div.nombre_division}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-title">
+                        <span className="bg-blue-50 text-blue-800 font-bold px-2 py-0.5 rounded-md">
+                          {div.categoria}
+                        </span>
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                          {div.genero}
+                        </span>
+                        <span className="bg-slate-100 text-slate-800 font-bold font-mono px-2 py-0.5 rounded-md">
+                          {div.temporada}
+                        </span>
+                      </div>
+                    </div>
+                    {esFinalizado ? (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
+                        <FaHistory className="text-[9px]" />
+                        Historial
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
+                        <FaCheck className="text-[9px]" />
+                        En Curso
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={() => onSeleccionarTorneo && onSeleccionarTorneo(div.id_division)}
+                      className="text-xs text-[#151f89] hover:underline font-semibold inline-block"
+                    >
+                      Ver equipos y partidos de este torneo →
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => setTorneoPlayoff(div)}
+                      className="flex-1 sm:flex-none bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                      title="Crear y editar llaves de playoffs / brackets"
+                    >
+                      <FaProjectDiagram className="text-xs" />
+                      <span>Playoffs</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setTorneoClonando(div);
+                        setFormClonar({
+                          nombre_nuevo_torneo: div.nombre_division.includes('Apertura')
+                            ? div.nombre_division.replace('Apertura', 'Clausura')
+                            : `${div.nombre_division} - Edición Siguiente`,
+                          temporada: div.temporada,
+                          marcar_anterior_finalizado: true,
+                        });
+                        setTorneoEditando(null);
+                        setMostrarCrear(false);
+                      }}
+                      className="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                      title="Clonar edición"
+                    >
+                      <FaCopy className="text-xs" />
+                      <span>Clonar</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setTorneoEditando(div);
+                        setTorneoClonando(null);
+                        setMostrarCrear(false);
+                      }}
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-headline transition-colors"
+                      title="Editar torneo"
+                    >
+                      <FaEdit />
+                    </button>
+
+                    <button
+                      onClick={() => handleEliminar(div.id_division, div.nombre_division)}
+                      className="p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-headline transition-colors"
+                      title="Eliminar torneo"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Vista Desktop: Tabla */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm min-w-[700px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 font-headline text-xs text-slate-600 uppercase">
@@ -364,12 +494,21 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
                   <tr key={div.id_division} className="hover:bg-slate-50/80 transition-colors">
                     <td className="p-3.5">
                       <span className="font-bold text-slate-900 block text-base">{div.nombre_division}</span>
-                      <button
-                        onClick={() => onSeleccionarTorneo && onSeleccionarTorneo(div.id_division)}
-                        className="text-xs text-[#151f89] hover:underline font-semibold mt-0.5 inline-block"
-                      >
-                        Ver equipos y partidos de este torneo →
-                      </button>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() => onSeleccionarTorneo && onSeleccionarTorneo(div.id_division)}
+                          className="text-xs text-[#151f89] hover:underline font-semibold"
+                        >
+                          Equipos y partidos →
+                        </button>
+                        <span className="text-slate-300">•</span>
+                        <button
+                          onClick={() => setTorneoPlayoff(div)}
+                          className="text-xs text-indigo-700 hover:underline font-semibold flex items-center gap-1"
+                        >
+                          <FaProjectDiagram className="text-[10px]" /> Bracket y Playoffs →
+                        </button>
+                      </div>
                     </td>
 
                     <td className="p-3.5 font-bold text-slate-700">{div.categoria}</td>
@@ -392,6 +531,15 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
                     <td className="p-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setTorneoPlayoff(div)}
+                          className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition-colors"
+                          title="Crear y editar llaves eliminatorias y cuadro de playoffs de este torneo"
+                        >
+                          <FaProjectDiagram className="text-xs" />
+                          <span>Playoffs</span>
+                        </button>
+
                         <button
                           onClick={() => {
                             setTorneoClonando(div);
