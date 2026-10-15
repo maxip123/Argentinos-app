@@ -251,7 +251,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
             <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-white rounded-2xl border-2 border-amber-400 p-5 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-headline uppercase tracking-widest text-amber-800 font-bold flex items-center gap-1.5">
-                  <FaMedal className="text-amber-500 text-base" /> 🥇 Campeón
+                  <FaMedal className="text-amber-500 text-base" /> Campeón
                 </span>
                 <span className="text-xs font-mono font-bold text-amber-800">1° Puesto</span>
               </div>
@@ -278,7 +278,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
             <div className="bg-gradient-to-br from-slate-200/40 via-slate-50 to-white rounded-2xl border border-slate-300 p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-headline uppercase tracking-widest text-slate-600 font-bold flex items-center gap-1.5">
-                  <FaMedal className="text-slate-400 text-base" /> 🥈 Subcampeón
+                  <FaMedal className="text-slate-400 text-base" /> Subcampeón
                 </span>
                 <span className="text-xs font-mono font-bold text-slate-600">2° Puesto</span>
               </div>
@@ -470,7 +470,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                         </span>
                         <div className="text-xs text-slate-500 font-title">
                           {p.fecha_partido ? new Date(p.fecha_partido).toLocaleDateString('es-AR') : '—'}
-                          {p.nombre_sede && ` • 📍 ${p.nombre_sede}`}
+                          {p.nombre_sede && ` • ${p.nombre_sede}`}
                         </div>
                       </div>
 
@@ -796,7 +796,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                       {/* Palmarés: Campeón y Subcampeón */}
                       <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
                         <div className="p-2.5 bg-amber-50/60 border border-amber-200/80 rounded-xl flex items-center gap-2.5">
-                          <span className="text-base shrink-0">🥇</span>
+                          <FaMedal className="text-amber-500 text-base shrink-0" />
                           <div className="min-w-0">
                             <span className="text-[10px] uppercase font-headline tracking-wider text-amber-800 block">Campeón</span>
                             <strong className="text-xs font-title text-slate-900 block truncate">
@@ -807,7 +807,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
 
                         {subcampeon && (
                           <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2.5">
-                            <span className="text-base shrink-0">🥈</span>
+                            <FaMedal className="text-slate-400 text-base shrink-0" />
                             <div className="min-w-0">
                               <span className="text-[10px] uppercase font-headline tracking-wider text-slate-500 block">Subcampeón</span>
                               <strong className="text-xs font-title text-slate-700 block truncate">

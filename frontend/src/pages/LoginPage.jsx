@@ -110,7 +110,7 @@ export default function LoginPage() {
             onClick={usarCredencialesDemo}
             className="w-full bg-blue-50 hover:bg-blue-100 text-[#151f89] border border-[#151f89]/20 py-2.5 px-4 rounded-xl text-xs font-title font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 disabled:opacity-50"
           >
-            <span>⚡ Ingresar como Superadmin (1 Clic)</span>
+            <span>Ingresar como Superadmin (Demo 1 Clic)</span>
           </button>
           <p className="text-[11px] text-slate-400 font-mono">admin@argentinosdelnorte.com / admin1234</p>
         </div>

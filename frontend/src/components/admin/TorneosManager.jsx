@@ -355,14 +355,14 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
           <div className="bg-emerald-100/70 border border-emerald-300 p-3.5 rounded-xl text-xs text-emerald-900 font-body leading-relaxed space-y-1">
             <p>
-              🏆 <strong>¿Qué hace la finalización?</strong> Guarda una copia exacta (snapshot) de la
+              <strong>¿Qué hace la finalización?</strong> Guarda una copia exacta (snapshot) de la
               <strong> tabla de posiciones final, fixture con resultados, playoffs, goleadores y tarjetas de Argentinos del Norte</strong> en el archivo histórico.
             </p>
             <p>
-              📌 <strong>La división quedará en estado Finalizado</strong> con su campeón registrado.
+              <strong>La división quedará en estado Finalizado</strong> con su campeón registrado.
             </p>
             <p>
-              👥 <strong>Los equipos y jugadores se mantienen intactos</strong> en la división. Podrás iniciar una nueva edición cuando lo desees sin duplicar datos.
+              <strong>Los equipos y jugadores se mantienen intactos</strong> en la división. Podrás iniciar una nueva edición cuando lo desees sin duplicar datos.
             </p>
           </div>
 
@@ -406,10 +406,10 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
                   onChange={(e) => setFormArchivar({ ...formArchivar, id_equipo_campeon: e.target.value })}
                   className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-title font-bold text-slate-800"
                 >
-                  <option value="">🏆 Autodetectar (Ganador de Final de Playoff o 1° de Tabla)</option>
+                  <option value="">Autodetectar (Ganador de Final de Playoff o 1° de Tabla)</option>
                   {equiposDivision.map((eq) => (
                     <option key={eq.id_equipo} value={eq.id_equipo}>
-                      {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '⭐ (Argentinos del Norte)' : ''}
+                      {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos del Norte)' : ''}
                     </option>
                   ))}
                 </select>
@@ -463,10 +463,10 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
           <div className="bg-blue-100/70 border border-blue-300 p-3.5 rounded-xl text-xs text-blue-950 font-body leading-relaxed space-y-1">
             <p>
-              🚀 Esta acción reiniciará los puntos de la tabla a 0 y cambiará el estado de la división a <strong>En Curso</strong>.
+              Esta acción reiniciará los puntos de la tabla a 0 y cambiará el estado de la división a <strong>En Curso</strong>.
             </p>
             <p>
-              👥 <strong>Todos los equipos y los planteles de jugadores se mantendrán intactos</strong> sin necesidad de reconfigurarlos.
+              <strong>Todos los equipos y los planteles de jugadores se mantendrán intactos</strong> sin necesidad de reconfigurarlos.
             </p>
           </div>
 

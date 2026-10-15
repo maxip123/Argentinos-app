@@ -1,5 +1,6 @@
 import React from 'react';
 import ClubShield from '../ui/ClubShield';
+import { FaShieldAlt } from 'react-icons/fa';
 
 export default function MatchCard({ partido }) {
   const {
@@ -73,8 +74,9 @@ export default function MatchCard({ partido }) {
 
       {/* Flag "Partido de Argentinos del Norte" */}
       {juega_argentinos && (
-        <div className="bg-[#303a9f]/10 text-[#151f89] px-3 py-1 text-center text-xs font-headline uppercase tracking-wider border-b border-[#303a9f]/10">
-          ⭐ Partido Oficial Club Argentinos del Norte
+        <div className="bg-[#303a9f]/10 text-[#151f89] px-3 py-1 flex items-center justify-center gap-1.5 text-xs font-headline uppercase tracking-wider border-b border-[#303a9f]/10">
+          <FaShieldAlt className="text-[10px]" />
+          <span>Partido Oficial Club Argentinos del Norte</span>
         </div>
       )}
 

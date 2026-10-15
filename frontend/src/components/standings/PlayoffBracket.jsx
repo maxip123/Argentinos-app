@@ -269,7 +269,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
               </h4>
               <span className="text-[11px] text-slate-500 font-title block mt-1">
                 {campeonNombre
-                  ? '🏆 ¡Consagrado en la Liga Futsal AFA!'
+                  ? '¡Consagrado en la Liga Futsal AFA!'
                   : 'Aguardando el resultado de la gran Final'}
               </span>
             </div>

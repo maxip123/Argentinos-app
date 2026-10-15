@@ -955,8 +955,8 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todos los movimientos</option>
-              <option value="INGRESO">🟢 Solo Entradas / Ingresos</option>
-              <option value="EGRESO">🔴 Solo Gastos / Salidas</option>
+              <option value="INGRESO">Solo Entradas / Ingresos</option>
+              <option value="EGRESO">Solo Gastos / Salidas</option>
             </select>
 
             <select

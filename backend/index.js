@@ -84,7 +84,7 @@ app.use('/api/cuerpo-tecnico', cuerpoTecnicoRoutes);
 // ─── Ruta raíz ────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.status(200).json({
-    mensaje: '🏆 API Oficial — Club Argentinos del Norte',
+    mensaje: 'API Oficial — Club Argentinos del Norte',
     healthCheck: '/api/health',
     endpoints: [
       'POST   /api/auth/login',

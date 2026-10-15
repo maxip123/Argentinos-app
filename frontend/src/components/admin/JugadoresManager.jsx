@@ -349,8 +349,8 @@ export default function JugadoresManager({ divisiones = [] }) {
             className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
           >
             <option value="todos">Todos los socios ({jugadores.length})</option>
-            <option value="pendientes">⚠️ Cuota Pendiente ({totalPendientes})</option>
-            <option value="al_dia">✅ Cuota al Día ({totalAlDia})</option>
+            <option value="pendientes">Cuota Pendiente ({totalPendientes})</option>
+            <option value="al_dia">Cuota al Día ({totalAlDia})</option>
             <option value="activos">Solo Activos ({totalActivos})</option>
             <option value="inactivos">Solo Bajas / Inactivos ({totalInactivos})</option>
           </select>
@@ -389,7 +389,7 @@ export default function JugadoresManager({ divisiones = [] }) {
                 : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300'
             }`}
           >
-            <span>⚠️</span>
+            <FaExclamationCircle className="text-xs" />
             <span>Cuota Pendiente ({totalPendientes})</span>
           </button>
 
@@ -402,7 +402,7 @@ export default function JugadoresManager({ divisiones = [] }) {
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
             }`}
           >
-            <span>✅</span>
+            <FaCheck className="text-xs" />
             <span>Al Día ({totalAlDia})</span>
           </button>
 
@@ -484,7 +484,12 @@ export default function JugadoresManager({ divisiones = [] }) {
                   {/* Contacto y Acciones */}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
                     <div>
-                      {j.telefono && <span>📞 {j.telefono}</span>}
+                      {j.telefono && (
+                        <span className="flex items-center gap-1.5 font-mono text-[11px]">
+                          <FaPhone className="text-[10px] text-slate-400" />
+                          <span>{j.telefono}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button
