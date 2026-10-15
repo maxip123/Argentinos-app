@@ -131,7 +131,7 @@ export default function HomePage() {
               <div className="space-y-2 pt-2 text-sm font-title text-slate-700">
                 <div className="flex items-center gap-2.5">
                   <FaMapMarkerAlt className="text-[#151f89] shrink-0" />
-                  <span>Av. Benjamín Aráoz 650, San Miguel de Tucumán</span>
+                  <span>Av. Benjamín Aráoz 650, San Miguel de Tucumán (Estadio Eva Duarte de Perón)</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <FaUsers className="text-[#151f89] shrink-0" />
@@ -139,41 +139,38 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="pt-4">
+              <div className="pt-4 flex flex-wrap items-center gap-3">
                 <Link
                   to="/sobre-nosotros"
                   className="inline-block bg-[#151f89] text-white hover:bg-[#303a9f] px-6 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
                 >
                   Conocer más del Club
                 </Link>
+                <a
+                  href="https://maps.google.com/?q=Club+Argentinos+del+Norte+Estadio+Eva+Duarte+de+Peron"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider transition-all"
+                >
+                  <FaMapMarkerAlt className="text-[#151f89]" />
+                  <span>Cómo llegar</span>
+                </a>
               </div>
             </div>
 
-            {/* Tarjeta de Ubicación / Google Maps Link */}
-            <div className="bg-[#151f89] text-white p-8 rounded-2xl flex flex-col justify-between shadow-inner relative overflow-hidden">
-              <div className="space-y-2">
-                <ClubShield className="w-12 h-14" />
-                <h3 className="font-headline text-2xl uppercase tracking-wider pt-2">
-                  Vení a alentar al club
-                </h3>
-                <p className="text-white/80 text-xs sm:text-sm font-body">
-                  Entrada libre para socios con cuota al día. Viví la verdadera fiesta del futsal tucumano.
-                </p>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-white/20 flex items-center justify-between">
-                <span className="font-title text-xs tracking-wider uppercase text-white/70">
-                  Ubicación Estratégica
-                </span>
-                <a
-                  href="https://maps.google.com/?q=Argentinos+del+Norte+Tucuman"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-white text-[#151f89] hover:bg-white/90 text-xs font-bold font-title px-4 py-2 rounded-lg uppercase tracking-wider transition-colors"
-                >
-                  Abrir Mapa
-                </a>
-              </div>
+            {/* Mapa Interactivo Google Maps */}
+            <div className="w-full h-[360px] sm:h-[400px] rounded-2xl overflow-hidden shadow-md border border-slate-200 relative bg-slate-100">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3560.1653482774364!2d-65.19078922456312!3d-26.83469272669381!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94225eaa33af6109%3A0x8638433955585b2a!2sClub%20Argentinos%20del%20Norte-Estadio%20Eva%20Duarte%20de%20Peron!5e0!3m2!1ses-419!2sar!4v1792091316794!5m2!1ses-419!2sar"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                title="Club Argentinos del Norte - Estadio Eva Duarte de Perón"
+                className="w-full h-full"
+              />
             </div>
           </div>
         </section>
