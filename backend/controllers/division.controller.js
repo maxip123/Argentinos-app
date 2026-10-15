@@ -440,33 +440,15 @@ const finalizarYArchivarTorneo = async (req, res) => {
         ]
       );
 
-      // 9. REINICIAR LA COMPETICIÓN ACTIVA PARA EL NUEVO TORNEO (sin tocar equipos ni jugadores)
-      // Desactivar partidos del torneo finalizado
-      await client.query(`UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_division = $1`, [id]);
-      // Desactivar llaves de playoff del torneo finalizado
-      await client.query(`UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_division = $1`, [id]);
-      // Resetear la tabla de posiciones a 0 puntos para todos los equipos de la división
+      // 9. Marcar la división como Finalizada y asociar su campeón
       await client.query(
-        `UPDATE public.clasificacion
-         SET puntos = 0, partidos_jugados = 0, partidos_ganados = 0, partidos_empatados = 0,
-             partidos_perdidos = 0, goles_a_favor = 0, goles_en_contra = 0, updated_at = NOW()
-         WHERE id_division = $1`,
-        [id]
+        `UPDATE public.division
+         SET terminado = TRUE,
+             id_equipo_campeon = COALESCE($1, id_equipo_campeon),
+             updated_at = NOW()
+         WHERE id_division = $2`,
+        [campeonEquipoId, id]
       );
-
-      // Actualizar el nombre del torneo en curso en la división si se especificó
-      if (nombre_siguiente_torneo && nombre_siguiente_torneo.trim()) {
-        await client.query(
-          `UPDATE public.division
-           SET nombre_division = $1,
-               temporada = COALESCE($2, temporada),
-               id_equipo_campeon = NULL,
-               terminado = FALSE,
-               updated_at = NOW()
-           WHERE id_division = $3`,
-          [nombre_siguiente_torneo.trim(), nueva_temporada ? parseInt(nueva_temporada) : null, id]
-        );
-      }
 
       return histRows[0];
     });
@@ -474,7 +456,7 @@ const finalizarYArchivarTorneo = async (req, res) => {
     return respuestaExito(
       res,
       snapshot,
-      `Torneo '${nombreTorneoFinalizado}' archivado en el Historial con éxito. La división está lista para la nueva edición sin alterar equipos ni planteles.`,
+      `Torneo '${nombreTorneoFinalizado}' finalizado y guardado en el Historial con éxito.`,
       201
     );
   } catch (error) {
@@ -578,6 +560,70 @@ const eliminarHistorialTorneo = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/divisiones/iniciar-nueva-edicion/:id
+ * Inicia una nueva edición en una división finalizada:
+ * - Pone terminado = FALSE e id_equipo_campeon = NULL.
+ * - Desactiva partidos y llaves de playoff del torneo anterior.
+ * - Resetea los puntos y estadísticas de la tabla de posiciones a 0.
+ * - Permite opcionalmente actualizar el nombre del torneo (ej: Clausura) y temporada (año).
+ * - Mantiene los equipos y los planteles de jugadores intactos.
+ */
+const iniciarNuevaEdicion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre_division, temporada } = req.body;
+
+    const { rows: divRows } = await query(
+      `SELECT * FROM public.division WHERE id_division = $1 AND activo = TRUE`,
+      [id]
+    );
+    if (divRows.length === 0) {
+      return respuestaError(res, 'División no encontrada.', 404);
+    }
+
+    await withTransaction(async (client) => {
+      // 1. Desactivar partidos del torneo anterior
+      await client.query(`UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_division = $1`, [id]);
+
+      // 2. Desactivar llaves de playoff del torneo anterior
+      await client.query(`UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_division = $1`, [id]);
+
+      // 3. Resetear tabla de clasificacion a 0 puntos
+      await client.query(
+        `UPDATE public.clasificacion
+         SET puntos = 0, partidos_jugados = 0, partidos_ganados = 0, partidos_empatados = 0,
+             partidos_perdidos = 0, goles_a_favor = 0, goles_en_contra = 0, updated_at = NOW()
+         WHERE id_division = $1`,
+        [id]
+      );
+
+      // 4. Reactivar división con terminado = FALSE y nombre/temporada actualizado
+      await client.query(
+        `UPDATE public.division
+         SET terminado = FALSE,
+             id_equipo_campeon = NULL,
+             nombre_division = COALESCE($1, nombre_division),
+             temporada = COALESCE($2, temporada),
+             updated_at = NOW()
+         WHERE id_division = $3`,
+        [nombre_division ? nombre_division.trim() : null, temporada ? parseInt(temporada) : null, id]
+      );
+    });
+
+    const { rows: updated } = await query(`SELECT * FROM public.division WHERE id_division = $1`, [id]);
+
+    return respuestaExito(
+      res,
+      updated[0],
+      `Nueva edición iniciada para '${updated[0].nombre_division}'. Los planteles y equipos permanecen intactos y las posiciones se reiniciaron a 0.`
+    );
+  } catch (error) {
+    console.error('[division.controller] iniciarNuevaEdicion error:', error);
+    return respuestaError(res, 'Error al iniciar nueva edición.', 500, error.message);
+  }
+};
+
 module.exports = {
   obtenerTodas,
   obtenerPorId,
@@ -586,6 +632,7 @@ module.exports = {
   eliminar,
   clonarTorneo,
   finalizarYArchivarTorneo,
+  iniciarNuevaEdicion,
   obtenerHistorialTorneos,
   eliminarHistorialTorneo,
 };
