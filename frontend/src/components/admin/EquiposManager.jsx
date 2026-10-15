@@ -20,6 +20,7 @@ import {
   FaExclamationCircle,
   FaCheckCircle,
   FaCalendarAlt,
+  FaPhone,
 } from 'react-icons/fa';
 
 const formatearVencimiento = (fechaStr, estadoCuota) => {
@@ -1059,8 +1060,15 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                             {s.rol_en_equipo || 'DT'}
                           </span>
                           <h4 className="font-bold text-slate-900 text-sm">{s.apellido}, {s.nombre}</h4>
-                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                            DNI: {s.dni || '—'} {s.telefono && ` • 📞 ${s.telefono}`}
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span>DNI: {s.dni || '—'}</span>
+                            {s.telefono && (
+                              <span className="flex items-center gap-1">
+                                <span>•</span>
+                                <FaPhone className="text-[9px] text-slate-400" />
+                                <span>{s.telefono}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                         <button

@@ -15,6 +15,7 @@ import {
   FaEdit,
   FaEye,
   FaArrowLeft,
+  FaFutbol,
 } from 'react-icons/fa';
 
 export default function PlayoffsManager({
@@ -687,7 +688,7 @@ function LlavePartidoCard({
               <option value="">-- Seleccionar --</option>
               {equipos.map((eq) => (
                 <option key={eq.id_equipo} value={eq.id_equipo}>
-                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '⭐ (Club)' : ''}
+                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos)' : ''}
                 </option>
               ))}
             </select>
@@ -728,7 +729,7 @@ function LlavePartidoCard({
               <option value="">-- Seleccionar --</option>
               {equipos.map((eq) => (
                 <option key={eq.id_equipo} value={eq.id_equipo}>
-                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '⭐ (Club)' : ''}
+                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos)' : ''}
                 </option>
               ))}
             </select>
@@ -753,7 +754,8 @@ function LlavePartidoCard({
         {esEmpate && form.id_equipo_local && form.id_equipo_visitante && (
           <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-lg space-y-2 mt-2">
             <div className="flex items-center gap-1.5 text-amber-900 font-headline text-xs uppercase tracking-wider">
-              <span>⚽ Desempate por Penales</span>
+              <FaFutbol className="text-xs" />
+              <span>Desempate por Penales</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -1019,7 +1021,7 @@ function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre }) {
             {campeonNombre || 'Por Definir'}
           </h4>
           <span className="text-[11px] text-slate-500 font-title block mt-1">
-            {campeonNombre ? '🏆 ¡Gloria en Futsal AFA!' : 'Aguardando el desenlace de la Final'}
+            {campeonNombre ? '¡Gloria en Futsal AFA!' : 'Aguardando el desenlace de la Final'}
           </span>
         </div>
       </div>

@@ -7,7 +7,7 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
-import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown } from 'react-icons/fa';
+import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaHistory } from 'react-icons/fa';
 
 export default function TournamentPage({ generoForzado = null }) {
   const location = useLocation();
@@ -130,7 +130,7 @@ export default function TournamentPage({ generoForzado = null }) {
                 <optgroup label="─── TORNEOS EN CURSO ───">
                   {divisionesEnCurso.map((div) => (
                     <option key={div.id_division} value={div.id_division}>
-                      🟢 {div.nombre_division.toUpperCase()} ({div.temporada})
+                      {div.nombre_division.toUpperCase()} ({div.temporada})
                     </option>
                   ))}
                 </optgroup>
@@ -139,7 +139,7 @@ export default function TournamentPage({ generoForzado = null }) {
                 <optgroup label="─── HISTORIAL DE TORNEOS ───">
                   {divisionesHistorial.map((div) => (
                     <option key={div.id_division} value={div.id_division}>
-                      📜 {div.nombre_division.toUpperCase()} ({div.temporada}) — HISTORIAL
+                      {div.nombre_division.toUpperCase()} ({div.temporada}) — HISTORIAL
                     </option>
                   ))}
                 </optgroup>
@@ -154,7 +154,7 @@ export default function TournamentPage({ generoForzado = null }) {
       {esHistorial && (
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 mt-4">
           <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-title font-semibold flex items-center justify-center gap-2 shadow-xs">
-            <span className="text-base">📜</span>
+            <FaHistory className="text-base text-amber-700 shrink-0" />
             <span>
               Estás consultando el <strong>Historial Oficial</strong> de la edición <strong>{divisionActiva?.nombre_division}</strong> ({divisionActiva?.temporada}). Los datos corresponden al torneo finalizado.
             </span>

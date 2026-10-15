@@ -1012,7 +1012,7 @@ export default function AdminPage() {
                     }}
                     className="text-slate-400 hover:text-slate-700 p-1"
                   >
-                    ✕
+                    <FaTimes />
                   </button>
                 </div>
 
