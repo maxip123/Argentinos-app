@@ -667,6 +667,53 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     }
   };
 
+  // Iniciar edición de equipo
+  const [formEditarEquipo, setFormEditarEquipo] = useState({
+    nombre_equipo: '',
+    nombre_corto: '',
+    logo_url: '',
+    es_argentinos_del_norte: false,
+  });
+
+  const iniciarEdicionEquipo = (eq) => {
+    setEquipoEditando(eq);
+    setMostrarCrear(false);
+    setFormEditarEquipo({
+      nombre_equipo: eq.nombre_equipo || '',
+      nombre_corto: eq.nombre_corto || '',
+      logo_url: eq.logo_url || '',
+      es_argentinos_del_norte: Boolean(eq.es_argentinos_del_norte),
+    });
+  };
+
+  const handleGuardarEdicionEquipo = async (e) => {
+    e.preventDefault();
+    if (!equipoEditando) return;
+    if (!formEditarEquipo.nombre_equipo.trim()) {
+      mostrarAviso('error', 'El nombre del equipo es obligatorio.');
+      return;
+    }
+    setCargando(true);
+    try {
+      await api.put(`/equipos/${equipoEditando.id_equipo}`, {
+        nombre_equipo: formEditarEquipo.nombre_equipo.trim(),
+        nombre_corto: formEditarEquipo.nombre_corto?.trim() || null,
+        logo_url: formEditarEquipo.es_argentinos_del_norte
+          ? '/gemini-svg.svg'
+          : (formEditarEquipo.logo_url?.trim() || null),
+        es_argentinos_del_norte: Boolean(formEditarEquipo.es_argentinos_del_norte),
+      });
+
+      mostrarAviso('exito', '¡Equipo actualizado exitosamente!');
+      setEquipoEditando(null);
+      cargarEquipos();
+    } catch (err) {
+      mostrarAviso('error', 'Error al actualizar equipo: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargando(false);
+    }
+  };
+
   // Quitar jugador del plantel
   const handleQuitarJugador = async (idJugador, nombre) => {
     if (!window.confirm(`¿Quitar a ${nombre} del plantel de ${equipoGestionPlantel.nombre_equipo}? (El jugador permanecerá en el padrón central).`)) return;
@@ -1173,6 +1220,71 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
             </div>
           )}
 
+          {/* Formulario Editar Equipo */}
+          {equipoEditando && (
+            <div className="bg-white border-2 border-slate-900/30 p-6 rounded-2xl shadow-sm space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="font-headline text-lg uppercase text-slate-900 flex items-center gap-2">
+                  <FaEdit className="text-sm text-[#991b1b]" /> Editar Equipo: {equipoEditando.nombre_equipo}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEquipoEditando(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              <form onSubmit={handleGuardarEdicionEquipo} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">Nombre del Equipo *</label>
+                  <input
+                    type="text" required
+                    value={formEditarEquipo.nombre_equipo}
+                    onChange={(e) => setFormEditarEquipo({ ...formEditarEquipo, nombre_equipo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">Sigla / Corto</label>
+                  <input
+                    type="text" maxLength={10}
+                    value={formEditarEquipo.nombre_corto}
+                    onChange={(e) => setFormEditarEquipo({ ...formEditarEquipo, nombre_corto: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body uppercase focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center pt-2 sm:col-span-3">
+                  <label className="flex items-center gap-2 cursor-pointer select-none bg-red-50/50 border border-red-200 px-4 py-2.5 rounded-xl w-full">
+                    <input
+                      type="checkbox"
+                      checked={formEditarEquipo.es_argentinos_del_norte}
+                      onChange={(e) => setFormEditarEquipo({ ...formEditarEquipo, es_argentinos_del_norte: e.target.checked })}
+                      className="rounded text-[#991b1b] focus:ring-[#991b1b] h-4 w-4"
+                    />
+                    <span className="text-xs font-title font-bold text-slate-800 uppercase">
+                      Es Equipo Oficial de Club Atlético Argentinos del Norte
+                    </span>
+                  </label>
+                </div>
+                <div className="sm:col-span-3 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button" onClick={() => setEquipoEditando(null)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-title font-bold text-xs transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit" disabled={cargando}
+                    className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-6 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider shadow-sm transition-colors"
+                  >
+                    {cargando ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {/* Grid de Equipos */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {equipos.map((eq) => {
@@ -1235,18 +1347,32 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                       <span className="text-[11px] text-slate-400 font-title italic">Rival (solo partidos)</span>
                     )}
 
-                    <button
-                      onClick={async () => {
-                        if (window.confirm(`¿Eliminar equipo '${eq.nombre_equipo}'?`)) {
-                          await api.delete(`/equipos/${eq.id_equipo}`);
-                          cargarEquipos();
-                        }
-                      }}
-                      className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="Eliminar equipo"
-                    >
-                      <FaTrash className="text-xs" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => iniciarEdicionEquipo(eq)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                        title="Editar equipo"
+                      >
+                        <FaEdit className="text-xs" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (window.confirm(`¿Estás seguro de que deseás eliminar el equipo '${eq.nombre_equipo}'? (Se realizará una baja lógica en este torneo).`)) {
+                            try {
+                              await api.delete(`/equipos/${eq.id_equipo}`);
+                              mostrarAviso('exito', `Equipo ${eq.nombre_equipo} eliminado correctamente.`);
+                              cargarEquipos();
+                            } catch (err) {
+                              mostrarAviso('error', 'Error al eliminar equipo: ' + (err.response?.data?.mensaje || err.message));
+                            }
+                          }
+                        }}
+                        className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Eliminar equipo (borrado lógico)"
+                      >
+                        <FaTrash className="text-xs" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

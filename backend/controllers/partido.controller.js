@@ -106,42 +106,133 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { id_sede, fecha_partido, jornada_numero, nombre_partido, goles_local, goles_visitante, estado_partido, afecta_clasificacion, datos_adicionales, observaciones } = req.body;
+    const {
+      id_sede,
+      id_equipo_local,
+      id_equipo_visitante,
+      fecha_partido,
+      jornada_numero,
+      nombre_partido,
+      goles_local,
+      goles_visitante,
+      estado_partido,
+      afecta_clasificacion,
+      datos_adicionales,
+      observaciones,
+    } = req.body;
+
+    // 1. Obtener partido actual para validaciones y verificar existencia
+    const { rows: actualRows } = await query(
+      `SELECT * FROM public.partido WHERE id_partido = $1 AND activo = TRUE`,
+      [id]
+    );
+    if (actualRows.length === 0) return respuestaError(res, 'Partido no encontrado.', 404);
+    const partidoActual = actualRows[0];
+
+    const nuevoLocal = id_equipo_local !== undefined ? parseInt(id_equipo_local) : partidoActual.id_equipo_local;
+    const nuevoVisitante = id_equipo_visitante !== undefined ? parseInt(id_equipo_visitante) : partidoActual.id_equipo_visitante;
+
+    if (nuevoLocal === nuevoVisitante) {
+      return respuestaError(res, 'El equipo local y el visitante no pueden ser el mismo.', 400);
+    }
+
     const { rows } = await query(
       `UPDATE public.partido
        SET id_sede              = COALESCE($1,  id_sede),
-           fecha_partido        = COALESCE($2,  fecha_partido),
-           jornada_numero       = COALESCE($3,  jornada_numero),
-           nombre_partido       = COALESCE($4,  nombre_partido),
-           goles_local          = COALESCE($5,  goles_local),
-           goles_visitante      = COALESCE($6,  goles_visitante),
-           estado_partido       = COALESCE($7,  estado_partido),
-           afecta_clasificacion = COALESCE($8,  afecta_clasificacion),
-           datos_adicionales    = COALESCE($9,  datos_adicionales),
-           observaciones        = COALESCE($10, observaciones),
+           id_equipo_local      = COALESCE($2,  id_equipo_local),
+           id_equipo_visitante  = COALESCE($3,  id_equipo_visitante),
+           fecha_partido        = COALESCE($4,  fecha_partido),
+           jornada_numero       = COALESCE($5,  jornada_numero),
+           nombre_partido       = COALESCE($6,  nombre_partido),
+           goles_local          = COALESCE($7,  goles_local),
+           goles_visitante      = COALESCE($8,  goles_visitante),
+           estado_partido       = COALESCE($9,  estado_partido),
+           afecta_clasificacion = COALESCE($10, afecta_clasificacion),
+           datos_adicionales    = COALESCE($11, datos_adicionales),
+           observaciones        = COALESCE($12, observaciones),
            updated_at           = NOW()
-       WHERE id_partido = $11 AND activo = TRUE
+       WHERE id_partido = $13 AND activo = TRUE
        RETURNING *`,
-      [id_sede, fecha_partido, jornada_numero, nombre_partido, goles_local, goles_visitante, estado_partido, afecta_clasificacion, datos_adicionales ? JSON.stringify(datos_adicionales) : null, observaciones, id]
+      [
+        id_sede ? parseInt(id_sede) : null,
+        nuevoLocal,
+        nuevoVisitante,
+        fecha_partido,
+        jornada_numero ? parseInt(jornada_numero) : null,
+        nombre_partido ? nombre_partido.trim() : null,
+        goles_local !== undefined && goles_local !== null ? parseInt(goles_local) : null,
+        goles_visitante !== undefined && goles_visitante !== null ? parseInt(goles_visitante) : null,
+        estado_partido !== undefined && estado_partido !== null ? parseInt(estado_partido) : null,
+        afecta_clasificacion !== undefined ? Boolean(afecta_clasificacion) : null,
+        datos_adicionales ? JSON.stringify(datos_adicionales) : null,
+        observaciones,
+        id,
+      ]
     );
+
     if (rows.length === 0) return respuestaError(res, 'Partido no encontrado.', 404);
-    return respuestaExito(res, rows[0], 'Partido actualizado correctamente.');
+    const partidoActualizado = rows[0];
+
+    // Si el partido estaba finalizado o se finalizó, recalcular posiciones de la división
+    if (partidoActual.estado_partido === 2 || partidoActualizado.estado_partido === 2) {
+      try {
+        await query(`SELECT public.recalcular_clasificacion_division($1)`, [partidoActualizado.id_division]);
+      } catch (errRecalc) {
+        console.warn('[partido.controller] Error al recalcular clasificación:', errRecalc.message);
+      }
+    }
+
+    return respuestaExito(res, partidoActualizado, 'Partido actualizado correctamente.');
   } catch (error) {
     console.error('[partido.controller] actualizar error:', error);
     return respuestaError(res, 'Error al actualizar el partido.', 500, error.message);
   }
 };
 
-// DELETE /api/partidos/:id (soft delete)
+// DELETE /api/partidos/:id (borrado lógico / soft delete)
 const eliminar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows } = await query(
-      `UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_partido = $1 AND activo = TRUE RETURNING id_partido`,
+
+    // 1. Obtener datos antes del borrado lógico para recalcular tablas y stats
+    const { rows: existente } = await query(
+      `SELECT id_partido, id_division, estado_partido FROM public.partido WHERE id_partido = $1 AND activo = TRUE`,
       [id]
     );
-    if (rows.length === 0) return respuestaError(res, 'Partido no encontrado.', 404);
-    return respuestaExito(res, null, 'Partido eliminado correctamente.');
+    if (existente.length === 0) return respuestaError(res, 'Partido no encontrado.', 404);
+    const partido = existente[0];
+
+    // 2. Obtener jugadores con estadísticas en este partido para resincronizar
+    const { rows: statsRows } = await query(
+      `SELECT DISTINCT id_jugador FROM public.partido_estadistica_jugador WHERE id_partido = $1`,
+      [id]
+    );
+
+    // 3. Borrado lógico (soft-delete)
+    await query(
+      `UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_partido = $1`,
+      [id]
+    );
+
+    // 4. Recalcular tabla de posiciones si estaba finalizado
+    if (partido.estado_partido === 2) {
+      try {
+        await query(`SELECT public.recalcular_clasificacion_division($1)`, [partido.id_division]);
+      } catch (errRecalc) {
+        console.warn('[partido.controller] Error al recalcular clasificación tras borrado lógico:', errRecalc.message);
+      }
+    }
+
+    // 5. Resincronizar estadísticas individuales de los jugadores afectados
+    for (const s of statsRows) {
+      try {
+        await query(`SELECT public.sincronizar_estadisticas_jugador($1)`, [s.id_jugador]);
+      } catch (errSync) {
+        console.warn('[partido.controller] Error al sincronizar jugador tras borrado lógico:', errSync.message);
+      }
+    }
+
+    return respuestaExito(res, null, 'Partido eliminado (baja lógica) correctamente. Posiciones y estadísticas recalculadas.');
   } catch (error) {
     console.error('[partido.controller] eliminar error:', error);
     return respuestaError(res, 'Error al eliminar el partido.', 500, error.message);
