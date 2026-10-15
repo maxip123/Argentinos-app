@@ -101,21 +101,19 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Botón de acceso de prueba (solo visible en entorno de desarrollo local) */}
-        {import.meta.env.DEV && (
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center space-y-2">
-            <p className="text-xs text-slate-500 font-body">Credenciales locales de prueba:</p>
-            <button
-              type="button"
-              disabled={cargando}
-              onClick={usarCredencialesDemo}
-              className="w-full bg-blue-50 hover:bg-blue-100 text-[#151f89] border border-[#151f89]/20 py-2.5 px-4 rounded-xl text-xs font-title font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 disabled:opacity-50"
-            >
-              <span>⚡ Ingresar como Superadmin (1 Clic)</span>
-            </button>
-            <p className="text-[11px] text-slate-400 font-mono">admin@argentinosdelnorte.com / admin1234</p>
-          </div>
-        )}
+        {/* Botón de acceso de prueba para pruebas rápidas */}
+        <div className="mt-8 pt-6 border-t border-slate-100 text-center space-y-2">
+          <p className="text-xs text-slate-500 font-body">Credenciales de prueba:</p>
+          <button
+            type="button"
+            disabled={cargando}
+            onClick={usarCredencialesDemo}
+            className="w-full bg-blue-50 hover:bg-blue-100 text-[#151f89] border border-[#151f89]/20 py-2.5 px-4 rounded-xl text-xs font-title font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 disabled:opacity-50"
+          >
+            <span>⚡ Ingresar como Superadmin (1 Clic)</span>
+          </button>
+          <p className="text-[11px] text-slate-400 font-mono">admin@argentinosdelnorte.com / admin1234</p>
+        </div>
       </div>
     </div>
   );
