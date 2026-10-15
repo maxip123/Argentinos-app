@@ -67,6 +67,9 @@ export default function AdminPage() {
     goles_visitante: 0,
     estado_partido: 2, // Finalizado por defecto al cargar resultado
   });
+  const [plantelPartido, setPlantelPartido] = useState([]);
+  const [statsPartido, setStatsPartido] = useState({});
+  const [cargandoStatsPartido, setCargandoStatsPartido] = useState(false);
 
   // Formulario de pago de cuota
   const [cuotaEditando, setCuotaEditando] = useState(null);
@@ -173,22 +176,94 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar resultado de partido
+  // Iniciar edición de resultado y cargar estadísticas si juega Argentinos del Norte
+  const iniciarEdicionPartido = async (p) => {
+    setPartidoEditando(p);
+    setFormResultado({
+      goles_local: p.goles_local || 0,
+      goles_visitante: p.goles_visitante || 0,
+      estado_partido: 2,
+    });
+
+    const idEquipoClub = p.local_es_argentinos
+      ? p.id_equipo_local
+      : (p.visitante_es_argentinos ? p.id_equipo_visitante : null);
+
+    if (idEquipoClub) {
+      setCargandoStatsPartido(true);
+      try {
+        const [resPlantel, resStats] = await Promise.all([
+          api.get(`/equipos/${idEquipoClub}/plantel`),
+          api.get(`/partidos/${p.id_partido}/estadisticas`),
+        ]);
+
+        const jugadores = resPlantel.data.data || [];
+        const statsExistentes = resStats.data.data || [];
+
+        setPlantelPartido(jugadores);
+
+        const mapStats = {};
+        jugadores.forEach((jug) => {
+          const found = statsExistentes.find((s) => Number(s.id_jugador) === Number(jug.id_jugador));
+          mapStats[jug.id_jugador] = {
+            id_jugador: jug.id_jugador,
+            id_equipo: idEquipoClub,
+            goles: found ? found.goles : 0,
+            tarjetas_amarillas: found ? found.tarjetas_amarillas : 0,
+            tarjetas_rojas: found ? found.tarjetas_rojas : 0,
+          };
+        });
+        setStatsPartido(mapStats);
+      } catch (err) {
+        console.error('Error cargando estadísticas del partido:', err);
+      } finally {
+        setCargandoStatsPartido(false);
+      }
+    } else {
+      setPlantelPartido([]);
+      setStatsPartido({});
+    }
+  };
+
+  // Guardar resultado de partido y estadísticas individuales
   const handleGuardarResultado = async (e) => {
     e.preventDefault();
     if (!partidoEditando) return;
     setCargandoAccion(true);
     try {
+      // 1. Guardar resultado global
       await api.put(`/partidos/${partidoEditando.id_partido}`, {
         goles_local: Number(formResultado.goles_local),
         goles_visitante: Number(formResultado.goles_visitante),
         estado_partido: Number(formResultado.estado_partido),
       });
-      mostrarMensaje('exito', 'Resultado guardado. La tabla de posiciones se recalculó automáticamente.');
+
+      // 2. Si juega Argentinos del Norte, guardar estadísticas individuales
+      const idEquipoClub = partidoEditando.local_es_argentinos
+        ? partidoEditando.id_equipo_local
+        : (partidoEditando.visitante_es_argentinos ? partidoEditando.id_equipo_visitante : null);
+
+      if (idEquipoClub && Object.keys(statsPartido).length > 0) {
+        const statsPayload = Object.values(statsPartido).map((s) => ({
+          id_jugador: s.id_jugador,
+          id_equipo: idEquipoClub,
+          goles: Number(s.goles || 0),
+          tarjetas_amarillas: Number(s.tarjetas_amarillas || 0),
+          tarjetas_rojas: Number(s.tarjetas_rojas || 0),
+        }));
+
+        await api.post(`/partidos/${partidoEditando.id_partido}/estadisticas`, {
+          estadisticas: statsPayload,
+        });
+      }
+
+      mostrarMensaje('exito', 'Resultado y estadísticas guardadas. La tabla de posiciones se recalculó automáticamente.');
       setPartidoEditando(null);
+      setPlantelPartido([]);
+      setStatsPartido({});
       cargarPartidos();
     } catch (err) {
-      mostrarMensaje('error', 'Error al actualizar resultado: ' + err.message);
+      mostrarMensaje('error', 'Error al actualizar resultado: ' + (err.response?.data?.mensaje || err.message));
     } finally {
       setCargandoAccion(false);
     }
@@ -199,6 +274,10 @@ export default function AdminPage() {
     e.preventDefault();
     if (!nuevoPartido.id_equipo_local || !nuevoPartido.id_equipo_visitante || !nuevoPartido.id_sede) {
       mostrarMensaje('error', 'Complete los equipos y la sede.');
+      return;
+    }
+    if (nuevoPartido.id_equipo_local === nuevoPartido.id_equipo_visitante) {
+      mostrarMensaje('error', 'El equipo local y el visitante no pueden ser el mismo.');
       return;
     }
     setCargandoAccion(true);
@@ -730,49 +809,188 @@ export default function AdminPage() {
 
             {/* Modal / Formulario de Edición de Resultado */}
             {partidoEditando && (
-              <div className="bg-blue-50 border-2 border-[#151f89] p-6 rounded-2xl shadow-md space-y-4">
-                <h3 className="font-headline text-xl uppercase text-[#151f89]">
-                  Cargar Resultado: {partidoEditando.equipo_local} vs {partidoEditando.equipo_visitante}
-                </h3>
-                <form onSubmit={handleGuardarResultado} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                  <div>
-                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
-                      Goles {partidoEditando.equipo_local}
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formResultado.goles_local}
-                      onChange={(e) => setFormResultado({ ...formResultado, goles_local: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2.5 font-headline text-xl text-center"
-                    />
+              <div className="bg-blue-50 border-2 border-[#151f89] p-5 sm:p-6 rounded-2xl shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-headline text-lg sm:text-xl uppercase text-[#151f89]">
+                    Cargar Resultado: {partidoEditando.equipo_local} vs {partidoEditando.equipo_visitante}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setPartidoEditando(null);
+                      setPlantelPartido([]);
+                      setStatsPartido({});
+                    }}
+                    className="text-slate-400 hover:text-slate-700 p-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleGuardarResultado} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Goles {partidoEditando.equipo_local}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formResultado.goles_local}
+                        onChange={(e) => setFormResultado({ ...formResultado, goles_local: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2.5 font-headline text-xl text-center"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Goles {partidoEditando.equipo_visitante}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formResultado.goles_visitante}
+                        onChange={(e) => setFormResultado({ ...formResultado, goles_visitante: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2.5 font-headline text-xl text-center"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Estado del Partido
+                      </label>
+                      <select
+                        value={formResultado.estado_partido}
+                        onChange={(e) => setFormResultado({ ...formResultado, estado_partido: Number(e.target.value) })}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs font-headline uppercase"
+                      >
+                        <option value="2">Finalizado</option>
+                        <option value="1">En Vivo</option>
+                        <option value="0">Programado</option>
+                        <option value="3">Suspendido</option>
+                        <option value="4">Cancelado</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
-                      Goles {partidoEditando.equipo_visitante}
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formResultado.goles_visitante}
-                      onChange={(e) => setFormResultado({ ...formResultado, goles_visitante: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2.5 font-headline text-xl text-center"
-                    />
-                  </div>
+                  {/* Sección Estadísticas Exclusivas Argentinos del Norte */}
+                  {(partidoEditando.local_es_argentinos || partidoEditando.visitante_es_argentinos) && (
+                    <div className="mt-4 pt-4 border-t border-[#151f89]/20 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <ClubShield className="w-5 h-5 shrink-0" />
+                        <div>
+                          <h4 className="font-headline text-sm uppercase text-[#151f89] tracking-wide">
+                            Estadísticas Individuales — Argentinos del Norte
+                          </h4>
+                          <p className="text-[11px] text-slate-600 font-body">
+                            Asigná los goles y tarjetas del plantel del club. Las estadísticas de rivales no se trackean individualmente.
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="flex gap-2">
+                      {cargandoStatsPartido ? (
+                        <div className="py-4 text-center text-xs font-title text-slate-500">Cargando plantel del club...</div>
+                      ) : plantelPartido.length === 0 ? (
+                        <div className="bg-white/80 p-3 rounded-xl text-xs text-slate-500 font-title border border-slate-200">
+                          No hay jugadores registrados en el plantel de este equipo todavía. Podés convocarlos desde la pestaña Equipos.
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                          <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                            {plantelPartido.map((jug) => {
+                              const st = statsPartido[jug.id_jugador] || { goles: 0, tarjetas_amarillas: 0, tarjetas_rojas: 0 };
+                              return (
+                                <div key={jug.id_jugador} className="p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors">
+                                  <div className="flex items-center gap-2.5 min-w-[140px]">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0 uppercase">
+                                      {jug.nombre?.[0]}{jug.apellido?.[0]}
+                                    </div>
+                                    <span className="font-bold text-slate-800 font-title">
+                                      {jug.apellido}, {jug.nombre}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-4">
+                                    {/* Goles */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-headline uppercase text-slate-500 font-bold">Goles:</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="30"
+                                        value={st.goles || 0}
+                                        onChange={(e) => {
+                                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                                          setStatsPartido(prev => ({
+                                            ...prev,
+                                            [jug.id_jugador]: { ...(prev[jug.id_jugador] || {}), id_jugador: jug.id_jugador, goles: val }
+                                          }));
+                                        }}
+                                        className="w-12 bg-slate-50 border border-slate-300 rounded px-1.5 py-1 text-center font-headline font-bold text-xs"
+                                      />
+                                    </div>
+
+                                    {/* Amarillas */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-headline uppercase text-amber-600 font-bold">Amarillas:</span>
+                                      <select
+                                        value={st.tarjetas_amarillas || 0}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setStatsPartido(prev => ({
+                                            ...prev,
+                                            [jug.id_jugador]: { ...(prev[jug.id_jugador] || {}), id_jugador: jug.id_jugador, tarjetas_amarillas: val }
+                                          }));
+                                        }}
+                                        className="bg-slate-50 border border-slate-300 rounded px-1.5 py-1 text-center font-bold text-xs"
+                                      >
+                                        <option value="0">0</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                      </select>
+                                    </div>
+
+                                    {/* Roja */}
+                                    <label className="flex items-center gap-1 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(st.tarjetas_rojas)}
+                                        onChange={(e) => {
+                                          const val = e.target.checked ? 1 : 0;
+                                          setStatsPartido(prev => ({
+                                            ...prev,
+                                            [jug.id_jugador]: { ...(prev[jug.id_jugador] || {}), id_jugador: jug.id_jugador, tarjetas_rojas: val }
+                                          }));
+                                        }}
+                                        className="rounded text-red-600 focus:ring-red-500"
+                                      />
+                                      <span className="text-[10px] font-headline uppercase text-red-700 font-bold">Roja</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
                     <button
                       type="submit"
                       disabled={cargandoAccion}
                       className="flex-1 bg-[#151f89] hover:bg-[#303a9f] text-white py-3 rounded-lg font-headline uppercase text-sm shadow-sm transition-colors"
                     >
-                      {cargandoAccion ? 'Guardando...' : 'Confirmar'}
+                      {cargandoAccion ? 'Guardando...' : 'Confirmar y Guardar'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPartidoEditando(null)}
-                      className="px-4 py-3 bg-slate-200 hover:bg-slate-300 rounded-lg font-title font-bold text-sm text-slate-700"
+                      onClick={() => {
+                        setPartidoEditando(null);
+                        setPlantelPartido([]);
+                        setStatsPartido({});
+                      }}
+                      className="px-5 py-3 bg-slate-200 hover:bg-slate-300 rounded-lg font-title font-bold text-sm text-slate-700 transition-colors"
                     >
                       Cancelar
                     </button>
@@ -823,14 +1041,7 @@ export default function AdminPage() {
 
                       <div className="flex items-center justify-end pt-1">
                         <button
-                          onClick={() => {
-                            setPartidoEditando(p);
-                            setFormResultado({
-                              goles_local: p.goles_local || 0,
-                              goles_visitante: p.goles_visitante || 0,
-                              estado_partido: 2,
-                            });
-                          }}
+                          onClick={() => iniciarEdicionPartido(p)}
                           className="w-full sm:w-auto bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider text-center transition-colors"
                         >
                           Cargar Resultado
@@ -882,14 +1093,7 @@ export default function AdminPage() {
                         </td>
                         <td className="p-3.5 text-right">
                           <button
-                            onClick={() => {
-                              setPartidoEditando(p);
-                              setFormResultado({
-                                goles_local: p.goles_local || 0,
-                                goles_visitante: p.goles_visitante || 0,
-                                estado_partido: 2,
-                              });
-                            }}
+                            onClick={() => iniciarEdicionPartido(p)}
                             className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider transition-colors"
                           >
                             Cargar Resultado

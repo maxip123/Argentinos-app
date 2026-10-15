@@ -17,6 +17,8 @@ import {
   FaChartBar,
   FaProjectDiagram,
   FaUsers,
+  FaTrash,
+  FaIdCard,
 } from 'react-icons/fa';
 
 export default function HistorialManager({ onActualizarTorneos }) {
@@ -29,10 +31,12 @@ export default function HistorialManager({ onActualizarTorneos }) {
 
   // Torneo seleccionado para ver detalle histórico
   const [torneoSeleccionado, setTorneoSeleccionado] = useState(null);
-  const [subTab, setSubTab] = useState('tabla'); // 'tabla' | 'partidos' | 'playoff'
+  const [subTab, setSubTab] = useState('tabla'); // 'tabla' | 'partidos' | 'playoff' | 'goleadores' | 'tarjetas'
   const [tablaPosiciones, setTablaPosiciones] = useState([]);
   const [partidosTorneo, setPartidosTorneo] = useState([]);
   const [llavesPlayoff, setLlavesPlayoff] = useState([]);
+  const [goleadoresClub, setGoleadoresClub] = useState([]);
+  const [tarjetasClub, setTarjetasClub] = useState([]);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
   const mostrarAviso = (tipo, texto) => {
@@ -62,14 +66,18 @@ export default function HistorialManager({ onActualizarTorneos }) {
   const cargarDetalleTorneo = useCallback(async (idDivision) => {
     setCargandoDetalle(true);
     try {
-      const [resClasif, resPartidos, resPlayoff] = await Promise.all([
+      const [resClasif, resPartidos, resPlayoff, resGoleadores, resTarjetas] = await Promise.all([
         api.get(`/clasificacion/${idDivision}`),
         api.get(`/partidos?id_division=${idDivision}`),
         api.get(`/playoff/${idDivision}`),
+        api.get(`/jugadores/goleadores/${idDivision}?solo_club=true`),
+        api.get(`/jugadores/tarjetas/${idDivision}?solo_club=true`),
       ]);
       setTablaPosiciones(resClasif.data.data || []);
       setPartidosTorneo(resPartidos.data.data || []);
       setLlavesPlayoff(resPlayoff.data.data || []);
+      setGoleadoresClub(resGoleadores.data.data || []);
+      setTarjetasClub(resTarjetas.data.data || []);
     } catch (err) {
       console.error('[HistorialManager] Error al cargar detalles:', err);
       mostrarAviso('error', 'Error al cargar datos del torneo.');
@@ -79,12 +87,23 @@ export default function HistorialManager({ onActualizarTorneos }) {
   }, []);
 
   useEffect(() => {
-    if (torneoSeleccionado) {
+    if (!torneoSeleccionado) return;
+
+    if (torneoSeleccionado.es_snapshot_rico) {
+      // Usar directamente los datos archivados en el snapshot
+      setTablaPosiciones(torneoSeleccionado.tabla_posiciones || []);
+      setPartidosTorneo(torneoSeleccionado.partidos || []);
+      setLlavesPlayoff(torneoSeleccionado.playoffs || []);
+      setGoleadoresClub(torneoSeleccionado.goleadores_club || []);
+      setTarjetasClub(torneoSeleccionado.tarjetas_club || []);
+      setCargandoDetalle(false);
+    } else {
+      // Fallback para torneos finalizados legacy anteriores
       cargarDetalleTorneo(torneoSeleccionado.id_division);
     }
   }, [torneoSeleccionado, cargarDetalleTorneo]);
 
-  // Reabrir torneo (marcar terminado = false)
+  // Reabrir torneo legacy (marcar terminado = false)
   const handleReabrirTorneo = async (torneo) => {
     if (!window.confirm(`¿Reabrir el torneo '${torneo.nombre_division}' para reactivarlo en torneos en curso?`)) return;
     try {
@@ -101,6 +120,24 @@ export default function HistorialManager({ onActualizarTorneos }) {
       if (onActualizarTorneos) onActualizarTorneos();
     } catch (err) {
       mostrarAviso('error', 'Error al reabrir el torneo.');
+    }
+  };
+
+  // Eliminar registro del historial
+  const handleEliminarHistorial = async (torneo) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar '${torneo.nombre_division}' del archivo histórico?`)) return;
+    try {
+      if (torneo.id_historial) {
+        await api.delete(`/divisiones/historial/${torneo.id_historial}`);
+      } else {
+        await api.delete(`/divisiones/${torneo.id_division}`);
+      }
+      mostrarAviso('exito', `Torneo '${torneo.nombre_division}' eliminado del archivo histórico.`);
+      setTorneoSeleccionado(null);
+      cargarHistorial();
+      if (onActualizarTorneos) onActualizarTorneos();
+    } catch (err) {
+      mostrarAviso('error', 'Error al eliminar torneo del archivo: ' + (err.response?.data?.mensaje || err.message));
     }
   };
 
@@ -133,11 +170,17 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 <FaArrowLeft className="text-sm" />
               </button>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
                     <FaTrophy className="text-amber-600" />
                     Edición Finalizada ({torneoSeleccionado.temporada})
                   </span>
+                  {torneoSeleccionado.es_snapshot_rico && (
+                    <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                      <FaCheckCircle className="text-emerald-600" />
+                      Snapshot Histórico Oficial
+                    </span>
+                  )}
                   <span className="text-[10px] text-slate-500 font-title font-bold uppercase">
                     {torneoSeleccionado.categoria} • {torneoSeleccionado.genero}
                   </span>
@@ -148,14 +191,24 @@ export default function HistorialManager({ onActualizarTorneos }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {!torneoSeleccionado.es_snapshot_rico && (
+                <button
+                  onClick={() => handleReabrirTorneo(torneoSeleccionado)}
+                  className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors"
+                  title="Reactivar como torneo en curso"
+                >
+                  <FaUndo className="text-xs" />
+                  <span>Reabrir Torneo</span>
+                </button>
+              )}
               <button
-                onClick={() => handleReabrirTorneo(torneoSeleccionado)}
-                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors"
-                title="Reactivar como torneo en curso"
+                onClick={() => handleEliminarHistorial(torneoSeleccionado)}
+                className="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors"
+                title="Eliminar este registro del archivo histórico"
               >
-                <FaUndo className="text-xs" />
-                <span>Reabrir Torneo</span>
+                <FaTrash className="text-xs" />
+                <span>Eliminar del Archivo</span>
               </button>
             </div>
           </div>
@@ -230,7 +283,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
             </div>
           </div>
 
-          {/* Sub-tabs: Tabla de Posiciones vs Fixture vs Playoffs */}
+          {/* Sub-tabs: Tabla vs Fixture vs Playoffs vs Goleadores vs Tarjetas */}
           <div className="flex border-b border-slate-200 gap-4 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setSubTab('tabla')}
@@ -238,7 +291,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 subTab === 'tabla' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <FaChartBar /> Tabla Final de Posiciones ({tablaPosiciones.length})
+              <FaChartBar /> Tabla Final ({tablaPosiciones.length})
             </button>
             <button
               onClick={() => setSubTab('partidos')}
@@ -246,7 +299,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 subTab === 'partidos' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <FaCalendarAlt /> Fixture y Partidos ({partidosTorneo.length})
+              <FaCalendarAlt /> Fixture ({partidosTorneo.length})
             </button>
             {llavesPlayoff.length > 0 && (
               <button
@@ -255,9 +308,25 @@ export default function HistorialManager({ onActualizarTorneos }) {
                   subTab === 'playoff' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <FaProjectDiagram /> Cuadro de Playoffs
+                <FaProjectDiagram /> Playoffs ({llavesPlayoff.length})
               </button>
             )}
+            <button
+              onClick={() => setSubTab('goleadores')}
+              className={`pb-3 font-headline text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 border-b-2 shrink-0 transition-all ${
+                subTab === 'goleadores' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FaFutbol /> Goleadores del Club ({goleadoresClub.length})
+            </button>
+            <button
+              onClick={() => setSubTab('tarjetas')}
+              className={`pb-3 font-headline text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 border-b-2 shrink-0 transition-all ${
+                subTab === 'tarjetas' ? 'border-[#991b1b] text-[#991b1b]' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FaIdCard /> Tarjetas del Club ({tarjetasClub.length})
+            </button>
           </div>
 
           {/* TAB 1: TABLA FINAL DE POSICIONES */}
@@ -416,6 +485,178 @@ export default function HistorialManager({ onActualizarTorneos }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: GOLEADORES DE ARGENTINOS DEL NORTE */}
+          {subTab === 'goleadores' && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-headline text-slate-900 text-lg uppercase tracking-wide flex items-center gap-2">
+                    <FaFutbol className="text-[#151f89]" />
+                    Goleadores de Argentinos del Norte en esta Edición
+                  </h3>
+                  <p className="text-xs text-slate-500 font-title">
+                    Goles oficiales marcados por socios y jugadores del club durante el torneo
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-blue-50 text-[#151f89] border border-blue-200 px-3 py-1 rounded-full text-xs font-title font-bold shadow-2xs">
+                  <ClubShield className="w-4 h-4 shrink-0" />
+                  <span>Estadísticas del Club</span>
+                </div>
+              </div>
+
+              {goleadoresClub.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 font-title text-sm">
+                  No se registraron goles de jugadores del club en esta edición.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                      <tr className="bg-[#efecf6] text-[#454652] uppercase tracking-wider border-b border-slate-200 font-headline text-xs">
+                        <th className="py-3 px-3 w-16 text-center">POS</th>
+                        <th className="py-3 px-4">JUGADOR</th>
+                        <th className="py-3 px-4">EQUIPO</th>
+                        <th className="py-3 px-6 text-center font-headline text-[#151f89]">GOLES</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-body text-sm divide-y divide-slate-100">
+                      {goleadoresClub.map((jugador, index) => {
+                        const pos = index + 1;
+                        return (
+                          <tr key={jugador.id_jugador || index} className="hover:bg-blue-50/50 transition-colors">
+                            <td className="py-3.5 px-3 text-center">
+                              {pos === 1 ? (
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FFDF00] to-[#D4AF37] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#DAA520]/50 font-bold">
+                                  1
+                                </div>
+                              ) : pos === 2 ? (
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#E0E0E0] to-[#BDBDBD] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#9E9E9E]/50 font-bold">
+                                  2
+                                </div>
+                              ) : pos === 3 ? (
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#CD7F32] to-[#A0522D] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#8B4513]/50 font-bold">
+                                  3
+                                </div>
+                              ) : (
+                                <span className="font-title font-bold text-slate-500 text-sm">{pos}</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
+                                  {jugador.foto_url ? (
+                                    <img src={jugador.foto_url} alt={jugador.nombre} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="font-headline text-xs text-slate-600 font-bold">
+                                      {jugador.nombre ? jugador.nombre[0] : ''}{jugador.apellido ? jugador.apellido[0] : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-title text-base font-bold text-slate-900 leading-tight">
+                                    {jugador.apellido}, {jugador.nombre}
+                                  </span>
+                                  <span className="bg-[#151f89] text-white text-[10px] px-1.5 py-0.5 rounded font-headline uppercase tracking-wider">
+                                    Club
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-title text-sm text-slate-700 font-semibold">
+                              <div className="flex items-center gap-2">
+                                <ClubShield className="w-4 h-5" />
+                                <span>{jugador.nombre_equipo || 'Argentinos del Norte'}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-6 text-center font-headline text-2xl text-[#151f89] font-black">
+                              {jugador.goles}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: CONTROL DISCIPLINARIO (TARJETAS) */}
+          {subTab === 'tarjetas' && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-headline text-slate-900 text-lg uppercase tracking-wide flex items-center gap-2">
+                    <FaIdCard className="text-amber-600" />
+                    Sanciones y Tarjetas de Argentinos del Norte
+                  </h3>
+                  <p className="text-xs text-slate-500 font-title">
+                    Historial disciplinario acumulado en este torneo por jugadores del club
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-blue-50 text-[#151f89] border border-blue-200 px-3 py-1 rounded-full text-xs font-title font-bold shadow-2xs">
+                  <ClubShield className="w-4 h-4 shrink-0" />
+                  <span>Control Disciplinario</span>
+                </div>
+              </div>
+
+              {tarjetasClub.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 font-title text-sm">
+                  No se registraron amonestaciones o expulsiones de jugadores del club en esta edición.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                      <tr className="bg-[#efecf6] text-[#454652] uppercase tracking-wider border-b border-slate-200 font-headline text-xs">
+                        <th className="py-3 px-3 w-16 text-center">#</th>
+                        <th className="py-3 px-4">JUGADOR</th>
+                        <th className="py-3 px-4">EQUIPO</th>
+                        <th className="py-3 px-4 text-center">
+                          <span className="inline-block w-4 h-5 bg-amber-400 rounded-xs shadow-xs border border-amber-500" title="Amarillas"></span>
+                        </th>
+                        <th className="py-3 px-4 text-center">
+                          <span className="inline-block w-4 h-5 bg-red-600 rounded-xs shadow-xs border border-red-700" title="Rojas"></span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-body text-sm divide-y divide-slate-100">
+                      {tarjetasClub.map((jugador, index) => (
+                        <tr key={jugador.id_jugador || index} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3.5 px-3 text-center font-title font-bold text-slate-500">
+                            {index + 1}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-title text-base font-bold text-slate-900">
+                                {jugador.apellido}, {jugador.nombre}
+                              </span>
+                              <span className="bg-[#151f89] text-white text-[10px] px-1.5 py-0.5 rounded font-headline uppercase tracking-wider">
+                                Club
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-title text-sm text-slate-700 font-semibold">
+                            <div className="flex items-center gap-2">
+                              <ClubShield className="w-4 h-5" />
+                              <span>{jugador.nombre_equipo || 'Argentinos del Norte'}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-headline text-lg text-amber-600 font-bold">
+                            {jugador.amarillas || 0}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-headline text-lg text-red-600 font-bold">
+                            {jugador.rojas || 0}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

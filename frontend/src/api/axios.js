@@ -26,9 +26,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Si el token expiró o es inválido, limpiar sesión
+      // Si el token expiró o es inválido, limpiar sesión y notificar a la aplicación
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
     }
     return Promise.reject(error);
   }
