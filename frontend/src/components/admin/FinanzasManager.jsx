@@ -83,7 +83,7 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
     monto: '',
     metodo_pago: 'Efectivo',
     fecha_pago: new Date().toISOString().split('T')[0],
-    id_division: jugador?.id_division || (divisiones[0]?.id_division || ''),
+    id_division: jugador?.id_division || '',
     observaciones: '',
   });
   const [cargando, setCargando] = useState(false);
@@ -91,13 +91,13 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.monto || !form.id_division) { setError('Completá monto y división.'); return; }
+    if (!form.monto) { setError('Por favor ingresá el monto de la cuota.'); return; }
     setCargando(true);
     setError('');
     try {
       await api.post('/cuotas/pago-rapido', {
         id_jugador: jugador.id_jugador,
-        id_division: Number(form.id_division),
+        id_division: form.id_division ? Number(form.id_division) : null,
         monto: parseFloat(form.monto),
         metodo_pago: form.metodo_pago,
         fecha_pago: form.fecha_pago,
@@ -171,12 +171,15 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">División</label>
+              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">
+                Destino / División (Opcional)
+              </label>
               <select
                 value={form.id_division}
                 onChange={e => setForm({ ...form, id_division: e.target.value })}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               >
+                <option value="">Cuota Social Centralizada (Club)</option>
                 {divisiones.map(d => (
                   <option key={d.id_division} value={d.id_division}>{d.nombre_division}</option>
                 ))}
@@ -217,6 +220,122 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Modal Historial de Cuotas del Jugador ─────────────────────────────────── */
+function ModalHistorialJugador({ jugador, onClose }) {
+  const [historial, setHistorial] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let activo = true;
+    const fetchHistorial = async () => {
+      setCargando(true);
+      setError('');
+      try {
+        const res = await api.get(`/cuotas?id_jugador=${jugador.id_jugador}`);
+        if (activo) setHistorial(res.data.data || []);
+      } catch (err) {
+        if (activo) setError('No se pudo cargar el historial de pagos del jugador.');
+      } finally {
+        if (activo) setCargando(false);
+      }
+    };
+    fetchHistorial();
+    return () => { activo = false; };
+  }, [jugador.id_jugador]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="bg-gradient-to-r from-[#151f89] to-[#303a9f] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200 font-bold">Historial de Cuotas</span>
+            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">{jugador?.jugador_nombre}</h3>
+            <p className="text-xs text-blue-100 font-medium mt-0.5">DNI: {jugador?.dni || '—'} · {jugador?.nombre_division}</p>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+          {cargando ? (
+            <div className="py-12 text-center text-slate-400 font-title text-sm">Cargando recibos y pagos anteriores...</div>
+          ) : error ? (
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
+              <FaExclamationCircle /> {error}
+            </div>
+          ) : historial.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 font-title text-sm space-y-2">
+              <FaCoins className="text-3xl mx-auto text-slate-300" />
+              <p>Este socio no registra cuotas previas en el sistema.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-xs font-title font-bold text-slate-500 uppercase tracking-wider">
+                Total de recibos registrados: {historial.length}
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
+                      <th className="p-3">Período</th>
+                      <th className="p-3">Fecha Pago</th>
+                      <th className="p-3">Monto</th>
+                      <th className="p-3">Método</th>
+                      <th className="p-3">Estado</th>
+                      <th className="p-3">Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-title">
+                    {historial.map(c => (
+                      <tr key={c.id_cuota} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-bold text-slate-800">
+                          {MESES[c.periodo_mes]} {c.periodo_anio}
+                        </td>
+                        <td className="p-3 text-slate-600 font-mono">
+                          {formatFecha(c.fecha_pago || c.created_at)}
+                        </td>
+                        <td className="p-3 font-bold text-emerald-700 font-mono">
+                          {formatMoney(c.monto_abonado || c.monto_esperado)}
+                        </td>
+                        <td className="p-3 text-slate-600">
+                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px]">
+                            {c.metodo_pago || 'Efectivo'}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            c.estado_pago === 'Pagado' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {c.estado_pago}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-500 max-w-[150px] truncate" title={c.observaciones || ''}>
+                          {c.observaciones || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 rounded-xl font-title font-bold text-xs text-slate-700 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -436,6 +555,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
 
   // Modales
   const [jugadorCobro, setJugadorCobro] = useState(null);
+  const [jugadorHistorial, setJugadorHistorial] = useState(null);
   const [movimientoEditar, setMovimientoEditar] = useState(null);
   const [tipoMovimientoModal, setTipoMovimientoModal] = useState('INGRESO');
   const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
@@ -692,14 +812,22 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                         {formatFecha(j.fecha_vencimiento)}
                       </span>
                     </div>
-                    {!j.es_inactivo && (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setJugadorCobro(j)}
-                        className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-4 py-2 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm"
+                        onClick={() => setJugadorHistorial(j)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-title font-bold transition-colors"
                       >
-                        Cobrar Cuota
+                        Historial
                       </button>
-                    )}
+                      {!j.es_inactivo && (
+                        <button
+                          onClick={() => setJugadorCobro(j)}
+                          className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3.5 py-1.5 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm"
+                        >
+                          Cobrar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -722,7 +850,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                       <th className="p-3.5">Último Pago</th>
                       <th className="p-3.5">Vencimiento</th>
                       <th className="p-3.5">Estado Cuota</th>
-                      <th className="p-3.5 text-right">Cobro</th>
+                      <th className="p-3.5 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title text-xs">
@@ -751,7 +879,13 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                         <td className="p-3.5">
                           <EstadoBadge estado={j.estado_cuota} />
                         </td>
-                        <td className="p-3.5 text-right">
+                        <td className="p-3.5 text-right space-x-2">
+                          <button
+                            onClick={() => setJugadorHistorial(j)}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-title font-bold transition-colors"
+                          >
+                            Historial
+                          </button>
                           {!j.es_inactivo && (
                             <button
                               onClick={() => setJugadorCobro(j)}
@@ -1115,6 +1249,13 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
       )}
 
       {/* ── Modales ── */}
+      {jugadorHistorial && (
+        <ModalHistorialJugador
+          jugador={jugadorHistorial}
+          onClose={() => setJugadorHistorial(null)}
+        />
+      )}
+
       {jugadorCobro && (
         <ModalCobro
           jugador={jugadorCobro}

@@ -41,17 +41,10 @@ export default function ScorersTable({ goleadores = [], cargando = false, soloCl
           </p>
         </div>
 
-        {onToggleSoloClub && (
-          <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#151f89] shadow-xs text-xs font-title font-bold text-slate-700 select-none">
-            <input
-              type="checkbox"
-              checked={soloClub}
-              onChange={(e) => onToggleSoloClub(e.target.checked)}
-              className="rounded text-[#151f89] focus:ring-[#151f89]"
-            />
-            <span>Solo Jugadores de Argentinos</span>
-          </label>
-        )}
+        <div className="flex items-center gap-1.5 bg-blue-50 text-[#151f89] border border-blue-200 px-3 py-1 rounded-full text-xs font-title font-bold shadow-2xs">
+          <ClubShield className="w-4 h-4 shrink-0" />
+          <span>Estadísticas Exclusivas del Club</span>
+        </div>
       </div>
 
       <div className="overflow-x-auto">

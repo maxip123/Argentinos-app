@@ -15,6 +15,8 @@ const clasificacionRoutes = require('./routes/clasificacion.routes');
 const playoffRoutes       = require('./routes/playoff.routes');
 const cuotaRoutes         = require('./routes/cuota.routes');
 const sedeRoutes          = require('./routes/sede.routes');
+const gastoRoutes         = require('./routes/gasto.routes');
+const cuerpoTecnicoRoutes = require('./routes/cuerpoTecnico.routes');
 
 // ─── Inicialización de la app ─────────────────────────────────────────────────
 const app  = express();
@@ -25,9 +27,9 @@ const PORT = process.env.PORT || 4000;
 // Seguridad de cabeceras HTTP
 app.use(helmet());
 
-// CORS — permite peticiones solo desde el frontend configurado
+// CORS — permite peticiones desde cualquier origen local o el configurado
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: true, // Refleja dinámicamente el origen de la petición (localhost, 127.0.0.1, etc.)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -76,6 +78,8 @@ app.use('/api/clasificacion', clasificacionRoutes);
 app.use('/api/playoff',       playoffRoutes);
 app.use('/api/cuotas',        cuotaRoutes);
 app.use('/api/sedes',         sedeRoutes);
+app.use('/api/gastos',        gastoRoutes);
+app.use('/api/cuerpo-tecnico', cuerpoTecnicoRoutes);
 
 // ─── Ruta raíz ────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -119,14 +123,18 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Servidor ─────────────────────────────────────────────────────────────────
-// En Vercel este bloque no se ejecuta (serverless), pero sí en local y Railway.
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+// En Vercel este bloque no se ejecuta (serverless handler), pero sí en local y Railway.
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  const server = app.listen(PORT, () => {
     console.log('══════════════════════════════════════════════════');
     console.log(`  🚀  Servidor corriendo en el puerto ${PORT}`);
     console.log(`  📡  URL local:  http://localhost:${PORT}`);
     console.log(`  🩺  Health:     http://localhost:${PORT}/api/health`);
     console.log('══════════════════════════════════════════════════');
+  });
+
+  server.on('error', (err) => {
+    console.error(`❌ Error fatal en el servidor en el puerto ${PORT}:`, err.message);
   });
 }
 

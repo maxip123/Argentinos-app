@@ -1,4 +1,10 @@
 const { Pool } = require('pg');
+const dns = require('dns');
+
+// Priorizar IPv4 para evitar fallos de resolución IPv6 en conexiones directas de Supabase
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 /**
  * Crea un Pool de PostgreSQL por petición.
@@ -11,12 +17,14 @@ let pool;
 
 const getPool = () => {
   if (!pool) {
+    const cleanConnectionString = (process.env.DATABASE_URL || '').replace(/[?&]sslmode=[^&]+/g, '');
+
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: cleanConnectionString,
       ssl: {
         rejectUnauthorized: false,
       },
-      max: 1,             // 1 conexión por instancia serverless
+      max: process.env.NODE_ENV === 'production' ? 1 : 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
@@ -50,4 +58,27 @@ const query = async (text, params = []) => {
   return result;
 };
 
-module.exports = { query, getPool };
+/**
+ * Ejecuta una serie de operaciones dentro de una transacción atómica.
+ * Si ocurre cualquier error, hace ROLLBACK automáticamente y libera la conexión.
+ * @param {Function} callback - Función asíncrona que recibe el client conectado
+ * @returns {Promise<any>}
+ */
+const withTransaction = async (callback) => {
+  const db = getPool();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+module.exports = { query, getPool, withTransaction };
+

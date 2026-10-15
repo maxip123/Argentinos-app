@@ -4,7 +4,7 @@ export default function ClubShield({ className = 'w-10 h-10', showText = false }
   return (
     <div className={`flex items-center gap-3 ${showText ? '' : 'justify-center'}`}>
       <img
-        src="/gemini-svg.svg"
+        src="/Argentinos_del_Norte_Logo.png"
         alt="Escudo Oficial Club Argentinos del Norte"
         className={`${className} object-contain select-none shrink-0 drop-shadow-md`}
         loading="lazy"

@@ -155,4 +155,106 @@ const cambiarContrasena = async (req, res) => {
   }
 };
 
-module.exports = { login, registro, obtenerPerfil, cambiarContrasena };
+/**
+ * GET /api/auth/usuarios
+ * Retorna todos los usuarios del sistema (Superadmin y Admin).
+ */
+const obtenerUsuarios = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT u.id_perfil, u.email, u.nombre_completo, u.rol, u.telefono,
+              u.id_division_asignada, u.activo, u.created_at,
+              d.nombre_division, d.temporada
+       FROM public.perfil_usuario u
+       LEFT JOIN public.division d ON d.id_division = u.id_division_asignada
+       ORDER BY u.created_at DESC`
+    );
+    return respuestaExito(res, rows, 'Usuarios obtenidos correctamente.');
+  } catch (error) {
+    console.error('[auth.controller] obtenerUsuarios error:', error);
+    return respuestaError(res, 'Error al obtener usuarios.', 500, error.message);
+  }
+};
+
+/**
+ * PUT /api/auth/usuarios/:id
+ * Actualiza los datos de un usuario o resetea su contraseña (Superadmin).
+ */
+const actualizarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre_completo, rol, telefono, id_division_asignada, activo, contrasena } = req.body;
+
+    const ROLES_VALIDOS = ['Superadmin', 'Administrador', 'Tesorero', 'Delegado', 'DT', 'Visor'];
+    if (rol && !ROLES_VALIDOS.includes(rol)) {
+      return respuestaError(res, `Rol inválido. Roles permitidos: ${ROLES_VALIDOS.join(', ')}.`, 400);
+    }
+
+    let sql = `UPDATE public.perfil_usuario SET
+                 nombre_completo = COALESCE($1, nombre_completo),
+                 rol = COALESCE($2, rol),
+                 telefono = $3,
+                 id_division_asignada = $4,
+                 activo = COALESCE($5, activo),
+                 updated_at = NOW()`;
+    const params = [
+      nombre_completo ? nombre_completo.trim() : null,
+      rol || null,
+      telefono !== undefined ? (telefono ? telefono.trim() : null) : null,
+      id_division_asignada ? Number(id_division_asignada) : null,
+      activo !== undefined ? Boolean(activo) : null,
+    ];
+
+    if (contrasena && contrasena.trim().length >= 6) {
+      const hash = await bcrypt.hash(contrasena.trim(), 10);
+      params.push(hash);
+      sql += `, contrasena_hash = $${params.length}`;
+    }
+
+    params.push(id);
+    sql += ` WHERE id_perfil = $${params.length} RETURNING id_perfil, email, nombre_completo, rol, telefono, id_division_asignada, activo, updated_at`;
+
+    const { rows } = await query(sql, params);
+    if (rows.length === 0) return respuestaError(res, 'Usuario no encontrado.', 404);
+
+    return respuestaExito(res, rows[0], 'Usuario actualizado correctamente.');
+  } catch (error) {
+    console.error('[auth.controller] actualizarUsuario error:', error);
+    return respuestaError(res, 'Error al actualizar usuario.', 500, error.message);
+  }
+};
+
+/**
+ * DELETE /api/auth/usuarios/:id
+ * Desactiva / da de baja un usuario del sistema (Superadmin).
+ */
+const eliminarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.usuario && req.usuario.id === id) {
+      return respuestaError(res, 'No podés eliminar tu propia cuenta en uso.', 400);
+    }
+
+    // Desactivación lógica (soft-delete)
+    const { rows } = await query(
+      `UPDATE public.perfil_usuario SET activo = FALSE, updated_at = NOW() WHERE id_perfil = $1 RETURNING id_perfil, email, nombre_completo`,
+      [id]
+    );
+    if (rows.length === 0) return respuestaError(res, 'Usuario no encontrado.', 404);
+
+    return respuestaExito(res, rows[0], 'Usuario dado de baja correctamente.');
+  } catch (error) {
+    console.error('[auth.controller] eliminarUsuario error:', error);
+    return respuestaError(res, 'Error al eliminar usuario.', 500, error.message);
+  }
+};
+
+module.exports = {
+  login,
+  registro,
+  obtenerPerfil,
+  cambiarContrasena,
+  obtenerUsuarios,
+  actualizarUsuario,
+  eliminarUsuario,
+};

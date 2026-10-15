@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
 
 const BASE_SELECT = `
@@ -68,6 +68,25 @@ const obtenerPorId = async (req, res) => {
 const crear = async (req, res) => {
   try {
     const { id_division, id_sede, id_equipo_local, id_equipo_visitante, fecha_partido, jornada_numero, nombre_partido, afecta_clasificacion, observaciones } = req.body;
+
+    if (parseInt(id_equipo_local) === parseInt(id_equipo_visitante)) {
+      return respuestaError(res, 'Los equipos local y visitante no pueden ser el mismo.', 400);
+    }
+
+    // Validar que ambos equipos existan y pertenezcan a la división indicada
+    const { rows: eqRows } = await query(
+      `SELECT id_equipo, id_division FROM public.equipo WHERE id_equipo IN ($1, $2) AND activo = TRUE`,
+      [id_equipo_local, id_equipo_visitante]
+    );
+
+    if (eqRows.length !== 2) {
+      return respuestaError(res, 'Uno o ambos equipos seleccionados no existen o están inactivos.', 404);
+    }
+
+    if (eqRows[0].id_division !== parseInt(id_division) || eqRows[1].id_division !== parseInt(id_division)) {
+      return respuestaError(res, 'Ambos equipos deben pertenecer a la división seleccionada.', 400);
+    }
+
     const { rows } = await query(
       `INSERT INTO public.partido
          (id_division, id_sede, id_equipo_local, id_equipo_visitante, fecha_partido, jornada_numero, nombre_partido, afecta_clasificacion, observaciones)
@@ -129,4 +148,137 @@ const eliminar = async (req, res) => {
   }
 };
 
-module.exports = { obtenerTodos, obtenerProximos, obtenerPorId, crear, actualizar, eliminar };
+/**
+ * GET /api/partidos/:id/estadisticas
+ * Retorna las estadísticas individuales de jugadores de Argentinos del Norte para este partido
+ */
+const obtenerEstadisticasPartido = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await query(
+      `SELECT pe.*,
+              j.nombre, j.apellido, j.dni, j.foto_url,
+              eq.nombre_equipo, eq.es_argentinos_del_norte
+       FROM public.partido_estadistica_jugador pe
+       INNER JOIN public.jugador j ON j.id_jugador = pe.id_jugador
+       INNER JOIN public.equipo eq ON eq.id_equipo = pe.id_equipo
+       WHERE pe.id_partido = $1 AND j.activo = TRUE
+       ORDER BY pe.goles DESC, j.apellido ASC`,
+      [id]
+    );
+    return respuestaExito(res, rows, 'Estadísticas del partido obtenidas correctamente.');
+  } catch (error) {
+    console.error('[partido.controller] obtenerEstadisticasPartido error:', error);
+    return respuestaError(res, 'Error al obtener las estadísticas del partido.', 500, error.message);
+  }
+};
+
+/**
+ * POST /api/partidos/:id/estadisticas
+ * Registra o actualiza goles y tarjetas para jugadores del club en este partido.
+ * Exclusivo: solo registra estadísticas individuales para jugadores de Argentinos del Norte.
+ * Sincroniza automáticamente los totales en la ficha de cada jugador.
+ */
+const guardarEstadisticasPartido = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estadisticas } = req.body;
+
+    if (!Array.isArray(estadisticas)) {
+      return respuestaError(res, 'El campo estadisticas debe ser un array.', 400);
+    }
+
+    const { rows: partidoRows } = await query(
+      `SELECT * FROM public.partido WHERE id_partido = $1 AND activo = TRUE`,
+      [id]
+    );
+    if (partidoRows.length === 0) {
+      return respuestaError(res, 'Partido no encontrado.', 404);
+    }
+
+    const jugadoresAfectados = new Set();
+
+    await withTransaction(async (client) => {
+      for (const est of estadisticas) {
+        const {
+          id_jugador,
+          id_equipo,
+          goles = 0,
+          tarjetas_amarillas = 0,
+          tarjetas_rojas = 0,
+          minutos_jugados = null,
+          es_titular = true,
+          asistencias = 0,
+        } = est;
+
+        if (!id_jugador || !id_equipo) continue;
+
+        // Validar exclusividad de club: estadísticas individuales SOLO para jugadores de Argentinos del Norte
+        const { rows: jugVal } = await client.query(
+          `SELECT j.id_jugador, j.es_jugador_club, eq.es_argentinos_del_norte
+           FROM public.jugador j
+           INNER JOIN public.equipo eq ON eq.id_equipo = $2
+           WHERE j.id_jugador = $1`,
+          [id_jugador, id_equipo]
+        );
+
+        if (jugVal.length === 0 || (!jugVal[0].es_jugador_club && !jugVal[0].es_argentinos_del_norte)) {
+          continue;
+        }
+
+        await client.query(
+          `INSERT INTO public.partido_estadistica_jugador
+             (id_partido, id_jugador, id_equipo, goles, tarjetas_amarillas, tarjetas_rojas, minutos_jugados, es_titular, asistencias)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id_partido, id_jugador)
+           DO UPDATE SET
+             id_equipo = EXCLUDED.id_equipo,
+             goles = EXCLUDED.goles,
+             tarjetas_amarillas = EXCLUDED.tarjetas_amarillas,
+             tarjetas_rojas = EXCLUDED.tarjetas_rojas,
+             minutos_jugados = EXCLUDED.minutos_jugados,
+             es_titular = EXCLUDED.es_titular,
+             asistencias = EXCLUDED.asistencias`,
+          [
+            id,
+            id_jugador,
+            id_equipo,
+            Math.max(0, parseInt(goles) || 0),
+            Math.min(2, Math.max(0, parseInt(tarjetas_amarillas) || 0)),
+            Math.min(1, Math.max(0, parseInt(tarjetas_rojas) || 0)),
+            minutos_jugados ? parseInt(minutos_jugados) : null,
+            Boolean(es_titular),
+            Math.max(0, parseInt(asistencias) || 0),
+          ]
+        );
+
+        jugadoresAfectados.add(id_jugador);
+      }
+
+      // Sincronizar totales de cada jugador del club ejecutando el Stored Procedure optimizado de Postgres
+      for (const jugId of jugadoresAfectados) {
+        await client.query(`SELECT public.sincronizar_estadisticas_jugador($1)`, [jugId]);
+      }
+    });
+
+    return respuestaExito(
+      res,
+      { total_actualizados: jugadoresAfectados.size },
+      'Estadísticas individuales de Argentinos del Norte guardadas y sincronizadas exitosamente.'
+    );
+  } catch (error) {
+    console.error('[partido.controller] guardarEstadisticasPartido error:', error);
+    return respuestaError(res, 'Error al guardar las estadísticas del partido.', 500, error.message);
+  }
+};
+
+module.exports = {
+  obtenerTodos,
+  obtenerProximos,
+  obtenerPorId,
+  crear,
+  actualizar,
+  eliminar,
+  obtenerEstadisticasPartido,
+  guardarEstadisticasPartido,
+};

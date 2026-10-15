@@ -9,12 +9,30 @@ import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import { useAuthStore } from './stores/authStore';
 
+function RutaProtegida({ children }) {
+  const { estaAutenticado, token } = useAuthStore();
+  const autenticado = Boolean(token && estaAutenticado());
+
+  if (!autenticado) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
 export default function App() {
-  const { verificarSesion } = useAuthStore();
+  const { verificarSesion, logout } = useAuthStore();
 
   useEffect(() => {
     verificarSesion();
-  }, [verificarSesion]);
+
+    const handleUnauthorized = () => {
+      logout();
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, [verificarSesion, logout]);
 
   return (
     <BrowserRouter>
@@ -30,8 +48,15 @@ export default function App() {
             <Route path="/sobre-nosotros" element={<AboutPage />} />
             <Route path="/login" element={<LoginPage />} />
 
-            {/* Rutas Privadas / Administración */}
-            <Route path="/admin" element={<AdminPage />} />
+            {/* Rutas Privadas / Administración protegida */}
+            <Route
+              path="/admin"
+              element={
+                <RutaProtegida>
+                  <AdminPage />
+                </RutaProtegida>
+              }
+            />
 
             {/* Redirección por defecto */}
             <Route path="*" element={<Navigate to="/" replace />} />
