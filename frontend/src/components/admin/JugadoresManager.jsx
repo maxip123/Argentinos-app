@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaUserPlus,
   FaUserEdit,
@@ -31,6 +32,17 @@ export default function JugadoresManager({ divisiones = [] }) {
   // Modales
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [jugadorEditando, setJugadorEditando] = useState(null);
+
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Padrón Central',
+    onConfirm: null,
+  });
 
   // Formulario nuevo jugador
   const [nuevoJugador, setNuevoJugador] = useState({
@@ -151,34 +163,55 @@ export default function JugadoresManager({ divisiones = [] }) {
   };
 
   // Baja o reactivación (estado activo/inactivo)
-  const handleToggleBaja = async (jugador) => {
-    const accion = jugador.es_inactivo ? 'reactivar' : 'marcar como inactivo';
-    if (!window.confirm(`¿Confirmás ${accion} al socio ${jugador.nombre} ${jugador.apellido}?`)) return;
-
-    try {
-      await api.put(`/jugadores/${jugador.id_jugador}`, {
-        es_inactivo: !jugador.es_inactivo,
-      });
-      mostrarAviso('exito', `Jugador ${jugador.es_inactivo ? 'reactivado' : 'marcado como inactivo'} correctamente.`);
-      cargarJugadores();
-    } catch (err) {
-      mostrarAviso('error', 'Error al modificar estado del jugador.');
-    }
+  const handleToggleBaja = (jugador) => {
+    const reactivando = jugador.es_inactivo;
+    setModalConfirmacion({
+      isOpen: true,
+      title: reactivando ? '¿Reactivar socio en el padrón?' : '¿Marcar socio como inactivo?',
+      description: reactivando
+        ? `¿Confirmás reactivar la ficha del socio ${jugador.nombre} ${jugador.apellido}? Podrá volver a ser convocado a planteles y registrar cuotas activas.`
+        : `¿Confirmás pasar a inactivo al socio ${jugador.nombre} ${jugador.apellido}? No aparecerá en las convocatorias activas de los equipos hasta ser reactivado.`,
+      confirmText: reactivando ? 'Sí, Reactivar Socio' : 'Marcar Inactivo',
+      variant: reactivando ? 'club' : 'warning',
+      badge: 'Estado del Socio',
+      onConfirm: async () => {
+        try {
+          await api.put(`/jugadores/${jugador.id_jugador}`, {
+            es_inactivo: !jugador.es_inactivo,
+          });
+          mostrarAviso('exito', `Jugador ${jugador.es_inactivo ? 'reactivado' : 'marcado como inactivo'} correctamente.`);
+          cargarJugadores();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al modificar estado del jugador.');
+        }
+      },
+    });
   };
 
   // Eliminación lógica definitiva del padrón (DELETE /api/jugadores/:id -> activo = false)
-  const handleEliminarJugador = async (jugador) => {
-    if (!window.confirm(`¿Estás seguro de que deseás eliminar a ${jugador.nombre} ${jugador.apellido} del padrón central? (Se realizará una baja lógica y será desconvocado de todos los planteles).`)) return;
-    try {
-      await api.delete(`/jugadores/${jugador.id_jugador}`);
-      mostrarAviso('exito', `Socio ${jugador.nombre} ${jugador.apellido} eliminado del padrón correctamente.`);
-      if (jugadorEditando?.id_jugador === jugador.id_jugador) {
-        setJugadorEditando(null);
-      }
-      cargarJugadores();
-    } catch (err) {
-      mostrarAviso('error', 'Error al eliminar jugador: ' + (err.response?.data?.mensaje || err.message));
-    }
+  const handleEliminarJugador = (jugador) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Eliminar socio del padrón?',
+      description: `¿Estás seguro de que deseás eliminar a ${jugador.nombre} ${jugador.apellido} del padrón central? Se realizará una baja lógica preventiva y el jugador será desconvocado automáticamente de todos los planteles.`,
+      confirmText: 'Sí, Eliminar Socio',
+      variant: 'danger',
+      badge: 'Baja Definitiva',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/jugadores/${jugador.id_jugador}`);
+          mostrarAviso('exito', `Socio ${jugador.nombre} ${jugador.apellido} eliminado del padrón correctamente.`);
+          if (jugadorEditando?.id_jugador === jugador.id_jugador) {
+            setJugadorEditando(null);
+          }
+          cargarJugadores();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al eliminar jugador: ' + (err.response?.data?.mensaje || err.message));
+        }
+      },
+    });
   };
 
   // Helpers de estado de cuota y vencimiento
@@ -871,6 +904,19 @@ export default function JugadoresManager({ divisiones = [] }) {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={cargando}
+      />
     </div>
   );
 }

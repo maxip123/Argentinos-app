@@ -9,6 +9,7 @@ import JugadoresManager from '../components/admin/JugadoresManager';
 import FinanzasManager from '../components/admin/FinanzasManager';
 import HistorialManager from '../components/admin/HistorialManager';
 import UsuariosManager from '../components/admin/UsuariosManager';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import {
   FaTrophy,
   FaCalendarAlt,
@@ -85,6 +86,17 @@ export default function AdminPage() {
     direccion: '',
     google_maps_url: '',
     es_sede_propia: false,
+  });
+
+  // Modal de confirmación UI (reemplaza window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Confirmación',
+    onConfirm: null,
   });
 
   // Formulario de resultado de partido
@@ -388,19 +400,29 @@ export default function AdminPage() {
     }
   };
 
-  // Eliminar partido (borrado lógico)
-  const handleEliminarPartido = async (p) => {
-    if (!window.confirm(`¿Estás seguro de que deseás eliminar el partido '${p.equipo_local} vs ${p.equipo_visitante}'? (Se realizará una baja lógica y se recalcularán automáticamente las posiciones y estadísticas).`)) return;
-    setCargandoAccion(true);
-    try {
-      await api.delete(`/partidos/${p.id_partido}`);
-      mostrarMensaje('exito', 'Partido eliminado correctamente. Tabla de posiciones recalculada.');
-      cargarPartidos();
-    } catch (err) {
-      mostrarMensaje('error', 'Error al eliminar partido: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setCargandoAccion(false);
-    }
+  // Eliminar partido (borrado lógico con modal UI)
+  const handleEliminarPartido = (p) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Eliminar partido del fixture?',
+      description: `¿Estás seguro de que deseás eliminar el encuentro '${p.equipo_local} vs ${p.equipo_visitante}'? Se realizará una baja lógica y se recalcularán automáticamente las posiciones de la división y los goles de los jugadores del club.`,
+      confirmText: 'Sí, Eliminar Partido',
+      variant: 'danger',
+      badge: 'Baja Lógica Fixture',
+      onConfirm: async () => {
+        setCargandoAccion(true);
+        try {
+          await api.delete(`/partidos/${p.id_partido}`);
+          mostrarMensaje('exito', 'Partido eliminado correctamente. Tabla de posiciones recalculada.');
+          cargarPartidos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarMensaje('error', 'Error al eliminar partido: ' + (err.response?.data?.mensaje || err.message));
+        } finally {
+          setCargandoAccion(false);
+        }
+      },
+    });
   };
 
   // Handlers para Sedes (Crear, Editar, Borrado Lógico)
@@ -452,18 +474,28 @@ export default function AdminPage() {
     }
   };
 
-  const handleEliminarSede = async (s) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la sede '${s.nombre_sede}'? (Se realizará una baja lógica).`)) return;
-    setCargandoAccion(true);
-    try {
-      await api.delete(`/sedes/${s.id_sede}`);
-      mostrarMensaje('exito', 'Sede dada de baja correctamente.');
-      cargarSedes();
-    } catch (err) {
-      mostrarMensaje('error', 'Error al eliminar sede: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setCargandoAccion(false);
-    }
+  const handleEliminarSede = (s) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Dar de baja sede?',
+      description: `¿Estás seguro de que deseás eliminar la sede '${s.nombre_sede}'? Se realizará una baja lógica y no estará disponible para programar futuros encuentros.`,
+      confirmText: 'Sí, Eliminar Sede',
+      variant: 'danger',
+      badge: 'Baja Lógica Sede',
+      onConfirm: async () => {
+        setCargandoAccion(true);
+        try {
+          await api.delete(`/sedes/${s.id_sede}`);
+          mostrarMensaje('exito', 'Sede dada de baja correctamente.');
+          cargarSedes();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarMensaje('error', 'Error al eliminar sede: ' + (err.response?.data?.mensaje || err.message));
+        } finally {
+          setCargandoAccion(false);
+        }
+      },
+    });
   };
 
   // Actualizar estado de cuota
@@ -1710,6 +1742,19 @@ export default function AdminPage() {
         {moduloActivo === 'usuarios' && (
           <UsuariosManager divisiones={divisiones} />
         )}
+
+        {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+        <ConfirmModal
+          isOpen={modalConfirmacion.isOpen}
+          onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={modalConfirmacion.onConfirm}
+          title={modalConfirmacion.title}
+          description={modalConfirmacion.description}
+          confirmText={modalConfirmacion.confirmText}
+          variant={modalConfirmacion.variant}
+          badge={modalConfirmacion.badge}
+          cargando={cargandoAccion}
+        />
       </main>
     </div>
   );

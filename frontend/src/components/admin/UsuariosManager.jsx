@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { useAuthStore } from '../../stores/authStore';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaUserShield,
   FaUserPlus,
@@ -54,6 +55,17 @@ export default function UsuariosManager({ divisiones = [] }) {
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [usuarioResetClave, setUsuarioResetClave] = useState(null);
+
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Seguridad y Accesos',
+    onConfirm: null,
+  });
 
   // Formulario Nuevo Usuario
   const [nuevoUsuario, setNuevoUsuario] = useState({
@@ -187,19 +199,30 @@ export default function UsuariosManager({ divisiones = [] }) {
   };
 
   // Baja lógica o reactivación
-  const handleToggleEstado = async (u) => {
-    const accion = u.activo ? 'desactivar' : 'reactivar';
-    if (!window.confirm(`¿Confirmás ${accion} al usuario ${u.nombre_completo}?`)) return;
-
-    try {
-      await api.put(`/auth/usuarios/${u.id_perfil}`, {
-        activo: !u.activo,
-      });
-      mostrarAviso('exito', `Usuario ${u.nombre_completo} ${u.activo ? 'desactivado' : 'reactivado'} correctamente.`);
-      cargarUsuarios();
-    } catch (err) {
-      mostrarAviso('error', err.response?.data?.mensaje || 'Error al cambiar estado.');
-    }
+  const handleToggleEstado = (u) => {
+    const reactivando = !u.activo;
+    setModalConfirmacion({
+      isOpen: true,
+      title: reactivando ? '¿Reactivar acceso de usuario?' : '¿Desactivar acceso de usuario?',
+      description: reactivando
+        ? `¿Confirmás reactivar la cuenta de ${u.nombre_completo} (${u.email})? Podrá iniciar sesión nuevamente en el panel de administración.`
+        : `¿Confirmás desactivar la cuenta de ${u.nombre_completo} (${u.email})? El usuario no podrá iniciar sesión en la plataforma hasta ser reactivado.`,
+      confirmText: reactivando ? 'Sí, Reactivar Cuenta' : 'Desactivar Cuenta',
+      variant: reactivando ? 'club' : 'warning',
+      badge: 'Control de Cuentas',
+      onConfirm: async () => {
+        try {
+          await api.put(`/auth/usuarios/${u.id_perfil}`, {
+            activo: !u.activo,
+          });
+          mostrarAviso('exito', `Usuario ${u.nombre_completo} ${u.activo ? 'desactivado' : 'reactivado'} correctamente.`);
+          cargarUsuarios();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', err.response?.data?.mensaje || 'Error al cambiar estado.');
+        }
+      },
+    });
   };
 
   // Filtrado de usuarios
@@ -811,6 +834,19 @@ export default function UsuariosManager({ divisiones = [] }) {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={guardando}
+      />
     </div>
   );
 }
