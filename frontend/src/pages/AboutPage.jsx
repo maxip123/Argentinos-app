@@ -114,6 +114,43 @@ export default function AboutPage() {
               <span className="font-title text-slate-600 text-xs uppercase font-bold">Pasión Tucumana</span>
             </div>
           </div>
+
+          {/* Mapa Interactivo Google Maps */}
+          <div className="pt-4 space-y-3 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-headline text-lg text-slate-900 uppercase tracking-wide">
+                  Estadio Eva Duarte de Perón
+                </h3>
+                <p className="text-xs text-slate-500 font-title">
+                  Sede Oficial del Club Atlético Argentinos del Norte • San Miguel de Tucumán
+                </p>
+              </div>
+              <a
+                href="https://maps.google.com/?q=Club+Argentinos+del+Norte+Estadio+Eva+Duarte+de+Peron"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-headline uppercase text-xs tracking-wider transition-all self-start sm:self-auto shrink-0"
+              >
+                <FaMapMarkerAlt className="text-[#151f89]" />
+                <span>Abrir en Google Maps</span>
+              </a>
+            </div>
+
+            <div className="w-full h-[380px] sm:h-[450px] rounded-2xl overflow-hidden shadow-md border border-slate-200 bg-slate-100">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3560.1653482774364!2d-65.19078922456312!3d-26.83469272669381!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94225eaa33af6109%3A0x8638433955585b2a!2sClub%20Argentinos%20del%20Norte-Estadio%20Eva%20Duarte%20de%20Peron!5e0!3m2!1ses-419!2sar!4v1792091316794!5m2!1ses-419!2sar"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                title="Ubicación Club Argentinos del Norte - Estadio Eva Duarte de Perón"
+                className="w-full h-full"
+              />
+            </div>
+          </div>
         </div>
       </main>
     </div>
