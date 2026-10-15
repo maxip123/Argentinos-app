@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaMoneyBillWave,
   FaArrowDown,
@@ -560,6 +561,17 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const [tipoMovimientoModal, setTipoMovimientoModal] = useState('INGRESO');
   const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
 
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Tesorería',
+    onConfirm: null,
+  });
+
   const cargarJugadores = useCallback(async () => {
     setCargandoJugadores(true);
     try {
@@ -633,15 +645,31 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   });
 
   // Eliminar movimiento
-  const handleEliminarMovimiento = async (id) => {
-    if (!window.confirm('¿Seguro que deseás anular este movimiento de caja?')) return;
-    try {
-      await api.delete(`/gastos/${id}`);
-      mostrarMensaje && mostrarMensaje('exito', 'Movimiento eliminado correctamente.');
-      cargarMovimientos();
-    } catch (err) {
-      mostrarMensaje && mostrarMensaje('error', 'Error al eliminar movimiento.');
-    }
+  const handleEliminarMovimiento = (movimiento) => {
+    const esObj = typeof movimiento === 'object' && movimiento !== null;
+    const id = esObj ? movimiento.id_gasto : movimiento;
+    const concepto = esObj ? (movimiento.concepto || movimiento.categoria || 'este registro') : 'este registro';
+    const montoStr = esObj && movimiento.monto ? ` por ${formatMoney(movimiento.monto)}` : '';
+
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Anular movimiento de caja?',
+      description: `¿Estás seguro de que deseás anular "${concepto}"${montoStr}? El registro se dará de baja y no se computará en los balances de tesorería.`,
+      confirmText: 'Sí, Anular Movimiento',
+      variant: 'danger',
+      badge: 'Caja y Tesorería',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/gastos/${id}`);
+          mostrarMensaje && mostrarMensaje('exito', 'Movimiento anulado correctamente.');
+          cargarMovimientos();
+          if (tab === 'resumen') cargarResumen();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarMensaje && mostrarMensaje('error', 'Error al eliminar movimiento.');
+        }
+      },
+    });
   };
 
   return (
@@ -997,7 +1025,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                           <FaEdit className="text-xs" />
                         </button>
                         <button
-                          onClick={() => handleEliminarMovimiento(m.id_gasto)}
+                          onClick={() => handleEliminarMovimiento(m)}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
                           title="Anular movimiento"
                         >
@@ -1076,7 +1104,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                                 <FaEdit className="text-xs" />
                               </button>
                               <button
-                                onClick={() => handleEliminarMovimiento(m.id_gasto)}
+                                onClick={() => handleEliminarMovimiento(m)}
                                 className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                                 title="Anular movimiento"
                               >
@@ -1283,6 +1311,19 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
           }}
         />
       )}
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={cargandoMovimientos}
+      />
     </div>
   );
 }

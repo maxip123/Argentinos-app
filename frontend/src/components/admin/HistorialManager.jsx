@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaTrophy,
   FaMedal,
@@ -38,6 +39,17 @@ export default function HistorialManager({ onActualizarTorneos }) {
   const [goleadoresClub, setGoleadoresClub] = useState([]);
   const [tarjetasClub, setTarjetasClub] = useState([]);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Archivo Histórico',
+    onConfirm: null,
+  });
 
   const mostrarAviso = (tipo, texto) => {
     setMensaje({ tipo, texto });
@@ -104,41 +116,61 @@ export default function HistorialManager({ onActualizarTorneos }) {
   }, [torneoSeleccionado, cargarDetalleTorneo]);
 
   // Reabrir torneo legacy (marcar terminado = false)
-  const handleReabrirTorneo = async (torneo) => {
-    if (!window.confirm(`¿Reabrir el torneo '${torneo.nombre_division}' para reactivarlo en torneos en curso?`)) return;
-    try {
-      await api.put(`/divisiones/${torneo.id_division}`, {
-        nombre_division: torneo.nombre_division,
-        categoria: torneo.categoria,
-        genero: torneo.genero,
-        temporada: Number(torneo.temporada),
-        terminado: false,
-      });
-      mostrarAviso('exito', `Torneo '${torneo.nombre_division}' reabierto como activo.`);
-      setTorneoSeleccionado(null);
-      cargarHistorial();
-      if (onActualizarTorneos) onActualizarTorneos();
-    } catch (err) {
-      mostrarAviso('error', 'Error al reabrir el torneo.');
-    }
+  const handleReabrirTorneo = (torneo) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Reabrir torneo archivado?',
+      description: `¿Estás seguro de que deseás reabrir '${torneo.nombre_division}'? El torneo volverá a listarse como torneo activo en curso y podrá recibir nuevas ediciones de partidos y planteles.`,
+      confirmText: 'Sí, Reactivar Torneo',
+      variant: 'club',
+      badge: 'Reactivación de Torneo',
+      onConfirm: async () => {
+        try {
+          await api.put(`/divisiones/${torneo.id_division}`, {
+            nombre_division: torneo.nombre_division,
+            categoria: torneo.categoria,
+            genero: torneo.genero,
+            temporada: Number(torneo.temporada),
+            terminado: false,
+          });
+          mostrarAviso('exito', `Torneo '${torneo.nombre_division}' reabierto como activo.`);
+          setTorneoSeleccionado(null);
+          cargarHistorial();
+          if (onActualizarTorneos) onActualizarTorneos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al reabrir el torneo.');
+        }
+      },
+    });
   };
 
   // Eliminar registro del historial
-  const handleEliminarHistorial = async (torneo) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar '${torneo.nombre_division}' del archivo histórico?`)) return;
-    try {
-      if (torneo.id_historial) {
-        await api.delete(`/divisiones/historial/${torneo.id_historial}`);
-      } else {
-        await api.delete(`/divisiones/${torneo.id_division}`);
-      }
-      mostrarAviso('exito', `Torneo '${torneo.nombre_division}' eliminado del archivo histórico.`);
-      setTorneoSeleccionado(null);
-      cargarHistorial();
-      if (onActualizarTorneos) onActualizarTorneos();
-    } catch (err) {
-      mostrarAviso('error', 'Error al eliminar torneo del archivo: ' + (err.response?.data?.mensaje || err.message));
-    }
+  const handleEliminarHistorial = (torneo) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Eliminar torneo del historial?',
+      description: `¿Estás seguro de que deseas eliminar permanentemente '${torneo.nombre_division}' del archivo histórico? Se perderán las estadísticas guardadas y los registros archivados de esta edición.`,
+      confirmText: 'Sí, Eliminar Historial',
+      variant: 'danger',
+      badge: 'Baja de Archivo',
+      onConfirm: async () => {
+        try {
+          if (torneo.id_historial) {
+            await api.delete(`/divisiones/historial/${torneo.id_historial}`);
+          } else {
+            await api.delete(`/divisiones/${torneo.id_division}`);
+          }
+          mostrarAviso('exito', `Torneo '${torneo.nombre_division}' eliminado del archivo histórico.`);
+          setTorneoSeleccionado(null);
+          cargarHistorial();
+          if (onActualizarTorneos) onActualizarTorneos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al eliminar torneo del archivo: ' + (err.response?.data?.mensaje || err.message));
+        }
+      },
+    });
   };
 
   // Filtrado de temporadas únicas disponibles
@@ -810,6 +842,19 @@ export default function HistorialManager({ onActualizarTorneos }) {
           )}
         </>
       )}
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={cargando}
+      />
     </div>
   );
 }

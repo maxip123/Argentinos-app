@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaShieldAlt,
   FaPlus,
@@ -585,6 +586,17 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
   const [jugadorTransferir, setJugadorTransferir] = useState(null);
   const [mostrarModalAsignarStaff, setMostrarModalAsignarStaff] = useState(false);
 
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Confirmación',
+    onConfirm: null,
+  });
+
   const mostrarAviso = (tipo, texto) => {
     setMensaje({ tipo, texto });
     setTimeout(() => setMensaje({ tipo: '', texto: '' }), 5000);
@@ -714,30 +726,72 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     }
   };
 
-  // Quitar jugador del plantel
-  const handleQuitarJugador = async (idJugador, nombre) => {
-    if (!window.confirm(`¿Quitar a ${nombre} del plantel de ${equipoGestionPlantel.nombre_equipo}? (El jugador permanecerá en el padrón central).`)) return;
-    try {
-      await api.delete(`/equipos/${equipoGestionPlantel.id_equipo}/plantel/${idJugador}`);
-      mostrarAviso('exito', `Jugador ${nombre} quitado del plantel.`);
-      cargarDetallesPlantel(equipoGestionPlantel.id_equipo);
-      cargarEquipos();
-    } catch (err) {
-      mostrarAviso('error', 'Error al quitar jugador.');
-    }
+  // Quitar jugador del plantel (con modal UI)
+  const handleQuitarJugador = (idJugador, nombre) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Quitar jugador del plantel?',
+      description: `¿Estás seguro de que deseás desconvocar a ${nombre} del plantel de ${equipoGestionPlantel.nombre_equipo}? El jugador permanecerá registrado en el padrón central y podrá ser asignado a otro equipo.`,
+      confirmText: 'Quitar del Plantel',
+      variant: 'warning',
+      badge: 'Gestión de Plantel',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/equipos/${equipoGestionPlantel.id_equipo}/plantel/${idJugador}`);
+          mostrarAviso('exito', `Jugador ${nombre} quitado del plantel.`);
+          cargarDetallesPlantel(equipoGestionPlantel.id_equipo);
+          cargarEquipos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al quitar jugador.');
+        }
+      },
+    });
   };
 
-  // Quitar staff del equipo
-  const handleQuitarStaff = async (idCuerpoTecnico, nombre) => {
-    if (!window.confirm(`¿Quitar a ${nombre} del cuerpo técnico de ${equipoGestionPlantel.nombre_equipo}?`)) return;
-    try {
-      await api.delete(`/cuerpo-tecnico/equipo/${equipoGestionPlantel.id_equipo}/${idCuerpoTecnico}`);
-      mostrarAviso('exito', `Integrante ${nombre} removido del cuerpo técnico.`);
-      cargarDetallesPlantel(equipoGestionPlantel.id_equipo);
-      cargarEquipos();
-    } catch (err) {
-      mostrarAviso('error', 'Error al desasignar integrante.');
-    }
+  // Quitar staff del equipo (con modal UI)
+  const handleQuitarStaff = (idCuerpoTecnico, nombre) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Remover integrante del cuerpo técnico?',
+      description: `¿Estás seguro de que deseás remover a ${nombre} del cuerpo técnico de ${equipoGestionPlantel.nombre_equipo}?`,
+      confirmText: 'Remover de Plantel',
+      variant: 'warning',
+      badge: 'Cuerpo Técnico',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/cuerpo-tecnico/equipo/${equipoGestionPlantel.id_equipo}/${idCuerpoTecnico}`);
+          mostrarAviso('exito', `Integrante ${nombre} removido del cuerpo técnico.`);
+          cargarDetallesPlantel(equipoGestionPlantel.id_equipo);
+          cargarEquipos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al desasignar integrante.');
+        }
+      },
+    });
+  };
+
+  // Eliminar equipo (borrado lógico con modal UI)
+  const handleEliminarEquipo = (eq) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Eliminar equipo de la división?',
+      description: `¿Estás seguro de que deseás eliminar el equipo '${eq.nombre_equipo}'? Se realizará una baja lógica en este torneo.`,
+      confirmText: 'Sí, Eliminar Equipo',
+      variant: 'danger',
+      badge: 'Baja Lógica Equipo',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/equipos/${eq.id_equipo}`);
+          mostrarAviso('exito', `Equipo ${eq.nombre_equipo} eliminado correctamente.`);
+          cargarEquipos();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al eliminar equipo: ' + (err.response?.data?.mensaje || err.message));
+        }
+      },
+    });
   };
 
   // Equipos del club en todas las divisiones para transferencias cruzadas
@@ -1356,17 +1410,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                         <FaEdit className="text-xs" />
                       </button>
                       <button
-                        onClick={async () => {
-                          if (window.confirm(`¿Estás seguro de que deseás eliminar el equipo '${eq.nombre_equipo}'? (Se realizará una baja lógica en este torneo).`)) {
-                            try {
-                              await api.delete(`/equipos/${eq.id_equipo}`);
-                              mostrarAviso('exito', `Equipo ${eq.nombre_equipo} eliminado correctamente.`);
-                              cargarEquipos();
-                            } catch (err) {
-                              mostrarAviso('error', 'Error al eliminar equipo: ' + (err.response?.data?.mensaje || err.message));
-                            }
-                          }
-                        }}
+                        onClick={() => handleEliminarEquipo(eq)}
                         className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                         title="Eliminar equipo (borrado lógico)"
                       >
@@ -1380,6 +1424,19 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
           </div>
         </>
       )}
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={cargando}
+      />
     </div>
   );
 }

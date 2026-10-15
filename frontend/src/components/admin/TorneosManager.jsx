@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../../api/axios';
 import PlayoffsManager from './PlayoffsManager';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   FaTrophy,
   FaPlus,
@@ -25,6 +26,17 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
   const [cargandoEquiposDiv, setCargandoEquiposDiv] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+
+  // Modal de confirmación UI (reemplazo de window.confirm)
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirmar',
+    variant: 'danger',
+    badge: 'Torneos y Divisiones',
+    onConfirm: null,
+  });
 
   // Formulario finalizar y archivar torneo (Snapshot)
   const [formArchivar, setFormArchivar] = useState({
@@ -177,19 +189,29 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
     }
   };
 
-  // Eliminar torneo (soft delete)
-  const handleEliminar = async (id, nombre) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el torneo '${nombre}'?`)) return;
-    setCargando(true);
-    try {
-      await api.delete(`/divisiones/${id}`);
-      mostrarAviso('exito', 'Torneo eliminado.');
-      onActualizar();
-    } catch (err) {
-      mostrarAviso('error', 'Error al eliminar: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setCargando(false);
-    }
+  // Eliminar torneo (baja lógica)
+  const handleEliminar = (id, nombre) => {
+    setModalConfirmacion({
+      isOpen: true,
+      title: '¿Eliminar torneo o división?',
+      description: `¿Estás seguro de que deseas eliminar '${nombre}'? Se realizará una baja lógica del torneo. Los datos históricos y partidos archivados se mantendrán a resguardo.`,
+      confirmText: 'Sí, Eliminar Torneo',
+      variant: 'danger',
+      badge: 'Baja de Torneo',
+      onConfirm: async () => {
+        setCargando(true);
+        try {
+          await api.delete(`/divisiones/${id}`);
+          mostrarAviso('exito', `Torneo '${nombre}' eliminado correctamente.`);
+          onActualizar();
+          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          mostrarAviso('error', 'Error al eliminar: ' + (err.response?.data?.mensaje || err.message));
+        } finally {
+          setCargando(false);
+        }
+      },
+    });
   };
 
   // Si se seleccionó gestionar Playoffs para un torneo específico
@@ -768,6 +790,19 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
           </table>
         </div>
       </div>
+
+      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
+      <ConfirmModal
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modalConfirmacion.onConfirm}
+        title={modalConfirmacion.title}
+        description={modalConfirmacion.description}
+        confirmText={modalConfirmacion.confirmText}
+        variant={modalConfirmacion.variant}
+        badge={modalConfirmacion.badge}
+        cargando={cargando}
+      />
     </div>
   );
 }
