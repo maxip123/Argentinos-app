@@ -16,6 +16,7 @@ import {
   FaSyncAlt,
   FaUsers,
   FaTshirt,
+  FaUserSlash,
 } from 'react-icons/fa';
 
 export default function JugadoresManager({ divisiones = [] }) {
@@ -149,19 +150,34 @@ export default function JugadoresManager({ divisiones = [] }) {
     }
   };
 
-  // Baja o reactivación
+  // Baja o reactivación (estado activo/inactivo)
   const handleToggleBaja = async (jugador) => {
-    const accion = jugador.es_inactivo ? 'reactivar' : 'dar de baja';
+    const accion = jugador.es_inactivo ? 'reactivar' : 'marcar como inactivo';
     if (!window.confirm(`¿Confirmás ${accion} al socio ${jugador.nombre} ${jugador.apellido}?`)) return;
 
     try {
       await api.put(`/jugadores/${jugador.id_jugador}`, {
         es_inactivo: !jugador.es_inactivo,
       });
-      mostrarAviso('exito', `Jugador ${jugador.es_inactivo ? 'reactivado' : 'dado de baja'} correctamente.`);
+      mostrarAviso('exito', `Jugador ${jugador.es_inactivo ? 'reactivado' : 'marcado como inactivo'} correctamente.`);
       cargarJugadores();
     } catch (err) {
       mostrarAviso('error', 'Error al modificar estado del jugador.');
+    }
+  };
+
+  // Eliminación lógica definitiva del padrón (DELETE /api/jugadores/:id -> activo = false)
+  const handleEliminarJugador = async (jugador) => {
+    if (!window.confirm(`¿Estás seguro de que deseás eliminar a ${jugador.nombre} ${jugador.apellido} del padrón central? (Se realizará una baja lógica y será desconvocado de todos los planteles).`)) return;
+    try {
+      await api.delete(`/jugadores/${jugador.id_jugador}`);
+      mostrarAviso('exito', `Socio ${jugador.nombre} ${jugador.apellido} eliminado del padrón correctamente.`);
+      if (jugadorEditando?.id_jugador === jugador.id_jugador) {
+        setJugadorEditando(null);
+      }
+      cargarJugadores();
+    } catch (err) {
+      mostrarAviso('error', 'Error al eliminar jugador: ' + (err.response?.data?.mensaje || err.message));
     }
   };
 
@@ -440,17 +456,24 @@ export default function JugadoresManager({ divisiones = [] }) {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setJugadorEditando(j)}
-                        className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
                         title="Editar ficha"
                       >
                         <FaUserEdit className="text-xs" />
                       </button>
                       <button
                         onClick={() => handleToggleBaja(j)}
-                        className={`p-2 rounded-lg ${
-                          j.es_inactivo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                        className={`p-2 rounded-lg transition-colors ${
+                          j.es_inactivo ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
-                        title={j.es_inactivo ? 'Reactivar socio' : 'Dar de baja'}
+                        title={j.es_inactivo ? 'Reactivar socio' : 'Marcar inactivo temporalmente'}
+                      >
+                        <FaUserSlash className="text-xs" />
+                      </button>
+                      <button
+                        onClick={() => handleEliminarJugador(j)}
+                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                        title="Eliminar socio (borrado lógico)"
                       >
                         <FaTrash className="text-xs" />
                       </button>
@@ -557,9 +580,16 @@ export default function JugadoresManager({ divisiones = [] }) {
                             className={`p-1.5 rounded-lg transition-colors ${
                               j.es_inactivo
                                 ? 'text-emerald-600 hover:bg-emerald-50'
-                                : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                                : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
                             }`}
-                            title={j.es_inactivo ? 'Reactivar socio' : 'Dar de baja del padrón'}
+                            title={j.es_inactivo ? 'Reactivar socio' : 'Marcar inactivo temporalmente'}
+                          >
+                            <FaUserSlash className="text-xs" />
+                          </button>
+                          <button
+                            onClick={() => handleEliminarJugador(j)}
+                            className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Eliminar socio (borrado lógico)"
                           >
                             <FaTrash className="text-xs" />
                           </button>
@@ -814,7 +844,7 @@ export default function JugadoresManager({ divisiones = [] }) {
                 </label>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="submit" disabled={cargando}
                   className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-60 text-white py-3 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
@@ -822,8 +852,17 @@ export default function JugadoresManager({ divisiones = [] }) {
                   {cargando ? 'Actualizando...' : 'Guardar Cambios'}
                 </button>
                 <button
+                  type="button"
+                  onClick={() => handleEliminarJugador(jugadorEditando)}
+                  className="px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-title font-bold text-xs transition-colors flex items-center gap-1.5"
+                  title="Eliminar socio del padrón (borrado lógico)"
+                >
+                  <FaTrash className="text-xs" />
+                  <span>Eliminar</span>
+                </button>
+                <button
                   type="button" onClick={() => setJugadorEditando(null)}
-                  className="px-5 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-700 transition-colors"
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-700 transition-colors"
                 >
                   Cancelar
                 </button>

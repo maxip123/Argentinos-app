@@ -25,6 +25,6 @@ router.get('/:id/estadisticas',  validarIdParam, validar, obtenerEstadisticasPar
 router.post('/',                 verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearPartido, validar, crear);
 router.post('/:id/estadisticas', verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, guardarEstadisticasPartido);
 router.put('/:id',               verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, actualizar);
-router.delete('/:id',            verificarToken, verificarRol('Superadmin', 'Administrador'),             validarIdParam, validar, eliminar);
+router.delete('/:id',            verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, eliminar);
 
 module.exports = router;

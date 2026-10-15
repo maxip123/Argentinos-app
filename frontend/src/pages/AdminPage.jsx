@@ -26,6 +26,9 @@ import {
   FaProjectDiagram,
   FaHistory,
   FaUserShield,
+  FaEdit,
+  FaTrash,
+  FaTimes,
 } from 'react-icons/fa';
 
 export default function AdminPage() {
@@ -58,6 +61,30 @@ export default function AdminPage() {
     fecha_partido: '',
     jornada_numero: 1,
     nombre_partido: '',
+  });
+
+  // Edición de datos y programación de partido
+  const [partidoEditandoDatos, setPartidoEditandoDatos] = useState(null);
+  const [formEditarPartido, setFormEditarPartido] = useState({
+    id_equipo_local: '',
+    id_equipo_visitante: '',
+    id_sede: '',
+    fecha_partido: '',
+    jornada_numero: 1,
+    nombre_partido: '',
+    estado_partido: 0,
+    afecta_clasificacion: true,
+    observaciones: '',
+  });
+
+  // Gestión y edición de sedes
+  const [mostrarCrearSede, setMostrarCrearSede] = useState(false);
+  const [sedeEditando, setSedeEditando] = useState(null);
+  const [formSede, setFormSede] = useState({
+    nombre_sede: '',
+    direccion: '',
+    google_maps_url: '',
+    es_sede_propia: false,
   });
 
   // Formulario de resultado de partido
@@ -303,6 +330,137 @@ export default function AdminPage() {
       });
     } catch (err) {
       mostrarMensaje('error', 'Error al crear partido: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargandoAccion(false);
+    }
+  };
+
+  // Iniciar edición de datos y programación de un partido
+  const iniciarEdicionDatosPartido = (p) => {
+    setPartidoEditandoDatos(p);
+    let fechaVal = '';
+    if (p.fecha_partido) {
+      const d = new Date(p.fecha_partido);
+      if (!isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, '0');
+        fechaVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+    setFormEditarPartido({
+      id_equipo_local: p.id_equipo_local || '',
+      id_equipo_visitante: p.id_equipo_visitante || '',
+      id_sede: p.id_sede || '',
+      fecha_partido: fechaVal,
+      jornada_numero: p.jornada_numero || 1,
+      nombre_partido: p.nombre_partido || '',
+      estado_partido: p.estado_partido !== undefined ? p.estado_partido : 0,
+      afecta_clasificacion: p.afecta_clasificacion !== undefined ? p.afecta_clasificacion : true,
+      observaciones: p.observaciones || '',
+    });
+  };
+
+  // Guardar edición de datos de partido
+  const handleGuardarEdicionPartido = async (e) => {
+    e.preventDefault();
+    if (!partidoEditandoDatos) return;
+    if (Number(formEditarPartido.id_equipo_local) === Number(formEditarPartido.id_equipo_visitante)) {
+      mostrarMensaje('error', 'El equipo local y el visitante no pueden ser el mismo.');
+      return;
+    }
+    setCargandoAccion(true);
+    try {
+      await api.put(`/partidos/${partidoEditandoDatos.id_partido}`, {
+        ...formEditarPartido,
+        id_equipo_local: Number(formEditarPartido.id_equipo_local),
+        id_equipo_visitante: Number(formEditarPartido.id_equipo_visitante),
+        id_sede: Number(formEditarPartido.id_sede),
+        jornada_numero: Number(formEditarPartido.jornada_numero),
+        estado_partido: Number(formEditarPartido.estado_partido),
+        afecta_clasificacion: Boolean(formEditarPartido.afecta_clasificacion),
+      });
+      mostrarMensaje('exito', 'Partido actualizado correctamente.');
+      setPartidoEditandoDatos(null);
+      cargarPartidos();
+    } catch (err) {
+      mostrarMensaje('error', 'Error al actualizar partido: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargandoAccion(false);
+    }
+  };
+
+  // Eliminar partido (borrado lógico)
+  const handleEliminarPartido = async (p) => {
+    if (!window.confirm(`¿Estás seguro de que deseás eliminar el partido '${p.equipo_local} vs ${p.equipo_visitante}'? (Se realizará una baja lógica y se recalcularán automáticamente las posiciones y estadísticas).`)) return;
+    setCargandoAccion(true);
+    try {
+      await api.delete(`/partidos/${p.id_partido}`);
+      mostrarMensaje('exito', 'Partido eliminado correctamente. Tabla de posiciones recalculada.');
+      cargarPartidos();
+    } catch (err) {
+      mostrarMensaje('error', 'Error al eliminar partido: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargandoAccion(false);
+    }
+  };
+
+  // Handlers para Sedes (Crear, Editar, Borrado Lógico)
+  const iniciarCrearSede = () => {
+    setSedeEditando(null);
+    setFormSede({
+      nombre_sede: '',
+      direccion: '',
+      google_maps_url: '',
+      es_sede_propia: false,
+    });
+    setMostrarCrearSede(true);
+  };
+
+  const iniciarEditarSede = (s) => {
+    setSedeEditando(s);
+    setFormSede({
+      nombre_sede: s.nombre_sede || '',
+      direccion: s.direccion || '',
+      google_maps_url: s.google_maps_url || '',
+      es_sede_propia: Boolean(s.es_sede_propia),
+    });
+    setMostrarCrearSede(true);
+  };
+
+  const handleGuardarSede = async (e) => {
+    e.preventDefault();
+    if (!formSede.nombre_sede.trim()) {
+      mostrarMensaje('error', 'El nombre de la sede es obligatorio.');
+      return;
+    }
+    setCargandoAccion(true);
+    try {
+      if (sedeEditando) {
+        await api.put(`/sedes/${sedeEditando.id_sede}`, formSede);
+        mostrarMensaje('exito', 'Sede actualizada correctamente.');
+      } else {
+        await api.post('/sedes', formSede);
+        mostrarMensaje('exito', 'Sede creada exitosamente.');
+      }
+      setMostrarCrearSede(false);
+      setSedeEditando(null);
+      setFormSede({ nombre_sede: '', direccion: '', google_maps_url: '', es_sede_propia: false });
+      cargarSedes();
+    } catch (err) {
+      mostrarMensaje('error', 'Error al guardar sede: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargandoAccion(false);
+    }
+  };
+
+  const handleEliminarSede = async (s) => {
+    if (!window.confirm(`¿Estás seguro de eliminar la sede '${s.nombre_sede}'? (Se realizará una baja lógica).`)) return;
+    setCargandoAccion(true);
+    try {
+      await api.delete(`/sedes/${s.id_sede}`);
+      mostrarMensaje('exito', 'Sede dada de baja correctamente.');
+      cargarSedes();
+    } catch (err) {
+      mostrarMensaje('error', 'Error al eliminar sede: ' + (err.response?.data?.mensaje || err.message));
     } finally {
       setCargandoAccion(false);
     }
@@ -999,6 +1157,187 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Modal / Formulario Editar Partido (Programación y Datos) */}
+            {partidoEditandoDatos && (
+              <div className="bg-white border-2 border-slate-900/30 p-6 rounded-2xl shadow-md space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <span className="text-[10px] font-mono tracking-widest text-[#151f89] uppercase font-bold">
+                      Edición de Fixture
+                    </span>
+                    <h3 className="font-headline text-lg sm:text-xl uppercase text-slate-900">
+                      Editar Partido: {partidoEditandoDatos.equipo_local} vs {partidoEditandoDatos.equipo_visitante}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setPartidoEditandoDatos(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+
+                <form onSubmit={handleGuardarEdicionPartido} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Equipo Local *
+                      </label>
+                      <select
+                        value={formEditarPartido.id_equipo_local}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, id_equipo_local: e.target.value })}
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      >
+                        <option value="">Seleccione Equipo Local</option>
+                        {equipos.map((eq) => (
+                          <option key={eq.id_equipo} value={eq.id_equipo}>
+                            {eq.nombre_equipo}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Equipo Visitante *
+                      </label>
+                      <select
+                        value={formEditarPartido.id_equipo_visitante}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, id_equipo_visitante: e.target.value })}
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      >
+                        <option value="">Seleccione Equipo Visitante</option>
+                        {equipos.map((eq) => (
+                          <option key={eq.id_equipo} value={eq.id_equipo}>
+                            {eq.nombre_equipo}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Sede / Cancha *
+                      </label>
+                      <select
+                        value={formEditarPartido.id_sede}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, id_sede: e.target.value })}
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      >
+                        <option value="">Seleccione Sede</option>
+                        {sedes.map((s) => (
+                          <option key={s.id_sede} value={s.id_sede}>
+                            {s.nombre_sede}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Fecha y Hora *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formEditarPartido.fecha_partido}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, fecha_partido: e.target.value })}
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Jornada / Fecha Nº
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formEditarPartido.jornada_numero}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, jornada_numero: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Etiqueta / Nombre
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ej. Fecha 3, Clásico, Interzonal..."
+                        value={formEditarPartido.nombre_partido}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, nombre_partido: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Estado del Partido
+                      </label>
+                      <select
+                        value={formEditarPartido.estado_partido}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, estado_partido: Number(e.target.value) })}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      >
+                        <option value="0">0 - Programado / Próximo</option>
+                        <option value="1">1 - En Vivo / En Juego</option>
+                        <option value="2">2 - Finalizado</option>
+                        <option value="3">3 - Suspendido / Postergado</option>
+                        <option value="4">4 - Cancelado</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                        Observaciones / Incidencias
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ej. Cancha 2, sin público visitante, árbitros..."
+                        value={formEditarPartido.observaciones}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, observaciones: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-title font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={formEditarPartido.afecta_clasificacion}
+                        onChange={(e) => setFormEditarPartido({ ...formEditarPartido, afecta_clasificacion: e.target.checked })}
+                        className="rounded text-[#151f89] focus:ring-[#151f89] h-4 w-4"
+                      />
+                      <span>Afecta la Tabla de Posiciones</span>
+                    </label>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPartidoEditandoDatos(null)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-title font-bold text-xs transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={cargandoAccion}
+                        className="bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2 rounded-lg font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
+                      >
+                        {cargandoAccion ? 'Guardando...' : 'Guardar Cambios'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            )}
+
             {/* Lista y Tabla de partidos */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
               {/* Vista Móvil: Cards */}
@@ -1039,12 +1378,26 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end pt-1">
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
                         <button
                           onClick={() => iniciarEdicionPartido(p)}
-                          className="w-full sm:w-auto bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider text-center transition-colors"
+                          className="flex-1 sm:flex-none bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-xl text-xs font-headline uppercase tracking-wider text-center transition-colors"
                         >
                           Cargar Resultado
+                        </button>
+                        <button
+                          onClick={() => iniciarEdicionDatosPartido(p)}
+                          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                          title="Editar programación del partido"
+                        >
+                          <FaEdit className="text-xs" />
+                        </button>
+                        <button
+                          onClick={() => handleEliminarPartido(p)}
+                          className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors"
+                          title="Eliminar partido (borrado lógico)"
+                        >
+                          <FaTrash className="text-xs" />
                         </button>
                       </div>
                     </div>
@@ -1062,7 +1415,7 @@ export default function AdminPage() {
                       <th className="p-3.5 text-center">Goles</th>
                       <th className="p-3.5">Visitante</th>
                       <th className="p-3.5">Estado</th>
-                      <th className="p-3.5 text-right">Acción</th>
+                      <th className="p-3.5 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title">
@@ -1092,12 +1445,29 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => iniciarEdicionPartido(p)}
-                            className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider transition-colors"
-                          >
-                            Cargar Resultado
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => iniciarEdicionPartido(p)}
+                              className="bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider transition-colors"
+                              title="Cargar o modificar resultado y goleadores"
+                            >
+                              Cargar Resultado
+                            </button>
+                            <button
+                              onClick={() => iniciarEdicionDatosPartido(p)}
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                              title="Editar programación del partido"
+                            >
+                              <FaEdit className="text-xs" />
+                            </button>
+                            <button
+                              onClick={() => handleEliminarPartido(p)}
+                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                              title="Eliminar partido (borrado lógico)"
+                            >
+                              <FaTrash className="text-xs" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1159,32 +1529,174 @@ export default function AdminPage() {
         {/* VISTA 6: SEDES */}
         {moduloActivo === 'sedes' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-              <h2 className="font-headline text-2xl uppercase tracking-wide text-slate-900">
-                Sedes y Complejos Habilitados
-              </h2>
-              <p className="text-xs text-slate-500 font-body">
-                Canchas reglamentarias donde se juegan los partidos de Futsal AFA.
-              </p>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-headline text-2xl uppercase tracking-wide text-slate-900">
+                  Sedes y Complejos Habilitados
+                </h2>
+                <p className="text-xs text-slate-500 font-body">
+                  Canchas reglamentarias donde se juegan los partidos de Futsal AFA.
+                </p>
+              </div>
+              <button
+                onClick={iniciarCrearSede}
+                className="flex items-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-4 py-2 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm shrink-0"
+              >
+                <FaPlus className="text-xs" />
+                <span>Nueva Sede</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sedes.map((s) => (
-                <div key={s.id_sede} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-headline text-lg text-slate-900 uppercase">{s.nombre_sede}</h4>
-                    {s.es_sede_propia && (
-                      <span className="bg-[#151f89] text-white text-xs px-2.5 py-0.5 rounded-full font-headline uppercase">
-                        Sede Propia
+            {/* Formulario Crear / Editar Sede */}
+            {mostrarCrearSede && (
+              <div className="bg-white border-2 border-[#151f89]/30 p-6 rounded-2xl shadow-sm space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="font-headline text-lg uppercase text-[#151f89]">
+                    {sedeEditando ? `Editar Sede: ${sedeEditando.nombre_sede}` : 'Registrar Nueva Sede'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setMostrarCrearSede(false);
+                      setSedeEditando(null);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+
+                <form onSubmit={handleGuardarSede} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                      Nombre de la Sede *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ej. Cancha Central Argentinos, Complejo Belgrano..."
+                      value={formSede.nombre_sede}
+                      onChange={(e) => setFormSede({ ...formSede, nombre_sede: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                      Dirección *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ej. Av. Benjamín Aráoz 650, San Miguel de Tucumán"
+                      value={formSede.direccion}
+                      onChange={(e) => setFormSede({ ...formSede, direccion: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
+                      Enlace a Google Maps (Opcional)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://maps.google.com/..."
+                      value={formSede.google_maps_url}
+                      onChange={(e) => setFormSede({ ...formSede, google_maps_url: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-blue-50/50 border border-blue-200 px-4 py-2.5 rounded-xl">
+                      <input
+                        type="checkbox"
+                        checked={formSede.es_sede_propia}
+                        onChange={(e) => setFormSede({ ...formSede, es_sede_propia: e.target.checked })}
+                        className="rounded text-[#151f89] focus:ring-[#151f89] h-4 w-4"
+                      />
+                      <span className="text-xs font-title font-bold text-slate-800 uppercase">
+                        Es Sede Propia del Club Argentinos del Norte
                       </span>
+                    </label>
+                  </div>
+
+                  <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarCrearSede(false);
+                        setSedeEditando(null);
+                      }}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-title font-bold text-xs transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={cargandoAccion}
+                      className="bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2 rounded-lg font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
+                    >
+                      {cargandoAccion ? 'Guardando...' : (sedeEditando ? 'Actualizar Sede' : 'Crear Sede')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sedes.length === 0 ? (
+                <div className="col-span-2 p-12 text-center text-slate-400 font-title text-sm bg-white rounded-2xl border border-slate-200">
+                  No hay sedes registradas en el sistema.
+                </div>
+              ) : (
+                sedes.map((s) => (
+                  <div key={s.id_sede} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-xs hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-headline text-lg text-slate-900 uppercase">{s.nombre_sede}</h4>
+                          {s.es_sede_propia && (
+                            <span className="bg-[#151f89] text-white text-[10px] px-2.5 py-0.5 rounded-full font-headline uppercase">
+                              Sede Propia
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => iniciarEditarSede(s)}
+                          className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          title="Editar sede"
+                        >
+                          <FaEdit className="text-xs" />
+                        </button>
+                        <button
+                          onClick={() => handleEliminarSede(s)}
+                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Eliminar sede (borrado lógico)"
+                        >
+                          <FaTrash className="text-xs" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm font-title text-slate-600 flex items-center gap-2">
+                      <FaMapMarkerAlt className="text-[#151f89] shrink-0" />
+                      <span>{s.direccion}</span>
+                    </p>
+                    {s.google_maps_url && (
+                      <a
+                        href={s.google_maps_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block text-xs text-[#151f89] font-bold hover:underline"
+                      >
+                        Ver en Google Maps →
+                      </a>
                     )}
                   </div>
-                  <p className="text-sm font-title text-slate-600 flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-[#151f89]" />
-                    <span>{s.direccion}</span>
-                  </p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
