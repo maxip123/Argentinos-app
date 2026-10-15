@@ -395,7 +395,7 @@ export default function AdminPage() {
                 Torneos y Ediciones
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Crear torneos, clonar planteles para Apertura/Clausura, playoffs y cuadros de llaves
+                Crear torneos, finalizar y archivar ediciones (Apertura/Clausura), playoffs y cuadros de llaves
               </p>
             </article>
 

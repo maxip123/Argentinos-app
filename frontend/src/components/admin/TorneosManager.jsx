@@ -4,7 +4,6 @@ import PlayoffsManager from './PlayoffsManager';
 import {
   FaTrophy,
   FaPlus,
-  FaCopy,
   FaCheck,
   FaHistory,
   FaTrash,
@@ -18,7 +17,6 @@ import {
 export default function TorneosManager({ divisiones = [], onActualizar, onSeleccionarTorneo }) {
   const [torneoPlayoff, setTorneoPlayoff] = useState(null);
   const [mostrarCrear, setMostrarCrear] = useState(false);
-  const [torneoClonando, setTorneoClonando] = useState(null);
   const [torneoEditando, setTorneoEditando] = useState(null);
   const [torneoArchivando, setTorneoArchivando] = useState(null);
   const [equiposDivision, setEquiposDivision] = useState([]);
@@ -42,13 +40,6 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
     categoria: 'Primera',
     genero: 'Masculino',
     temporada: new Date().getFullYear(),
-  });
-
-  // Formulario clonar torneo (Apertura -> Clausura)
-  const [formClonar, setFormClonar] = useState({
-    nombre_nuevo_torneo: '',
-    temporada: new Date().getFullYear(),
-    marcar_anterior_finalizado: true,
   });
 
   const mostrarAviso = (tipo, texto) => {
@@ -101,27 +92,9 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
     }
   };
 
-  // Clonar torneo (Migrar Apertura a Clausura)
-  const handleClonar = async (e) => {
-    e.preventDefault();
-    if (!torneoClonando) return;
-    setCargando(true);
-    try {
-      const res = await api.post(`/divisiones/clonar/${torneoClonando.id_division}`, formClonar);
-      mostrarAviso('exito', res.data.mensaje || 'Torneo clonado con éxito. Equipos y jugadores migrados.');
-      setTorneoClonando(null);
-      onActualizar();
-    } catch (err) {
-      mostrarAviso('error', 'Error al clonar torneo: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setCargando(false);
-    }
-  };
-
   // Iniciar flujo de finalizar y archivar torneo (Snapshot)
   const iniciarArchivarTorneo = async (div) => {
     setTorneoArchivando(div);
-    setTorneoClonando(null);
     setTorneoEditando(null);
     setMostrarCrear(false);
     setFormArchivar({
@@ -209,14 +182,13 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
             Gestor de Torneos y Ediciones (Apertura / Clausura)
           </h2>
           <p className="text-xs text-slate-500 font-body">
-            Administrá torneos vigentes e históricos de la AFA. Podés clonar un torneo finalizado para iniciar el siguiente período.
+            Administrá torneos vigentes e históricos de la AFA. Al finalizar un torneo se archiva el snapshot y se resetean las posiciones sin alterar planteles.
           </p>
         </div>
 
         <button
           onClick={() => {
             setMostrarCrear(!mostrarCrear);
-            setTorneoClonando(null);
             setTorneoEditando(null);
           }}
           className="flex items-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
@@ -455,74 +427,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
         </div>
       )}
 
-      {/* Modal / Formulario Clonar Torneo (ej. Apertura a Clausura) */}
-      {torneoClonando && (
-        <div className="bg-amber-50 border-2 border-amber-500 p-6 rounded-2xl shadow-md space-y-4">
-          <div className="flex items-center gap-2 text-amber-900 font-headline text-lg uppercase">
-            <FaCopy />
-            <span>Clonar Torneo: {torneoClonando.nombre_division} ({torneoClonando.temporada})</span>
-          </div>
-          <p className="text-xs text-amber-800 font-body">
-            Esta función creará una nueva edición (por ejemplo, el Torneo Clausura) migrando automáticamente todos los
-            equipos y sus planteles de jugadores, <strong>reiniciando sus goles y tarjetas a 0</strong>. El torneo anterior quedará intacto en el historial.
-          </p>
 
-          <form onSubmit={handleClonar} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
-                Nombre de la Nueva Edición
-              </label>
-              <input
-                type="text"
-                required
-                value={formClonar.nombre_nuevo_torneo}
-                onChange={(e) => setFormClonar({ ...formClonar, nombre_nuevo_torneo: e.target.value })}
-                placeholder="ej. Primera División - Torneo Clausura 2026"
-                className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">Temporada</label>
-              <input
-                type="number"
-                value={formClonar.temporada}
-                onChange={(e) => setFormClonar({ ...formClonar, temporada: Number(e.target.value) })}
-                className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
-              />
-            </div>
-
-            <div className="sm:col-span-3 flex flex-wrap items-center justify-between gap-4 pt-2">
-              <label className="flex items-center gap-2 text-xs font-title font-bold text-slate-800 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={formClonar.marcar_anterior_finalizado}
-                  onChange={(e) => setFormClonar({ ...formClonar, marcar_anterior_finalizado: e.target.checked })}
-                  className="rounded text-[#151f89]"
-                />
-                <span>Marcar el torneo anterior como Finalizado (Archivar en Historial)</span>
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={cargando}
-                  className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg font-headline uppercase text-sm shadow-sm"
-                >
-                  {cargando ? 'Migrando...' : 'Confirmar Clonación'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTorneoClonando(null)}
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2.5 rounded-lg font-title font-bold text-sm"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* Modal / Formulario Editar Torneo */}
       {torneoEditando && (
@@ -643,28 +548,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
                     <button
                       onClick={() => {
-                        setTorneoClonando(div);
-                        setFormClonar({
-                          nombre_nuevo_torneo: div.nombre_division.includes('Apertura')
-                            ? div.nombre_division.replace('Apertura', 'Clausura')
-                            : `${div.nombre_division} - Edición Siguiente`,
-                          temporada: div.temporada,
-                          marcar_anterior_finalizado: true,
-                        });
-                        setTorneoEditando(null);
-                        setMostrarCrear(false);
-                      }}
-                      className="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-                      title="Clonar edición"
-                    >
-                      <FaCopy className="text-xs" />
-                      <span>Clonar</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
                         setTorneoEditando(div);
-                        setTorneoClonando(null);
                         setMostrarCrear(false);
                       }}
                       className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-headline transition-colors"
@@ -765,28 +649,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
                         <button
                           onClick={() => {
-                            setTorneoClonando(div);
-                            setFormClonar({
-                              nombre_nuevo_torneo: div.nombre_division.includes('Apertura')
-                                ? div.nombre_division.replace('Apertura', 'Clausura')
-                                : `${div.nombre_division} - Edición Siguiente`,
-                              temporada: div.temporada,
-                              marcar_anterior_finalizado: true,
-                            });
-                            setTorneoEditando(null);
-                            setMostrarCrear(false);
-                          }}
-                          className="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider flex items-center gap-1 shadow-xs"
-                          title="Clonar equipos y planteles para un nuevo torneo (ej. Apertura a Clausura)"
-                        >
-                          <FaCopy className="text-xs" />
-                          <span>Clonar</span>
-                        </button>
-
-                        <button
-                          onClick={() => {
                             setTorneoEditando(div);
-                            setTorneoClonando(null);
                             setMostrarCrear(false);
                           }}
                           className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-headline uppercase"
