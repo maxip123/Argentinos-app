@@ -18,7 +18,39 @@ import {
   FaTimes,
   FaExclamationCircle,
   FaCheckCircle,
+  FaCalendarAlt,
 } from 'react-icons/fa';
+
+const formatearVencimiento = (fechaStr, estadoCuota) => {
+  if (!fechaStr) {
+    return { texto: 'Sin cuota registrada', color: 'text-slate-400' };
+  }
+  const partes = String(fechaStr).split('T')[0].split('-');
+  let fecha;
+  if (partes.length === 3) {
+    fecha = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
+  } else {
+    fecha = new Date(fechaStr);
+  }
+  if (isNaN(fecha.getTime())) {
+    return { texto: 'Sin registro', color: 'text-slate-400' };
+  }
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const fechaComp = new Date(fecha);
+  fechaComp.setHours(0, 0, 0, 0);
+
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const anio = fecha.getFullYear();
+  const fechaFormateada = `${dia}/${mes}/${anio}`;
+
+  const esAlDia = estadoCuota === 'Al dia' || fechaComp >= hoy;
+  return {
+    texto: esAlDia ? `Vence: ${fechaFormateada}` : `Venció: ${fechaFormateada}`,
+    color: esAlDia ? 'text-emerald-700' : 'text-red-600',
+  };
+};
 
 /* ─── Modal para Asignar Jugador Existente del Padrón ───────────────────────── */
 function ModalAsignarJugador({ idEquipo, nombreEquipo, onClose, onSuccess }) {
@@ -786,13 +818,26 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                               <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'}</span>
                             </div>
                           </div>
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
-                            j.estado_cuota === 'Al dia'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {j.estado_cuota === 'Al dia' ? 'Al día' : 'Pendiente'}
-                          </span>
+                          <div className="text-right shrink-0">
+                            {(() => {
+                              const v = formatearVencimiento(j.fecha_vencimiento, j.estado_cuota);
+                              return (
+                                <div className="space-y-1">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                    j.estado_cuota === 'Al dia'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  }`}>
+                                    {j.estado_cuota === 'Al dia' ? 'Al día' : 'Pendiente'}
+                                  </span>
+                                  <div className={`flex items-center justify-end gap-1 text-[10px] font-mono font-medium ${v.color}`}>
+                                    <FaCalendarAlt className="text-[9px] opacity-70" />
+                                    <span>{v.texto}</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
 
                         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -822,7 +867,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                         <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
                           <th className="p-3.5">Jugador</th>
                           <th className="p-3.5">DNI</th>
-                          <th className="p-3.5">Cuota Club</th>
+                          <th className="p-3.5">Cuota / Próximo Vencimiento</th>
                           <th className="p-3.5 text-right">Acciones de Plantel</th>
                         </tr>
                       </thead>
@@ -834,13 +879,26 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                             </td>
                             <td className="p-3.5 font-mono text-slate-600">{j.dni || '—'}</td>
                             <td className="p-3.5">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                j.estado_cuota === 'Al dia'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
-                              }`}>
-                                {j.estado_cuota === 'Al dia' ? 'Al día' : 'Pendiente'}
-                              </span>
+                              {(() => {
+                                const v = formatearVencimiento(j.fecha_vencimiento, j.estado_cuota);
+                                return (
+                                  <div className="space-y-1">
+                                    <div>
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                        j.estado_cuota === 'Al dia'
+                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                      }`}>
+                                        {j.estado_cuota === 'Al dia' ? 'Al día' : 'Pendiente'}
+                                      </span>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 text-[11px] font-mono font-medium ${v.color}`}>
+                                      <FaCalendarAlt className="text-[10px] opacity-70 shrink-0" />
+                                      <span>{v.texto}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="p-3.5 text-right">
                               <div className="flex items-center justify-end gap-1.5">
