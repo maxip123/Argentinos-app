@@ -12,6 +12,7 @@ import {
   FaArrowLeft,
   FaArchive,
   FaCheckCircle,
+  FaPlay,
 } from 'react-icons/fa';
 
 export default function TorneosManager({ divisiones = [], onActualizar, onSeleccionarTorneo }) {
@@ -19,19 +20,24 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [torneoEditando, setTorneoEditando] = useState(null);
   const [torneoArchivando, setTorneoArchivando] = useState(null);
+  const [torneoNuevaEdicion, setTorneoNuevaEdicion] = useState(null);
   const [equiposDivision, setEquiposDivision] = useState([]);
   const [cargandoEquiposDiv, setCargandoEquiposDiv] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // Formulario finalizar y archivar torneo (Modelo Snapshot sin duplicar planteles)
+  // Formulario finalizar y archivar torneo (Snapshot)
   const [formArchivar, setFormArchivar] = useState({
     nombre_torneo: '',
     temporada: new Date().getFullYear(),
     id_equipo_campeon: '',
-    nombre_siguiente_torneo: '',
-    nueva_temporada: new Date().getFullYear(),
     observaciones: '',
+  });
+
+  // Formulario iniciar nueva edición
+  const [formNuevaEdicion, setFormNuevaEdicion] = useState({
+    nombre_division: '',
+    temporada: new Date().getFullYear(),
   });
 
   // Formulario nuevo torneo
@@ -96,15 +102,12 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
   const iniciarArchivarTorneo = async (div) => {
     setTorneoArchivando(div);
     setTorneoEditando(null);
+    setTorneoNuevaEdicion(null);
     setMostrarCrear(false);
     setFormArchivar({
       nombre_torneo: div.nombre_division,
       temporada: div.temporada,
       id_equipo_campeon: '',
-      nombre_siguiente_torneo: div.nombre_division.includes('Apertura')
-        ? div.nombre_division.replace('Apertura', 'Clausura')
-        : `${div.nombre_division} - Siguiente Edición`,
-      nueva_temporada: div.temporada,
       observaciones: '',
     });
 
@@ -130,15 +133,45 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
         nombre_torneo: formArchivar.nombre_torneo,
         temporada: Number(formArchivar.temporada),
         id_equipo_campeon: formArchivar.id_equipo_campeon ? Number(formArchivar.id_equipo_campeon) : null,
-        nombre_siguiente_torneo: formArchivar.nombre_siguiente_torneo,
-        nueva_temporada: Number(formArchivar.nueva_temporada),
         observaciones: formArchivar.observaciones,
       });
-      mostrarAviso('exito', res.data.mensaje || '¡Torneo finalizado y archivado con éxito!');
+      mostrarAviso('exito', res.data.mensaje || '¡Torneo finalizado y guardado en Historial con éxito!');
       setTorneoArchivando(null);
       onActualizar();
     } catch (err) {
       mostrarAviso('error', 'Error al finalizar y archivar: ' + (err.response?.data?.mensaje || err.message));
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // Abrir modal para iniciar nueva edición en torneo finalizado
+  const abrirIniciarNuevaEdicion = (div) => {
+    setTorneoNuevaEdicion(div);
+    setTorneoArchivando(null);
+    setTorneoEditando(null);
+    setMostrarCrear(false);
+    setFormNuevaEdicion({
+      nombre_division: div.nombre_division,
+      temporada: new Date().getFullYear(),
+    });
+  };
+
+  // Confirmar inicio de nueva edición
+  const handleIniciarNuevaEdicion = async (e) => {
+    e.preventDefault();
+    if (!torneoNuevaEdicion) return;
+    setCargando(true);
+    try {
+      const res = await api.post(`/divisiones/iniciar-nueva-edicion/${torneoNuevaEdicion.id_division}`, {
+        nombre_division: formNuevaEdicion.nombre_division,
+        temporada: Number(formNuevaEdicion.temporada),
+      });
+      mostrarAviso('exito', res.data.mensaje || 'Nueva edición iniciada con éxito.');
+      setTorneoNuevaEdicion(null);
+      onActualizar();
+    } catch (err) {
+      mostrarAviso('error', 'Error al iniciar nueva edición: ' + (err.response?.data?.mensaje || err.message));
     } finally {
       setCargando(false);
     }
@@ -295,19 +328,19 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
         <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-white border-2 border-emerald-600 p-6 rounded-2xl shadow-lg space-y-4">
           <div className="flex items-center gap-2 text-emerald-950 font-headline text-lg uppercase">
             <FaArchive className="text-emerald-700 text-xl" />
-            <span>Finalizar y Archivar Edición: {torneoArchivando.nombre_division} ({torneoArchivando.temporada})</span>
+            <span>Finalizar Torneo: {torneoArchivando.nombre_division} ({torneoArchivando.temporada})</span>
           </div>
 
           <div className="bg-emerald-100/70 border border-emerald-300 p-3.5 rounded-xl text-xs text-emerald-900 font-body leading-relaxed space-y-1">
             <p>
-              <strong>¿Cómo funciona el archivado?</strong> Se guardará una instantánea histórica permanente con la
-              <strong> tabla final de posiciones, fixture con resultados, playoffs, goleadores y tarjetas de Argentinos del Norte</strong>.
+              🏆 <strong>¿Qué hace la finalización?</strong> Guarda una copia exacta (snapshot) de la
+              <strong> tabla de posiciones final, fixture con resultados, playoffs, goleadores y tarjetas de Argentinos del Norte</strong> en el archivo histórico.
             </p>
             <p>
-              ✅ <strong>Los equipos y jugadores permanecerán intactos</strong> en esta división, sin duplicaciones innecesarias ni desasignaciones.
+              📌 <strong>La división quedará en estado Finalizado</strong> con su campeón registrado.
             </p>
             <p>
-              🔄 La tabla de posiciones se restablecerá automáticamente a 0 puntos para comenzar la siguiente edición inmediatamente.
+              👥 <strong>Los equipos y jugadores se mantienen intactos</strong> en la división. Podrás iniciar una nueva edición cuando lo desees sin duplicar datos.
             </p>
           </div>
 
@@ -315,7 +348,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
-                  Nombre del Torneo a Archivar en Historial
+                  Nombre de la Edición a Archivar
                 </label>
                 <input
                   type="text"
@@ -341,8 +374,8 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
                   Equipo Campeón Consagrado
                 </label>
@@ -365,42 +398,13 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
               <div>
                 <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
-                  Temporada Siguiente Edición
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={formArchivar.nueva_temporada}
-                  onChange={(e) => setFormArchivar({ ...formArchivar, nueva_temporada: Number(e.target.value) })}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
-                  Nombre de la Nueva Edición a Iniciar
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formArchivar.nombre_siguiente_torneo}
-                  onChange={(e) => setFormArchivar({ ...formArchivar, nombre_siguiente_torneo: e.target.value })}
-                  placeholder="ej. Primera División - Torneo Clausura 2026"
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
                   Observaciones / Notas (Opcional)
                 </label>
                 <input
                   type="text"
                   value={formArchivar.observaciones}
                   onChange={(e) => setFormArchivar({ ...formArchivar, observaciones: e.target.value })}
-                  placeholder="ej. Final disputada en cancha de Argentinos"
+                  placeholder="ej. Gran campaña, campeón invicto"
                   className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
                 />
               </div>
@@ -420,7 +424,75 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-headline uppercase text-sm shadow-md flex items-center gap-2"
               >
                 <FaArchive />
-                <span>{cargando ? 'Archivando y reseteando...' : 'Finalizar y Guardar en Historial'}</span>
+                <span>{cargando ? 'Guardando...' : 'Finalizar Torneo'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal / Formulario Iniciar Nueva Edición para Torneo Finalizado */}
+      {torneoNuevaEdicion && (
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-white border-2 border-[#151f89] p-6 rounded-2xl shadow-lg space-y-4">
+          <div className="flex items-center gap-2 text-[#151f89] font-headline text-lg uppercase">
+            <FaPlay className="text-xl" />
+            <span>Iniciar Nueva Edición: {torneoNuevaEdicion.nombre_division}</span>
+          </div>
+
+          <div className="bg-blue-100/70 border border-blue-300 p-3.5 rounded-xl text-xs text-blue-950 font-body leading-relaxed space-y-1">
+            <p>
+              🚀 Esta acción reiniciará los puntos de la tabla a 0 y cambiará el estado de la división a <strong>En Curso</strong>.
+            </p>
+            <p>
+              👥 <strong>Todos los equipos y los planteles de jugadores se mantendrán intactos</strong> sin necesidad de reconfigurarlos.
+            </p>
+          </div>
+
+          <form onSubmit={handleIniciarNuevaEdicion} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
+                  Nombre de la Nueva Edición
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formNuevaEdicion.nombre_division}
+                  onChange={(e) => setFormNuevaEdicion({ ...formNuevaEdicion, nombre_division: e.target.value })}
+                  placeholder="ej. Primera División - Torneo Clausura"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-title font-bold text-slate-800 uppercase mb-1">
+                  Temporada / Año
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={formNuevaEdicion.temporada}
+                  onChange={(e) => setFormNuevaEdicion({ ...formNuevaEdicion, temporada: Number(e.target.value) })}
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-body"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-blue-200">
+              <button
+                type="button"
+                onClick={() => setTorneoNuevaEdicion(null)}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2.5 rounded-lg font-title font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={cargando}
+                className="bg-[#151f89] hover:bg-[#303a9f] text-white px-6 py-2.5 rounded-lg font-headline uppercase text-sm shadow-md flex items-center gap-2"
+              >
+                <FaPlay className="text-xs" />
+                <span>{cargando ? 'Iniciando...' : 'Comenzar Nueva Edición'}</span>
               </button>
             </div>
           </form>
@@ -528,14 +600,25 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
                   </div>
 
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 flex-wrap">
-                    <button
-                      onClick={() => iniciarArchivarTorneo(div)}
-                      className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-                      title="Finalizar esta edición y archivar en el historial guardando tabla, resultados, goleadores y tarjetas"
-                    >
-                      <FaArchive className="text-xs" />
-                      <span>Finalizar</span>
-                    </button>
+                    {!esFinalizado ? (
+                      <button
+                        onClick={() => iniciarArchivarTorneo(div)}
+                        className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                        title="Finalizar torneo y archivar snapshot en historial"
+                      >
+                        <FaArchive className="text-xs" />
+                        <span>Finalizar</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => abrirIniciarNuevaEdicion(div)}
+                        className="flex-1 sm:flex-none bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-2 rounded-xl text-xs font-headline uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                        title="Iniciar una nueva edición (resetear tabla a 0 puntos)"
+                      >
+                        <FaPlay className="text-[10px]" />
+                        <span>Nueva Edición</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => setTorneoPlayoff(div)}
@@ -629,14 +712,25 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
 
                     <td className="p-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        <button
-                          onClick={() => iniciarArchivarTorneo(div)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider flex items-center gap-1 shadow-xs transition-colors"
-                          title="Finalizar edición y guardar snapshot histórico completo sin alterar planteles"
-                        >
-                          <FaArchive className="text-xs" />
-                          <span>Finalizar</span>
-                        </button>
+                        {!esFinalizado ? (
+                          <button
+                            onClick={() => iniciarArchivarTorneo(div)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider flex items-center gap-1 shadow-xs transition-colors"
+                            title="Finalizar torneo y archivar snapshot en historial"
+                          >
+                            <FaArchive className="text-xs" />
+                            <span>Finalizar</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => abrirIniciarNuevaEdicion(div)}
+                            className="bg-[#151f89] hover:bg-[#303a9f] text-white px-2.5 py-1.5 rounded-lg text-xs font-headline uppercase tracking-wider flex items-center gap-1 shadow-xs transition-colors"
+                            title="Iniciar una nueva edición (resetear tabla a 0 puntos)"
+                          >
+                            <FaPlay className="text-[10px]" />
+                            <span>Nueva Edición</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => setTorneoPlayoff(div)}
