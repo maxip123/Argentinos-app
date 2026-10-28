@@ -7,7 +7,7 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
-import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaHistory, FaArchive } from 'react-icons/fa';
+import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaArchive } from 'react-icons/fa';
 
 export default function TournamentPage({ generoForzado = null }) {
   const location = useLocation();
