@@ -604,6 +604,10 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     if (tab === 'resumen') cargarResumen();
   }, [tab, cargarJugadores, cargarMovimientos, cargarResumen]);
 
+  useEffect(() => {
+    return () => clearTimeout(busquedaTimeoutRef.current);
+  }, []);
+
   // Conteos rápidos de cuotas
   const conteos = jugadores.reduce((acc, j) => {
     const k = j.estado_cuota || 'Sin cuota';
