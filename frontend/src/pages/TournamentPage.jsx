@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useDivisionStore } from '../stores/divisionStore';
@@ -7,12 +7,11 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
-import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaHistory } from 'react-icons/fa';
+import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaArchive } from 'react-icons/fa';
 
 export default function TournamentPage({ generoForzado = null }) {
   const location = useLocation();
 
-  // Detectar género si viene en la ruta
   const genero =
     generoForzado ||
     (location.pathname.includes('femenino')
@@ -23,39 +22,73 @@ export default function TournamentPage({ generoForzado = null }) {
 
   const { divisiones, divisionActivaId, setDivisionActivaId, cargarDivisiones } = useDivisionStore();
 
-  const [tabActiva, setTabActiva] = useState('posiciones'); // 'posiciones' | 'goleadores' | 'tarjetas' | 'playoff' | 'partidos'
+  const [tabActiva, setTabActiva] = useState('posiciones');
   const [soloClub, setSoloClub] = useState(false);
 
-  // Estados de datos
+  // Historial archivado
+  const [historialTorneos, setHistorialTorneos] = useState([]);
+  const [snapshotActivo, setSnapshotActivo] = useState(null);
+  // Valor del <select> — puede ser un id de división viva o "h_<id_historial>"
+  const [seleccion, setSeleccion] = useState('');
+
+  // Datos de la pestaña activa
   const [posiciones, setPosiciones] = useState([]);
   const [goleadores, setGoleadores] = useState([]);
   const [tarjetas, setTarjetas] = useState([]);
   const [playoffs, setPlayoffs] = useState([]);
   const [partidos, setPartidos] = useState([]);
-
   const [cargando, setCargando] = useState(false);
 
-  // Cargar divisiones al montar
+  // Cargar divisiones vivas + historial al montar
   useEffect(() => {
     cargarDivisiones().then((list) => {
-      // Si hay filtro de género, seleccionar la primera división de ese género si la actual no coincide
       if (genero && list.length > 0) {
         const divMatch = list.find((d) => d.genero?.toLowerCase() === genero.toLowerCase());
         if (divMatch) {
           setDivisionActivaId(divMatch.id_division);
+          setSeleccion(String(divMatch.id_division));
         }
       }
     });
+
+    api.get('/divisiones/historial')
+      .then((res) => setHistorialTorneos(res.data.data || []))
+      .catch(() => {});
   }, [genero, cargarDivisiones, setDivisionActivaId]);
 
-  // Filtrar divisiones por género si aplica
-  const divisionesVisibles = genero
-    ? divisiones.filter((d) => d.genero?.toLowerCase() === genero.toLowerCase())
-    : divisiones;
-
-  // Cargar datos según la pestaña y la división activa
+  // Sincronizar seleccion con divisionActivaId cuando cambia desde el store (ej. cambio externo)
   useEffect(() => {
-    if (!divisionActivaId) return;
+    if (!snapshotActivo && divisionActivaId) {
+      setSeleccion(String(divisionActivaId));
+    }
+  }, [divisionActivaId, snapshotActivo]);
+
+  const handleSeleccion = useCallback((valor) => {
+    setSeleccion(valor);
+    if (valor.startsWith('h_')) {
+      const id = valor.replace('h_', '');
+      const snap = historialTorneos.find((h) => String(h.id_historial) === id);
+      setSnapshotActivo(snap || null);
+    } else {
+      setSnapshotActivo(null);
+      setDivisionActivaId(valor);
+    }
+  }, [historialTorneos, setDivisionActivaId]);
+
+  // Cuando se selecciona un snapshot: cargar datos directamente desde el JSONB
+  useEffect(() => {
+    if (!snapshotActivo) return;
+    setCargando(false);
+    setPosiciones(snapshotActivo.tabla_posiciones || []);
+    setGoleadores(snapshotActivo.goleadores_club || []);
+    setTarjetas(snapshotActivo.tarjetas_club || []);
+    setPlayoffs(snapshotActivo.playoffs || []);
+    setPartidos(snapshotActivo.partidos || []);
+  }, [snapshotActivo]);
+
+  // Cuando se selecciona una división viva: cargar según pestaña
+  useEffect(() => {
+    if (!divisionActivaId || snapshotActivo) return;
 
     let cancelado = false;
     setCargando(true);
@@ -86,11 +119,8 @@ export default function TournamentPage({ generoForzado = null }) {
     };
 
     cargarDatos();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [tabActiva, divisionActivaId, soloClub]);
+    return () => { cancelado = true; };
+  }, [tabActiva, divisionActivaId, soloClub, snapshotActivo]);
 
   const tabs = [
     { id: 'posiciones', label: 'Posiciones', icon: FaTrophy },
@@ -100,15 +130,28 @@ export default function TournamentPage({ generoForzado = null }) {
     { id: 'partidos', label: 'Partidos Disputados', icon: FaCalendarAlt },
   ];
 
-  // Separar torneos en curso vs historial
-  const divisionesEnCurso = divisionesVisibles.filter((d) => !d.terminado);
-  const divisionesHistorial = divisionesVisibles.filter((d) => d.terminado);
+  const divisionesVisibles = genero
+    ? divisiones.filter((d) => d.genero?.toLowerCase() === genero.toLowerCase())
+    : divisiones;
+
+  const historialVisible = genero
+    ? historialTorneos.filter((h) => h.genero?.toLowerCase() === genero.toLowerCase())
+    : historialTorneos;
+
+  const divisionesEnCurso  = divisionesVisibles.filter((d) => !d.terminado);
+  const divisionesTerminadas = divisionesVisibles.filter((d) => d.terminado);
   const divisionActiva = divisionesVisibles.find((d) => Number(d.id_division) === Number(divisionActivaId));
-  const esHistorial = Boolean(divisionActiva?.terminado);
+
+  const esHistorial = Boolean(divisionActiva?.terminado) || Boolean(snapshotActivo);
+  const nombreHistorial = snapshotActivo?.nombre_division || divisionActiva?.nombre_division;
+  const temporadaHistorial = snapshotActivo?.temporada || divisionActiva?.temporada;
+
+  // En modo snapshot los datos de goleadores/tarjetas ya son solo del club
+  const mostrarToggleSoloClub = !snapshotActivo;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f2fc] pb-16">
-      {/* ─── Encabezado del Torneo ─────────────────────────────────────────── */}
+      {/* ─── Encabezado ───────────────────────────────────────────────────── */}
       <section className="bg-white border-b border-slate-200 py-10">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
           <span className="font-headline tracking-[0.25em] text-[#151f89] uppercase text-xs font-bold">
@@ -119,27 +162,36 @@ export default function TournamentPage({ generoForzado = null }) {
             {genero ? `Futsal ${genero}` : 'Torneo Oficial'}
           </h1>
 
-          {/* Selector de División con estilo pill */}
+          {/* Selector de edición */}
           <div className="relative inline-block mt-2">
             <select
-              value={divisionActivaId || ''}
-              onChange={(e) => setDivisionActivaId(e.target.value)}
-              className="appearance-none bg-white border-2 border-slate-300 text-slate-800 font-headline font-bold text-sm sm:text-base py-2.5 pl-6 pr-12 rounded-full focus:outline-none focus:border-[#151f89] cursor-pointer shadow-sm hover:border-[#151f89] transition-all uppercase tracking-wider"
+              value={seleccion}
+              onChange={(e) => handleSeleccion(e.target.value)}
+              className="appearance-none bg-white border-2 border-slate-300 text-slate-800 font-headline font-bold text-sm sm:text-base py-2.5 pl-6 pr-12 rounded-full focus:outline-none focus:border-[#151f89] cursor-pointer shadow-sm hover:border-[#151f89] transition-all uppercase tracking-wider max-w-[85vw] sm:max-w-none"
             >
               {divisionesEnCurso.length > 0 && (
                 <optgroup label="─── TORNEOS EN CURSO ───">
                   {divisionesEnCurso.map((div) => (
-                    <option key={div.id_division} value={div.id_division}>
+                    <option key={div.id_division} value={String(div.id_division)}>
                       {div.nombre_division.toUpperCase()} ({div.temporada})
                     </option>
                   ))}
                 </optgroup>
               )}
-              {divisionesHistorial.length > 0 && (
-                <optgroup label="─── HISTORIAL DE TORNEOS ───">
-                  {divisionesHistorial.map((div) => (
-                    <option key={div.id_division} value={div.id_division}>
-                      {div.nombre_division.toUpperCase()} ({div.temporada}) — HISTORIAL
+              {divisionesTerminadas.length > 0 && (
+                <optgroup label="─── TORNEOS FINALIZADOS ───">
+                  {divisionesTerminadas.map((div) => (
+                    <option key={div.id_division} value={String(div.id_division)}>
+                      {div.nombre_division.toUpperCase()} ({div.temporada})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {historialVisible.length > 0 && (
+                <optgroup label="─── EDICIONES ANTERIORES ───">
+                  {historialVisible.map((h) => (
+                    <option key={h.id_historial} value={`h_${h.id_historial}`}>
+                      {(h.nombre_division || '').toUpperCase()} ({h.temporada})
                     </option>
                   ))}
                 </optgroup>
@@ -150,25 +202,26 @@ export default function TournamentPage({ generoForzado = null }) {
         </div>
       </section>
 
-      {/* Banner de torneo archivado/historial */}
+      {/* Banner historial */}
       {esHistorial && (
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-          <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-title font-semibold flex items-center justify-center gap-2 shadow-xs">
-            <FaHistory className="text-base text-amber-700 shrink-0" />
+          <div className="bg-[#151f89]/8 border border-[#151f89]/25 text-[#151f89] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-title font-semibold flex items-center justify-center gap-2 shadow-xs">
+            <FaArchive className="text-base text-[#151f89]/70 shrink-0" />
             <span>
-              Estás consultando el <strong>Historial Oficial</strong> de la edición <strong>{divisionActiva?.nombre_division}</strong> ({divisionActiva?.temporada}). Los datos corresponden al torneo finalizado.
+              Estás consultando el{' '}
+              <strong>Historial Oficial</strong> de la edición{' '}
+              <strong>{nombreHistorial}</strong>{temporadaHistorial ? ` (${temporadaHistorial})` : ''}. Los datos corresponden al torneo finalizado.
             </span>
           </div>
         </div>
       )}
 
-      {/* ─── Navigation Pill Tabs ─────────────────────────────────────────── */}
+      {/* ─── Pestañas ─────────────────────────────────────────────────────── */}
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 my-8 flex justify-center w-full">
         <nav className="flex items-center gap-1.5 sm:gap-2 bg-white rounded-full p-1.5 border border-slate-200 shadow-sm overflow-x-auto no-scrollbar max-w-full">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const activa = tabActiva === tab.id;
-
             return (
               <button
                 key={tab.id}
@@ -187,7 +240,7 @@ export default function TournamentPage({ generoForzado = null }) {
         </nav>
       </div>
 
-      {/* ─── Contenido Dinámico de la Pestaña ──────────────────────────────── */}
+      {/* ─── Contenido ────────────────────────────────────────────────────── */}
       <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full">
         {tabActiva === 'posiciones' && (
           <StandingsTable clasificacion={posiciones} cargando={cargando} />
@@ -198,7 +251,7 @@ export default function TournamentPage({ generoForzado = null }) {
             goleadores={goleadores}
             cargando={cargando}
             soloClub={soloClub}
-            onToggleSoloClub={setSoloClub}
+            onToggleSoloClub={mostrarToggleSoloClub ? setSoloClub : undefined}
           />
         )}
 
@@ -207,7 +260,7 @@ export default function TournamentPage({ generoForzado = null }) {
             tarjetas={tarjetas}
             cargando={cargando}
             soloClub={soloClub}
-            onToggleSoloClub={setSoloClub}
+            onToggleSoloClub={mostrarToggleSoloClub ? setSoloClub : undefined}
           />
         )}
 

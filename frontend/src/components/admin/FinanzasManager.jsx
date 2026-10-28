@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../ui/ConfirmModal';
 import {
@@ -169,21 +169,6 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
                 <option>MercadoPago</option>
                 <option>Débito</option>
                 <option>Crédito</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">
-                Destino / División (Opcional)
-              </label>
-              <select
-                value={form.id_division}
-                onChange={e => setForm({ ...form, id_division: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
-              >
-                <option value="">Cuota Social Centralizada (Club)</option>
-                {divisiones.map(d => (
-                  <option key={d.id_division} value={d.id_division}>{d.nombre_division}</option>
-                ))}
               </select>
             </div>
           </div>
@@ -480,17 +465,7 @@ function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSucce
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Categoría</label>
-              <select
-                value={form.categoria}
-                onChange={e => setForm({ ...form, categoria: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
-              >
-                {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Método de Cobro/Pago</label>
               <select
@@ -549,6 +524,17 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const [filtroCategoriaMov, setFiltroCategoriaMov] = useState('');
   const [busquedaMov, setBusquedaMov] = useState('');
 
+  // Paginación de caja (server-side)
+  const LIMIT_CAJA = 20;
+  const [paginaCaja, setPaginaCaja] = useState(1);
+  const [totalMovimientos, setTotalMovimientos] = useState(0);
+
+  // Refs para uso dentro del useCallback estable
+  const filtroTipoMovRef   = useRef('');
+  const busquedaMovRef     = useRef('');
+  const paginaCajaRef      = useRef(1);
+  const busquedaTimeoutRef = useRef(null);
+
   // Filtros de resumen
   const now = new Date();
   const [resMes, setResMes] = useState(now.getMonth() + 1);
@@ -588,14 +574,20 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const cargarMovimientos = useCallback(async () => {
     setCargandoMovimientos(true);
     try {
-      const res = await api.get('/gastos');
-      setMovimientos(res.data.data || []);
+      const params = new URLSearchParams();
+      if (filtroTipoMovRef.current)       params.append('tipo',   filtroTipoMovRef.current);
+      if (busquedaMovRef.current.trim())  params.append('q',      busquedaMovRef.current.trim());
+      params.append('limit',  String(LIMIT_CAJA));
+      params.append('offset', String((paginaCajaRef.current - 1) * LIMIT_CAJA));
+      const res = await api.get(`/gastos?${params.toString()}`);
+      setMovimientos(res.data.data?.movimientos || []);
+      setTotalMovimientos(res.data.data?.total  || 0);
     } catch (err) {
       console.error('[FinanzasManager] cargarMovimientos:', err);
     } finally {
       setCargandoMovimientos(false);
     }
-  }, []);
+  }, []); // identidad estable: lee filtros desde refs
 
   const cargarResumen = useCallback(async () => {
     try {
@@ -611,6 +603,10 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     if (tab === 'caja') cargarMovimientos();
     if (tab === 'resumen') cargarResumen();
   }, [tab, cargarJugadores, cargarMovimientos, cargarResumen]);
+
+  useEffect(() => {
+    return () => clearTimeout(busquedaTimeoutRef.current);
+  }, []);
 
   // Conteos rápidos de cuotas
   const conteos = jugadores.reduce((acc, j) => {
@@ -631,18 +627,39 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     return true;
   });
 
-  // Filtrado de movimientos de caja
+  // Handlers para filtros de caja (sincronizan ref + estado + recargan)
+  const handleCambioTipoMov = (val) => {
+    setFiltroTipoMov(val);
+    filtroTipoMovRef.current = val;
+    setPaginaCaja(1);
+    paginaCajaRef.current = 1;
+    cargarMovimientos();
+  };
+
+  const handleCambioBusquedaMov = (val) => {
+    setBusquedaMov(val);
+    busquedaMovRef.current = val;
+    clearTimeout(busquedaTimeoutRef.current);
+    busquedaTimeoutRef.current = setTimeout(() => {
+      setPaginaCaja(1);
+      paginaCajaRef.current = 1;
+      cargarMovimientos();
+    }, 450);
+  };
+
+  const handleCambioPaginaCaja = (nuevaPagina) => {
+    setPaginaCaja(nuevaPagina);
+    paginaCajaRef.current = nuevaPagina;
+    cargarMovimientos();
+  };
+
+  // Filtrado local (solo categoría, que es secundaria — tipo y búsqueda van server-side)
   const movimientosFiltrados = movimientos.filter(m => {
-    if (filtroTipoMov && m.tipo !== filtroTipoMov) return false;
     if (filtroCategoriaMov && m.categoria !== filtroCategoriaMov) return false;
-    if (busquedaMov) {
-      const q = busquedaMov.toLowerCase();
-      const matchConcepto = m.concepto?.toLowerCase().includes(q);
-      const matchCat = m.categoria?.toLowerCase().includes(q);
-      if (!matchConcepto && !matchCat) return false;
-    }
     return true;
   });
+
+  const totalPaginasCaja = Math.ceil(totalMovimientos / LIMIT_CAJA);
 
   // Eliminar movimiento
   const handleEliminarMovimiento = (movimiento) => {
@@ -942,16 +959,16 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               <FaSearch className="absolute left-3 top-3 text-slate-400 text-xs" />
               <input
                 type="text"
-                placeholder="Buscar por concepto o categoría..."
+                placeholder="Buscar por concepto..."
                 value={busquedaMov}
-                onChange={e => setBusquedaMov(e.target.value)}
+                onChange={e => handleCambioBusquedaMov(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
               />
             </div>
 
             <select
               value={filtroTipoMov}
-              onChange={e => setFiltroTipoMov(e.target.value)}
+              onChange={e => handleCambioTipoMov(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todos los movimientos</option>
@@ -1120,6 +1137,52 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               </div>
             )}
           </div>
+
+          {/* Paginación */}
+          {totalPaginasCaja > 1 && (
+            <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-sm">
+              <span className="text-xs text-slate-500 font-title">
+                {totalMovimientos} movimientos · página {paginaCaja} de {totalPaginasCaja}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleCambioPaginaCaja(paginaCaja - 1)}
+                  disabled={paginaCaja <= 1 || cargandoMovimientos}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Anterior
+                </button>
+                {Array.from({ length: Math.min(totalPaginasCaja, 5) }, (_, i) => {
+                  const page = totalPaginasCaja <= 5
+                    ? i + 1
+                    : paginaCaja <= 3 ? i + 1
+                    : paginaCaja >= totalPaginasCaja - 2 ? totalPaginasCaja - 4 + i
+                    : paginaCaja - 2 + i;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handleCambioPaginaCaja(page)}
+                      disabled={cargandoMovimientos}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                        page === paginaCaja
+                          ? 'bg-[#151f89] text-white'
+                          : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => handleCambioPaginaCaja(paginaCaja + 1)}
+                  disabled={paginaCaja >= totalPaginasCaja || cargandoMovimientos}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
