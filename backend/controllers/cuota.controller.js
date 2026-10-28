@@ -255,8 +255,8 @@ const pagoRapido = async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'Pagado', $8, $9)
          ON CONFLICT (id_jugador, periodo_mes, periodo_anio)
          DO UPDATE SET
-           monto_abonado     = EXCLUDED.monto_abonado,
-           monto_esperado    = EXCLUDED.monto_esperado,
+           monto_abonado     = public.cuota_jugador.monto_abonado + EXCLUDED.monto_abonado,
+           monto_esperado    = public.cuota_jugador.monto_esperado + EXCLUDED.monto_esperado,
            fecha_pago        = EXCLUDED.fecha_pago,
            fecha_vencimiento = EXCLUDED.fecha_vencimiento,
            estado_pago       = 'Pagado',
@@ -277,6 +277,21 @@ const pagoRapido = async (req, res) => {
          WHERE id_jugador = $3`,
         [fechaBase, fechaVencimiento, id_jugador]
       );
+
+      // 3. Registrar el cobro como INGRESO en el libro de caja del club
+      const { rows: jugRows } = await client.query(
+        `SELECT nombre, apellido FROM public.jugador WHERE id_jugador = $1`,
+        [id_jugador]
+      );
+      if (jugRows.length > 0) {
+        const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const concepto = `Cuota - ${jugRows[0].apellido} ${jugRows[0].nombre} - ${meses[periodoMes - 1]} ${periodoAnio}`;
+        await client.query(
+          `INSERT INTO public.gasto_club (concepto, monto, fecha_gasto, categoria, tipo, metodo_pago)
+           VALUES ($1, $2, $3, 'Cuota Socio', 'INGRESO', $4)`,
+          [concepto, montoNum, fechaBase, metodo_pago || 'Efectivo']
+        );
+      }
 
       return cuotaRows[0];
     });
