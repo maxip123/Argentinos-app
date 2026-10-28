@@ -61,4 +61,23 @@ const verificarRol = (...rolesPermitidos) => {
   };
 };
 
-module.exports = { verificarToken, verificarRol };
+/**
+ * Middleware de autenticación opcional.
+ * Si hay un token Bearer válido lo decodifica y setea req.usuario.
+ * Si no hay token o es inválido, continúa sin setear req.usuario.
+ * Usar en rutas públicas que deben devolver datos reducidos a anónimos.
+ */
+const autenticarOpcional = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      req.usuario = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (_) {
+      // token inválido o expirado — se trata como anónimo
+    }
+  }
+  next();
+};
+
+module.exports = { verificarToken, verificarRol, autenticarOpcional };

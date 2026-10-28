@@ -2,11 +2,14 @@ const { query } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
 
 // GET /api/gastos — Movimientos de tesorería (Entradas y Gastos del club).
-// Filtros opcionales: ?tipo=INGRESO|EGRESO ?categoria= ?desde= ?hasta=
+// Filtros opcionales: ?tipo=INGRESO|EGRESO ?categoria= ?desde= ?hasta= ?q= ?limit= ?offset=
 const obtenerTodos = async (req, res) => {
   try {
-    const { tipo, categoria, desde, hasta } = req.query;
-    let sql = `SELECT * FROM public.gasto_club WHERE activo = TRUE`;
+    const { tipo, categoria, desde, hasta, q, limit, offset } = req.query;
+    const limitNum  = Math.min(parseInt(limit)  || 20, 100);
+    const offsetNum = Math.max(parseInt(offset) || 0,  0);
+
+    let sql = `SELECT *, COUNT(*) OVER() AS total_count FROM public.gasto_club WHERE activo = TRUE`;
     const params = [];
 
     if (tipo) {
@@ -25,10 +28,20 @@ const obtenerTodos = async (req, res) => {
       params.push(hasta);
       sql += ` AND fecha_gasto <= $${params.length}`;
     }
+    if (q) {
+      params.push(`%${q.trim()}%`);
+      sql += ` AND concepto ILIKE $${params.length}`;
+    }
 
     sql += ` ORDER BY fecha_gasto DESC, id_gasto DESC`;
+    params.push(limitNum, offsetNum);
+    sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+
     const { rows } = await query(sql, params);
-    return respuestaExito(res, rows, 'Movimientos financieros obtenidos correctamente.');
+    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+    const movimientos = rows.map(({ total_count, ...rest }) => rest);
+
+    return respuestaExito(res, { movimientos, total, limit: limitNum, offset: offsetNum }, 'Movimientos financieros obtenidos correctamente.');
   } catch (error) {
     console.error('[gasto.controller] obtenerTodos error:', error);
     return respuestaError(res, 'Error al obtener los movimientos.', 500, error.message);

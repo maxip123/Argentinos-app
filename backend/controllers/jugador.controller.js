@@ -5,17 +5,13 @@ const { respuestaExito, respuestaError } = require('../utils/respuesta');
 const obtenerTodos = async (req, res) => {
   try {
     const { id_equipo, id_division, solo_club, q, estado_cuota } = req.query;
+    const esAutenticado = !!req.usuario;
 
-    let sql = `
-      SELECT j.id_jugador,
-             j.nombre,
-             j.apellido,
+    const camposPII = esAutenticado ? `
              j.dni,
              j.fecha_nacimiento,
              j.telefono,
              j.email,
-             j.foto_url,
-             j.es_jugador_club,
              j.es_inactivo,
              j.fecha_ultimo_pago,
              j.fecha_vencimiento,
@@ -24,12 +20,20 @@ const obtenerTodos = async (req, res) => {
                WHEN j.fecha_vencimiento IS NOT NULL AND j.fecha_vencimiento >= CURRENT_DATE THEN 'Al dia'
                ELSE 'Pendiente'
              END AS estado_cuota,
+             j.activo,
+             j.created_at,` : '';
+
+    let sql = `
+      SELECT j.id_jugador,
+             j.nombre,
+             j.apellido,
+             j.foto_url,
+             j.es_jugador_club,
              j.goles_totales,
              j.amarillas_totales,
              j.rojas_totales,
              j.partidos_jugados,
-             j.activo,
-             j.created_at,
+             ${camposPII}
              COALESCE(
                json_agg(
                  json_build_object(
@@ -77,23 +81,24 @@ const obtenerTodos = async (req, res) => {
       )`;
     }
 
-    if (estado_cuota === 'pendiente') {
-      sql += ` AND j.es_inactivo = FALSE AND (j.fecha_vencimiento IS NULL OR j.fecha_vencimiento < CURRENT_DATE)`;
-    } else if (estado_cuota === 'al_dia') {
-      sql += ` AND j.es_inactivo = FALSE AND j.fecha_vencimiento >= CURRENT_DATE`;
-    } else if (estado_cuota === 'inactivo') {
-      sql += ` AND j.es_inactivo = TRUE`;
-    } else if (estado_cuota === 'activos') {
-      sql += ` AND j.es_inactivo = FALSE`;
+    if (esAutenticado && estado_cuota) {
+      if (estado_cuota === 'pendiente') {
+        sql += ` AND j.es_inactivo = FALSE AND (j.fecha_vencimiento IS NULL OR j.fecha_vencimiento < CURRENT_DATE)`;
+      } else if (estado_cuota === 'al_dia') {
+        sql += ` AND j.es_inactivo = FALSE AND j.fecha_vencimiento >= CURRENT_DATE`;
+      } else if (estado_cuota === 'inactivo') {
+        sql += ` AND j.es_inactivo = TRUE`;
+      } else if (estado_cuota === 'activos') {
+        sql += ` AND j.es_inactivo = FALSE`;
+      }
     }
 
     if (q) {
       params.push(`%${q.trim()}%`);
-      sql += ` AND (
-        j.nombre ILIKE $${params.length} 
-        OR j.apellido ILIKE $${params.length} 
-        OR j.dni ILIKE $${params.length}
-      )`;
+      const busqueda = esAutenticado
+        ? `(j.nombre ILIKE $${params.length} OR j.apellido ILIKE $${params.length} OR j.dni ILIKE $${params.length})`
+        : `(j.nombre ILIKE $${params.length} OR j.apellido ILIKE $${params.length})`;
+      sql += ` AND ${busqueda}`;
     }
 
     sql += ` GROUP BY j.id_jugador ORDER BY j.apellido ASC, j.nombre ASC`;
@@ -110,8 +115,14 @@ const obtenerTodos = async (req, res) => {
 const obtenerPorId = async (req, res) => {
   try {
     const { id } = req.params;
+    const esAutenticado = !!req.usuario;
+
+    const selectCampos = esAutenticado ? `j.*` : `
+             j.id_jugador, j.nombre, j.apellido, j.foto_url, j.es_jugador_club,
+             j.goles_totales, j.amarillas_totales, j.rojas_totales, j.partidos_jugados`;
+
     const { rows } = await query(
-      `SELECT j.*,
+      `SELECT ${selectCampos},
               COALESCE(
                 json_agg(
                   json_build_object(
@@ -147,26 +158,30 @@ const obtenerGoleadores = async (req, res) => {
   try {
     const { id_division } = req.params;
     const sql = `
-      SELECT DISTINCT ON (j.id_jugador)
-             j.id_jugador, j.nombre, j.apellido, j.foto_url, j.goles_totales AS goles,
+      SELECT j.id_jugador, j.nombre, j.apellido, j.foto_url,
              j.es_jugador_club,
-             COALESCE(eq.nombre_equipo, 'Argentinos del Norte') AS nombre_equipo, 
+             SUM(pe.goles) AS goles,
+             COALESCE(eq.nombre_equipo, 'Argentinos del Norte') AS nombre_equipo,
              COALESCE(eq.es_argentinos_del_norte, TRUE) AS es_argentinos_del_norte,
              COALESCE(d.nombre_division, '') AS nombre_division
-      FROM public.jugador j
-      LEFT JOIN public.equipo_jugador ej ON ej.id_jugador = j.id_jugador AND ej.activo = TRUE
-      LEFT JOIN public.equipo eq ON eq.id_equipo = ej.id_equipo
-      LEFT JOIN public.division d ON d.id_division = COALESCE(eq.id_division, j.id_division)
-      WHERE (eq.id_division = $1 OR j.id_division = $1)
-        AND j.activo = TRUE
+      FROM public.partido_estadistica_jugador pe
+      INNER JOIN public.partido p   ON p.id_partido  = pe.id_partido
+      INNER JOIN public.jugador j   ON j.id_jugador  = pe.id_jugador
+      LEFT  JOIN public.equipo  eq  ON eq.id_equipo  = pe.id_equipo
+      LEFT  JOIN public.division d  ON d.id_division = p.id_division
+      WHERE p.id_division    = $1
+        AND p.estado_partido = 2
+        AND p.activo         = TRUE
+        AND j.activo         = TRUE
         AND (j.es_jugador_club = TRUE OR eq.es_argentinos_del_norte = TRUE)
-        AND j.goles_totales > 0
-      ORDER BY j.id_jugador, j.goles_totales DESC`;
+      GROUP BY j.id_jugador, j.nombre, j.apellido, j.foto_url, j.es_jugador_club,
+               eq.nombre_equipo, eq.es_argentinos_del_norte, d.nombre_division
+      HAVING SUM(pe.goles) > 0
+      ORDER BY goles DESC
+      LIMIT 50`;
 
     const { rows } = await query(sql, [id_division]);
-    // Ordenar de mayor a menor goleador
-    rows.sort((a, b) => b.goles - a.goles);
-    return respuestaExito(res, rows.slice(0, 50), 'Goleadores obtenidos correctamente.');
+    return respuestaExito(res, rows, 'Goleadores obtenidos correctamente.');
   } catch (error) {
     console.error('[jugador.controller] obtenerGoleadores error:', error);
     return respuestaError(res, 'Error al obtener los goleadores.', 500, error.message);
@@ -178,30 +193,31 @@ const obtenerTarjetas = async (req, res) => {
   try {
     const { id_division } = req.params;
     const sql = `
-      SELECT DISTINCT ON (j.id_jugador)
-             j.id_jugador, j.nombre, j.apellido, j.foto_url,
-             j.amarillas_totales AS amarillas, j.rojas_totales AS rojas,
+      SELECT j.id_jugador, j.nombre, j.apellido, j.foto_url,
              j.es_jugador_club,
+             SUM(pe.tarjetas_amarillas) AS amarillas,
+             SUM(pe.tarjetas_rojas)     AS rojas,
              COALESCE(eq.nombre_equipo, 'Argentinos del Norte') AS nombre_equipo,
              COALESCE(eq.es_argentinos_del_norte, TRUE) AS es_argentinos_del_norte,
              COALESCE(d.nombre_division, '') AS nombre_division
-      FROM public.jugador j
-      LEFT JOIN public.equipo_jugador ej ON ej.id_jugador = j.id_jugador AND ej.activo = TRUE
-      LEFT JOIN public.equipo eq ON eq.id_equipo = ej.id_equipo
-      LEFT JOIN public.division d ON d.id_division = COALESCE(eq.id_division, j.id_division)
-      WHERE (eq.id_division = $1 OR j.id_division = $1)
-        AND j.activo = TRUE
+      FROM public.partido_estadistica_jugador pe
+      INNER JOIN public.partido p   ON p.id_partido  = pe.id_partido
+      INNER JOIN public.jugador j   ON j.id_jugador  = pe.id_jugador
+      LEFT  JOIN public.equipo  eq  ON eq.id_equipo  = pe.id_equipo
+      LEFT  JOIN public.division d  ON d.id_division = p.id_division
+      WHERE p.id_division    = $1
+        AND p.estado_partido = 2
+        AND p.activo         = TRUE
+        AND j.activo         = TRUE
         AND (j.es_jugador_club = TRUE OR eq.es_argentinos_del_norte = TRUE)
-        AND (j.amarillas_totales > 0 OR j.rojas_totales > 0)
-      ORDER BY j.id_jugador, j.rojas_totales DESC, j.amarillas_totales DESC`;
+      GROUP BY j.id_jugador, j.nombre, j.apellido, j.foto_url, j.es_jugador_club,
+               eq.nombre_equipo, eq.es_argentinos_del_norte, d.nombre_division
+      HAVING SUM(pe.tarjetas_amarillas) > 0 OR SUM(pe.tarjetas_rojas) > 0
+      ORDER BY rojas DESC, amarillas DESC
+      LIMIT 50`;
 
     const { rows } = await query(sql, [id_division]);
-    // Ordenar por rojas y luego amarillas
-    rows.sort((a, b) => {
-      if (b.rojas !== a.rojas) return b.rojas - a.rojas;
-      return b.amarillas - a.amarillas;
-    });
-    return respuestaExito(res, rows.slice(0, 50), 'Tarjetas obtenidas correctamente.');
+    return respuestaExito(res, rows, 'Tarjetas obtenidas correctamente.');
   } catch (error) {
     console.error('[jugador.controller] obtenerTarjetas error:', error);
     return respuestaError(res, 'Error al obtener las tarjetas.', 500, error.message);
