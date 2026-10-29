@@ -105,6 +105,14 @@ export default function JugadoresManager({ divisiones = [] }) {
       mostrarAviso('error', 'Nombre, apellido y DNI son campos obligatorios.');
       return;
     }
+    if (!/^\d{6,8}$/.test(nuevoJugador.dni.trim())) {
+      mostrarAviso('error', 'El DNI debe contener solo números (6 a 8 dígitos).');
+      return;
+    }
+    if (nuevoJugador.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevoJugador.email.trim())) {
+      mostrarAviso('error', 'El formato del correo electrónico no es válido.');
+      return;
+    }
     setCargando(true);
     try {
       await api.post('/jugadores', {
@@ -140,6 +148,18 @@ export default function JugadoresManager({ divisiones = [] }) {
   const handleEditar = async (e) => {
     e.preventDefault();
     if (!jugadorEditando) return;
+    if (!jugadorEditando.nombre.trim() || !jugadorEditando.apellido.trim() || !jugadorEditando.dni.trim()) {
+      mostrarAviso('error', 'Nombre, apellido y DNI son campos obligatorios.');
+      return;
+    }
+    if (!/^\d{6,8}$/.test(jugadorEditando.dni.trim())) {
+      mostrarAviso('error', 'El DNI debe contener solo números (6 a 8 dígitos).');
+      return;
+    }
+    if (jugadorEditando.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(jugadorEditando.email.trim())) {
+      mostrarAviso('error', 'El formato del correo electrónico no es válido.');
+      return;
+    }
     setCargando(true);
     try {
       await api.put(`/jugadores/${jugadorEditando.id_jugador}`, {
