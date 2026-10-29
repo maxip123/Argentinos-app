@@ -60,7 +60,7 @@ export default function Footer() {
               </div>
               <div className="flex items-center gap-2.5">
                 <FaEnvelope className="text-[#FF9C67] text-sm shrink-0" />
-                <span>contacto@argentinosdelnorte.com</span>
+                <span className="min-w-0 break-all">contacto@argentinosdelnorte.com</span>
               </div>
             </div>
           </div>
