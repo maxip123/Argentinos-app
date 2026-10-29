@@ -21,6 +21,7 @@ export default function Navbar() {
     { nombre: 'Inicio', path: '/' },
     { nombre: 'Masculino', path: '/masculino' },
     { nombre: 'Femenino', path: '/femenino' },
+    { nombre: 'Historial', path: '/historial' },
     { nombre: 'Sobre Nosotros', path: '/sobre-nosotros' },
   ];
 

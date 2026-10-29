@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { useDivisionStore } from '../stores/divisionStore';
@@ -7,7 +7,7 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
-import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown, FaArchive } from 'react-icons/fa';
+import { FaTrophy, FaFutbol, FaIdCard, FaProjectDiagram, FaCalendarAlt, FaChevronDown } from 'react-icons/fa';
 
 export default function TournamentPage({ generoForzado = null }) {
   const location = useLocation();
@@ -25,12 +25,6 @@ export default function TournamentPage({ generoForzado = null }) {
   const [tabActiva, setTabActiva] = useState('posiciones');
   const [soloClub, setSoloClub] = useState(false);
 
-  // Historial archivado
-  const [historialTorneos, setHistorialTorneos] = useState([]);
-  const [snapshotActivo, setSnapshotActivo] = useState(null);
-  // Valor del <select> — puede ser un id de división viva o "h_<id_historial>"
-  const [seleccion, setSeleccion] = useState('');
-
   // Datos de la pestaña activa
   const [posiciones, setPosiciones] = useState([]);
   const [goleadores, setGoleadores] = useState([]);
@@ -39,56 +33,20 @@ export default function TournamentPage({ generoForzado = null }) {
   const [partidos, setPartidos] = useState([]);
   const [cargando, setCargando] = useState(false);
 
-  // Cargar divisiones vivas + historial al montar
+  // Cargar divisiones al montar y elegir por defecto un torneo en curso del género
   useEffect(() => {
     cargarDivisiones().then((list) => {
       if (genero && list.length > 0) {
-        const divMatch = list.find((d) => d.genero?.toLowerCase() === genero.toLowerCase());
-        if (divMatch) {
-          setDivisionActivaId(divMatch.id_division);
-          setSeleccion(String(divMatch.id_division));
-        }
+        const delGenero = list.filter((d) => d.genero?.toLowerCase() === genero.toLowerCase());
+        const divMatch = delGenero.find((d) => !d.terminado) || delGenero[0];
+        if (divMatch) setDivisionActivaId(divMatch.id_division);
       }
     });
-
-    api.get('/divisiones/historial')
-      .then((res) => setHistorialTorneos(res.data.data || []))
-      .catch(() => {});
   }, [genero, cargarDivisiones, setDivisionActivaId]);
 
-  // Sincronizar seleccion con divisionActivaId cuando cambia desde el store (ej. cambio externo)
+  // Cargar datos de la pestaña activa
   useEffect(() => {
-    if (!snapshotActivo && divisionActivaId) {
-      setSeleccion(String(divisionActivaId));
-    }
-  }, [divisionActivaId, snapshotActivo]);
-
-  const handleSeleccion = useCallback((valor) => {
-    setSeleccion(valor);
-    if (valor.startsWith('h_')) {
-      const id = valor.replace('h_', '');
-      const snap = historialTorneos.find((h) => String(h.id_historial) === id);
-      setSnapshotActivo(snap || null);
-    } else {
-      setSnapshotActivo(null);
-      setDivisionActivaId(valor);
-    }
-  }, [historialTorneos, setDivisionActivaId]);
-
-  // Cuando se selecciona un snapshot: cargar datos directamente desde el JSONB
-  useEffect(() => {
-    if (!snapshotActivo) return;
-    setCargando(false);
-    setPosiciones(snapshotActivo.tabla_posiciones || []);
-    setGoleadores(snapshotActivo.goleadores_club || []);
-    setTarjetas(snapshotActivo.tarjetas_club || []);
-    setPlayoffs(snapshotActivo.playoffs || []);
-    setPartidos(snapshotActivo.partidos || []);
-  }, [snapshotActivo]);
-
-  // Cuando se selecciona una división viva: cargar según pestaña
-  useEffect(() => {
-    if (!divisionActivaId || snapshotActivo) return;
+    if (!divisionActivaId) return;
 
     let cancelado = false;
     setCargando(true);
@@ -120,7 +78,7 @@ export default function TournamentPage({ generoForzado = null }) {
 
     cargarDatos();
     return () => { cancelado = true; };
-  }, [tabActiva, divisionActivaId, soloClub, snapshotActivo]);
+  }, [tabActiva, divisionActivaId, soloClub]);
 
   const tabs = [
     { id: 'posiciones', label: 'Posiciones', icon: FaTrophy },
@@ -130,24 +88,10 @@ export default function TournamentPage({ generoForzado = null }) {
     { id: 'partidos', label: 'Partidos Disputados', icon: FaCalendarAlt },
   ];
 
-  const divisionesVisibles = genero
+  const divisionesEnCurso = (genero
     ? divisiones.filter((d) => d.genero?.toLowerCase() === genero.toLowerCase())
-    : divisiones;
-
-  const historialVisible = genero
-    ? historialTorneos.filter((h) => h.genero?.toLowerCase() === genero.toLowerCase())
-    : historialTorneos;
-
-  const divisionesEnCurso  = divisionesVisibles.filter((d) => !d.terminado);
-  const divisionesTerminadas = divisionesVisibles.filter((d) => d.terminado);
-  const divisionActiva = divisionesVisibles.find((d) => Number(d.id_division) === Number(divisionActivaId));
-
-  const esHistorial = Boolean(divisionActiva?.terminado) || Boolean(snapshotActivo);
-  const nombreHistorial = snapshotActivo?.nombre_division || divisionActiva?.nombre_division;
-  const temporadaHistorial = snapshotActivo?.temporada || divisionActiva?.temporada;
-
-  // En modo snapshot los datos de goleadores/tarjetas ya son solo del club
-  const mostrarToggleSoloClub = !snapshotActivo;
+    : divisiones
+  ).filter((d) => !d.terminado);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f2fc] pb-16">
@@ -165,56 +109,20 @@ export default function TournamentPage({ generoForzado = null }) {
           {/* Selector de edición */}
           <div className="relative inline-block mt-2">
             <select
-              value={seleccion}
-              onChange={(e) => handleSeleccion(e.target.value)}
+              value={String(divisionActivaId ?? '')}
+              onChange={(e) => setDivisionActivaId(e.target.value)}
               className="appearance-none bg-white border-2 border-slate-300 text-slate-800 font-headline font-bold text-sm sm:text-base py-2.5 pl-6 pr-12 rounded-full focus:outline-none focus:border-[#151f89] cursor-pointer shadow-sm hover:border-[#151f89] transition-all uppercase tracking-wider max-w-[85vw] sm:max-w-none"
             >
-              {divisionesEnCurso.length > 0 && (
-                <optgroup label="─── TORNEOS EN CURSO ───">
-                  {divisionesEnCurso.map((div) => (
-                    <option key={div.id_division} value={String(div.id_division)}>
-                      {div.nombre_division.toUpperCase()} ({div.temporada})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {divisionesTerminadas.length > 0 && (
-                <optgroup label="─── TORNEOS FINALIZADOS ───">
-                  {divisionesTerminadas.map((div) => (
-                    <option key={div.id_division} value={String(div.id_division)}>
-                      {div.nombre_division.toUpperCase()} ({div.temporada})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {historialVisible.length > 0 && (
-                <optgroup label="─── EDICIONES ANTERIORES ───">
-                  {historialVisible.map((h) => (
-                    <option key={h.id_historial} value={`h_${h.id_historial}`}>
-                      {(h.nombre_division || '').toUpperCase()} ({h.temporada})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              {divisionesEnCurso.map((div) => (
+                <option key={div.id_division} value={String(div.id_division)}>
+                  {div.nombre_division.toUpperCase()} ({div.temporada})
+                </option>
+              ))}
             </select>
             <FaChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs" />
           </div>
         </div>
       </section>
-
-      {/* Banner historial */}
-      {esHistorial && (
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-          <div className="bg-[#151f89]/8 border border-[#151f89]/25 text-[#151f89] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-title font-semibold flex items-center justify-center gap-2 shadow-xs">
-            <FaArchive className="text-base text-[#151f89]/70 shrink-0" />
-            <span>
-              Estás consultando el{' '}
-              <strong>Historial Oficial</strong> de la edición{' '}
-              <strong>{nombreHistorial}</strong>{temporadaHistorial ? ` (${temporadaHistorial})` : ''}. Los datos corresponden al torneo finalizado.
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* ─── Pestañas ─────────────────────────────────────────────────────── */}
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 my-8 flex justify-center w-full">
@@ -251,7 +159,7 @@ export default function TournamentPage({ generoForzado = null }) {
             goleadores={goleadores}
             cargando={cargando}
             soloClub={soloClub}
-            onToggleSoloClub={mostrarToggleSoloClub ? setSoloClub : undefined}
+            onToggleSoloClub={setSoloClub}
           />
         )}
 
@@ -260,7 +168,7 @@ export default function TournamentPage({ generoForzado = null }) {
             tarjetas={tarjetas}
             cargando={cargando}
             soloClub={soloClub}
-            onToggleSoloClub={mostrarToggleSoloClub ? setSoloClub : undefined}
+            onToggleSoloClub={setSoloClub}
           />
         )}
 
