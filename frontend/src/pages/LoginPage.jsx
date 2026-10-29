@@ -20,18 +20,16 @@ export default function LoginPage() {
       setErrorLocal('Por favor ingrese email y contraseña.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErrorLocal('El formato del correo electrónico no es válido.');
+      return;
+    }
+    if (contrasena.length < 6) {
+      setErrorLocal('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
 
     const resultado = await login(email, contrasena);
-    if (resultado.ok) {
-      navigate('/admin');
-    }
-  };
-
-  const usarCredencialesDemo = async () => {
-    setEmail('admin@argentinosdelnorte.com');
-    setContrasena('admin1234');
-    setErrorLocal('');
-    const resultado = await login('admin@argentinosdelnorte.com', 'admin1234');
     if (resultado.ok) {
       navigate('/admin');
     }
@@ -57,7 +55,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
           <div>
             <label className="block text-xs font-title font-bold text-slate-700 uppercase tracking-wider mb-2">
               Correo Electrónico
@@ -66,6 +64,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ejemplo@argentinosdelnorte.com"
@@ -83,6 +82,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                autoComplete="new-password"
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
                 placeholder="••••••••"
@@ -101,19 +101,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Botón de acceso de prueba para pruebas rápidas */}
-        <div className="mt-8 pt-6 border-t border-slate-100 text-center space-y-2">
-          <p className="text-xs text-slate-500 font-body">Credenciales de prueba:</p>
-          <button
-            type="button"
-            disabled={cargando}
-            onClick={usarCredencialesDemo}
-            className="w-full bg-blue-50 hover:bg-blue-100 text-[#151f89] border border-[#151f89]/20 py-2.5 px-4 rounded-xl text-xs font-title font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95 disabled:opacity-50"
-          >
-            <span>Ingresar como Superadmin (Demo 1 Clic)</span>
-          </button>
-          <p className="text-[11px] text-slate-400 font-mono">admin@argentinosdelnorte.com / admin1234</p>
-        </div>
       </div>
     </div>
   );

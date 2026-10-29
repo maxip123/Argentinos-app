@@ -113,6 +113,10 @@ export default function UsuariosManager({ divisiones = [] }) {
       setErrorModal('Nombre, correo electrónico y contraseña son obligatorios.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevoUsuario.email.trim())) {
+      setErrorModal('El formato del correo electrónico no es válido.');
+      return;
+    }
     if (nuevoUsuario.contrasena.length < 6) {
       setErrorModal('La contraseña debe tener al menos 6 caracteres.');
       return;
@@ -576,6 +580,7 @@ export default function UsuariosManager({ divisiones = [] }) {
                 <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Correo Electrónico *</label>
                 <input
                   type="email" required
+                  autoComplete="off"
                   placeholder="usuario@clubargentinos.com.ar"
                   value={nuevoUsuario.email}
                   onChange={e => setNuevoUsuario({ ...nuevoUsuario, email: e.target.value })}
@@ -589,6 +594,7 @@ export default function UsuariosManager({ divisiones = [] }) {
                   <input
                     type={verClaveNueva ? 'text' : 'password'}
                     required minLength={6}
+                    autoComplete="new-password"
                     placeholder="Mínimo 6 caracteres"
                     value={nuevoUsuario.contrasena}
                     onChange={e => setNuevoUsuario({ ...nuevoUsuario, contrasena: e.target.value })}
@@ -801,6 +807,7 @@ export default function UsuariosManager({ divisiones = [] }) {
                   <input
                     type={verClaveReset ? 'text' : 'password'}
                     required minLength={6}
+                    autoComplete="new-password"
                     placeholder="Mínimo 6 caracteres"
                     value={nuevaClave}
                     onChange={e => setNuevaClave(e.target.value)}
