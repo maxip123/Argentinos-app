@@ -20,6 +20,14 @@ export default function LoginPage() {
       setErrorLocal('Por favor ingrese email y contraseña.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErrorLocal('El formato del correo electrónico no es válido.');
+      return;
+    }
+    if (contrasena.length < 6) {
+      setErrorLocal('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
 
     const resultado = await login(email, contrasena);
     if (resultado.ok) {
@@ -57,7 +65,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
           <div>
             <label className="block text-xs font-title font-bold text-slate-700 uppercase tracking-wider mb-2">
               Correo Electrónico
@@ -66,6 +74,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ejemplo@argentinosdelnorte.com"
@@ -83,6 +92,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                autoComplete="new-password"
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
                 placeholder="••••••••"
