@@ -1,5 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const dns = require('dns');
+
+// DATE como texto 'YYYY-MM-DD': si se convierte a Date, se corre un día según la zona horaria del servidor.
+types.setTypeParser(types.builtins.DATE, (valor) => valor);
 
 // Priorizar IPv4 para evitar fallos de resolución IPv6 en conexiones directas de Supabase
 if (dns.setDefaultResultOrder) {

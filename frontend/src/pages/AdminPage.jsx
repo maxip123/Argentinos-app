@@ -10,6 +10,7 @@ import FinanzasManager from '../components/admin/FinanzasManager';
 import HistorialManager from '../components/admin/HistorialManager';
 import UsuariosManager from '../components/admin/UsuariosManager';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import { aInputFechaHora, desdeInputFechaHora } from '../utils/fechas';
 import {
   FaTrophy,
   FaCalendarAlt,
@@ -327,7 +328,7 @@ export default function AdminPage() {
         id_sede: Number(nuevoPartido.id_sede),
         id_equipo_local: Number(nuevoPartido.id_equipo_local),
         id_equipo_visitante: Number(nuevoPartido.id_equipo_visitante),
-        fecha_partido: nuevoPartido.fecha_partido || new Date().toISOString(),
+        fecha_partido: desdeInputFechaHora(nuevoPartido.fecha_partido) || new Date().toISOString(),
       });
       mostrarMensaje('exito', 'Partido programado exitosamente.');
       setMostrarCrearPartido(false);
@@ -350,14 +351,7 @@ export default function AdminPage() {
   // Iniciar edición de datos y programación de un partido
   const iniciarEdicionDatosPartido = (p) => {
     setPartidoEditandoDatos(p);
-    let fechaVal = '';
-    if (p.fecha_partido) {
-      const d = new Date(p.fecha_partido);
-      if (!isNaN(d.getTime())) {
-        const pad = (n) => String(n).padStart(2, '0');
-        fechaVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
-    }
+    const fechaVal = aInputFechaHora(p.fecha_partido);
     setFormEditarPartido({
       id_equipo_local: p.id_equipo_local || '',
       id_equipo_visitante: p.id_equipo_visitante || '',
@@ -383,6 +377,7 @@ export default function AdminPage() {
     try {
       await api.put(`/partidos/${partidoEditandoDatos.id_partido}`, {
         ...formEditarPartido,
+        fecha_partido: desdeInputFechaHora(formEditarPartido.fecha_partido),
         id_equipo_local: Number(formEditarPartido.id_equipo_local),
         id_equipo_visitante: Number(formEditarPartido.id_equipo_visitante),
         id_sede: Number(formEditarPartido.id_sede),
