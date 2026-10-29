@@ -21,7 +21,10 @@ Backend (`backend/`, Node + Express 5, CommonJS):
 npm run dev      # nodemon index.js, puerto 4000 (health: /api/health)
 npm start
 node scripts/run_schema_and_seed.js   # aplica ../schema_supabase.sql y ../seed_data.sql a DATABASE_URL
+node scripts/seed_demo.js --reset     # BORRA todo salvo el usuario admin y carga una temporada de demo completa
 ```
+
+`seed_demo.js` archiva los torneos terminados llamando a los handlers reales (`finalizarYArchivarTorneo` + `iniciarNuevaEdicion`), así que corre en fases y termina con chequeos de consistencia (goles vs. resultados, tabla, caja vs. cuotas, historial).
 
 Frontend (`frontend/`, React 19 + Vite, ESM):
 ```bash
