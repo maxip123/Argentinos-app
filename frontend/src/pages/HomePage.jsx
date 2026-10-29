@@ -1,13 +1,97 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import ClubShield from '../components/ui/ClubShield';
 import MatchCard from '../components/matches/MatchCard';
-import { FaFutbol, FaChevronRight, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
+import { FaFutbol, FaChevronRight, FaChevronLeft, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
+
+const ANCHO_TARJETA = 'snap-start shrink-0 w-[85%] sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]';
+
+function FlechaCarrusel({ direccion, visible, onClick }) {
+  const Icono = direccion === 'izq' ? FaChevronLeft : FaChevronRight;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={direccion === 'izq' ? 'Ver partidos anteriores' : 'Ver más partidos'}
+      className={`hidden sm:flex absolute top-1/2 -translate-y-1/2 z-10 w-11 h-11 items-center justify-center rounded-full bg-white border border-slate-200 shadow-md text-[#151f89] hover:bg-[#151f89] hover:text-white transition-all ${
+        direccion === 'izq' ? '-left-5' : '-right-5'
+      } ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    >
+      <Icono />
+    </button>
+  );
+}
+
+function CarruselPartidos({ partidos }) {
+  const pistaRef = useRef(null);
+  const [limites, setLimites] = useState({ inicio: true, fin: true });
+
+  useEffect(() => {
+    const pista = pistaRef.current;
+    if (!pista) return undefined;
+    pista.scrollTo({ left: 0 });
+    const actualizar = () => {
+      setLimites({
+        inicio: pista.scrollLeft <= 4,
+        fin: pista.scrollLeft + pista.clientWidth >= pista.scrollWidth - 4,
+      });
+    };
+    const observador = new ResizeObserver(actualizar);
+    observador.observe(pista);
+    pista.addEventListener('scroll', actualizar, { passive: true });
+    return () => {
+      observador.disconnect();
+      pista.removeEventListener('scroll', actualizar);
+    };
+  }, [partidos]);
+
+  const desplazar = (sentido) => {
+    const pista = pistaRef.current;
+    pista?.scrollBy({ left: sentido * pista.clientWidth * 0.9, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="relative">
+      <FlechaCarrusel direccion="izq" visible={!limites.inicio} onClick={() => desplazar(-1)} />
+      <div
+        ref={pistaRef}
+        className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-3 -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0"
+      >
+        {partidos.map((partido) => (
+          <div key={partido.id_partido} className={`${ANCHO_TARJETA} flex *:w-full`}>
+            <MatchCard partido={partido} />
+          </div>
+        ))}
+      </div>
+      <FlechaCarrusel direccion="der" visible={!limites.fin} onClick={() => desplazar(1)} />
+    </div>
+  );
+}
+
+function SwitchSoloClub({ activo, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      onClick={() => onChange(!activo)}
+      className="inline-flex items-center gap-2.5 bg-white border border-slate-200 rounded-full pl-1.5 pr-4 py-1.5 shadow-sm hover:border-[#151f89]/40 transition-colors"
+    >
+      <span className={`relative w-10 h-6 rounded-full transition-colors ${activo ? 'bg-[#151f89]' : 'bg-slate-300'}`}>
+        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${activo ? 'translate-x-4' : ''}`} />
+      </span>
+      <span className="text-xs sm:text-sm font-title font-bold text-slate-700">Solo Argentinos del Norte</span>
+    </button>
+  );
+}
 
 export default function HomePage() {
   const [proximosPartidos, setProximosPartidos] = useState([]);
   const [cargandoPartidos, setCargandoPartidos] = useState(true);
+  const [soloClub, setSoloClub] = useState(false);
+
+  const partidosVisibles = soloClub ? proximosPartidos.filter((p) => p.juega_argentinos) : proximosPartidos;
 
   useEffect(() => {
     // Cargar Próximos Partidos
@@ -82,31 +166,38 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <Link
-              to="/masculino"
-              className="inline-flex items-center gap-1.5 text-sm font-title font-bold text-[#151f89] hover:text-[#303a9f] transition-colors"
-            >
-              <span>Ver fixture completo</span>
-              <FaChevronRight className="text-xs" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+              <SwitchSoloClub activo={soloClub} onChange={setSoloClub} />
+              <Link
+                to="/masculino"
+                className="inline-flex items-center gap-1.5 text-sm font-title font-bold text-[#151f89] hover:text-[#303a9f] transition-colors"
+              >
+                <span>Ver fixture completo</span>
+                <FaChevronRight className="text-xs" />
+              </Link>
+            </div>
           </div>
 
           {cargandoPartidos ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex gap-6 overflow-hidden">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-48 bg-white rounded-2xl animate-pulse border border-slate-200"></div>
+                <div key={i} className={`${ANCHO_TARJETA} h-72 bg-white rounded-2xl animate-pulse border border-slate-200`}></div>
               ))}
             </div>
-          ) : proximosPartidos.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {proximosPartidos.slice(0, 6).map((partido) => (
-                <MatchCard key={partido.id_partido} partido={partido} />
-              ))}
-            </div>
+          ) : partidosVisibles.length > 0 ? (
+            <>
+              <CarruselPartidos partidos={partidosVisibles} />
+              <p className="mt-2 text-xs text-slate-500 font-title">
+                {partidosVisibles.length} {partidosVisibles.length === 1 ? 'partido programado' : 'partidos programados'}
+                <span className="sm:hidden"> · Deslizá para ver más</span>
+              </p>
+            </>
           ) : (
             <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
               <p className="font-headline text-slate-700 text-lg uppercase">
-                No hay partidos programados en los próximos días
+                {soloClub
+                  ? 'Argentinos del Norte no tiene partidos programados'
+                  : 'No hay partidos programados en los próximos días'}
               </p>
             </div>
           )}
