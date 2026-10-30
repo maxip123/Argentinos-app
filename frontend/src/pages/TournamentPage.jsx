@@ -177,7 +177,7 @@ export default function TournamentPage({ generoForzado = null }) {
         )}
 
         {tabActiva === 'partidos' && (
-          <FixtureList partidos={partidos} cargando={cargando} />
+          <FixtureList key={divisionActivaId} partidos={partidos} cargando={cargando} />
         )}
       </main>
     </div>
