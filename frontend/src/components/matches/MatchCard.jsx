@@ -1,6 +1,7 @@
 import React from 'react';
 import ClubShield from '../ui/ClubShield';
 import { FaShieldAlt } from 'react-icons/fa';
+import { formatFecha, formatHora } from '../../utils/fechas';
 
 export default function MatchCard({ partido }) {
   const {
@@ -21,19 +22,9 @@ export default function MatchCard({ partido }) {
     juega_argentinos,
   } = partido;
 
-  // Formatear fecha y hora en formato 24 hs
-  const fechaObj = new Date(fecha_partido);
-  let fechaStr = 'A confirmar';
-  if (!isNaN(fechaObj.getTime())) {
-    const diaMes = fechaObj.toLocaleDateString('es-AR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-    const hora = String(fechaObj.getHours()).padStart(2, '0');
-    const min = String(fechaObj.getMinutes()).padStart(2, '0');
-    fechaStr = `${diaMes}, ${hora}:${min} hs`;
-  }
+  const fechaStr = formatHora(fecha_partido)
+    ? `${formatFecha(fecha_partido, { day: 'numeric', month: 'short', year: 'numeric' })}, ${formatHora(fecha_partido)} hs`
+    : 'A confirmar';
 
   const esEnVivo = estado_partido === 1;
   const esFinalizado = estado_partido === 2;

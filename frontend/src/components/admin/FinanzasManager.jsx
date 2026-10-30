@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../ui/ConfirmModal';
+import { formatFecha, fechaClub, mediodiaClub } from '../../utils/fechas';
 import {
   FaMoneyBillWave,
   FaArrowDown,
@@ -69,11 +70,6 @@ function EstadoBadge({ estado }) {
   );
 }
 
-function formatFecha(fecha) {
-  if (!fecha) return '—';
-  return new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
 function formatMoney(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n || 0);
 }
@@ -83,7 +79,7 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
   const [form, setForm] = useState({
     monto: '',
     metodo_pago: 'Efectivo',
-    fecha_pago: new Date().toISOString().split('T')[0],
+    fecha_pago: fechaClub(),
     id_division: jugador?.id_division || '',
     observaciones: '',
   });
@@ -101,7 +97,7 @@ function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
         id_division: form.id_division ? Number(form.id_division) : null,
         monto: parseFloat(form.monto),
         metodo_pago: form.metodo_pago,
-        fecha_pago: form.fecha_pago,
+        fecha_pago: mediodiaClub(form.fecha_pago),
         observaciones: form.observaciones || null,
       });
       onSuccess(`Pago de ${jugador.jugador_nombre} registrado exitosamente.`);
@@ -334,7 +330,7 @@ function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSucce
   const [form, setForm] = useState({
     concepto: movimiento?.concepto || '',
     monto: movimiento?.monto || '',
-    fecha_gasto: movimiento?.fecha_gasto ? movimiento.fecha_gasto.split('T')[0] : new Date().toISOString().split('T')[0],
+    fecha_gasto: fechaClub(movimiento?.fecha_gasto || new Date()),
     categoria: movimiento?.categoria || (tipo === 'INGRESO' ? 'Entradas Partido' : 'General'),
     metodo_pago: movimiento?.metodo_pago || 'Efectivo',
   });
@@ -356,7 +352,7 @@ function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSucce
     setCargando(true);
     setError('');
     try {
-      const payload = { ...form, tipo };
+      const payload = { ...form, tipo, fecha_gasto: mediodiaClub(form.fecha_gasto) };
       if (isEdit) {
         await api.put(`/gastos/${movimiento.id_gasto}`, payload);
         onSuccess('Movimiento actualizado correctamente.');
