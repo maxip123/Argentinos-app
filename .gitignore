@@ -22,3 +22,9 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Guía local para Claude Code
+CLAUDE.md
+
+# Crea el usuario administrador
+backend/scripts/seed.js

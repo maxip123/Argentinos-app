@@ -38,7 +38,7 @@ async function runTests() {
     const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@argentinosdelnorte.com', contrasena: 'admin1234' })
+      body: JSON.stringify({ email: process.env.ADMIN_EMAIL, contrasena: process.env.ADMIN_PASSWORD })
     });
     const loginData = await loginRes.json();
     console.log(`- Status: ${loginRes.status}`);

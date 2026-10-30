@@ -4,7 +4,7 @@
  * Uso:  node scripts/seed_demo.js --reset
  *
  * BORRA todos los datos deportivos y financieros (conserva solo el usuario
- * admin@argentinosdelnorte.com) y carga una temporada completa. Los torneos
+ * de ADMIN_EMAIL, definido en backend/.env) y carga una temporada completa. Los torneos
  * terminados se archivan con los mismos handlers que usa el panel
  * (finalizarYArchivarTorneo + iniciarNuevaEdicion), por eso corre en fases.
  * Si una fase falla a mitad, volver a correr con --reset.
@@ -13,7 +13,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { getPool, withTransaction } = require('../config/db');
 const { finalizarYArchivarTorneo, iniciarNuevaEdicion } = require('../controllers/division.controller');
 
-const EMAIL_ADMIN = 'admin@argentinosdelnorte.com';
+const EMAIL_ADMIN = process.env.ADMIN_EMAIL;
 
 // ─── Azar reproducible ────────────────────────────────────────────────────────
 let semilla = 20261029;
@@ -488,6 +488,10 @@ const enCurso = (jugadas) => (j) => ULTIMO_SABADO - (jugadas - j) * 7 * DIA;
 
 // ─── Fase 0: limpieza ────────────────────────────────────────────────────────
 async function limpiar(client) {
+  // Sin este control, un ADMIN_EMAIL mal escrito dejaría la base sin ningún usuario
+  const { rows: admins } = await client.query(`SELECT 1 FROM public.perfil_usuario WHERE email = $1`, [EMAIL_ADMIN]);
+  if (admins.length === 0) throw new Error('ADMIN_EMAIL no coincide con ningún usuario: no se borró nada');
+
   await client.query(`DELETE FROM public.perfil_usuario WHERE email <> $1`, [EMAIL_ADMIN]);
   await client.query(`UPDATE public.perfil_usuario SET id_division_asignada = NULL`);
   await client.query(`UPDATE public.division SET id_equipo_campeon = NULL`);
@@ -816,6 +820,10 @@ async function main() {
   if (!process.argv.includes('--reset')) {
     console.log('Este script BORRA todos los datos (excepto el usuario admin) y carga datos de demo.');
     console.log('Para confirmar: node scripts/seed_demo.js --reset');
+    process.exit(1);
+  }
+  if (!EMAIL_ADMIN) {
+    console.log('Definí ADMIN_EMAIL en backend/.env: es el único usuario que se conserva.');
     process.exit(1);
   }
   const host = (process.env.DATABASE_URL || '').split('@')[1]?.split('/')[0] || '(sin DATABASE_URL)';
