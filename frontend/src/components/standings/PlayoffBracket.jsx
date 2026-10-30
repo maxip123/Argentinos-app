@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaTrophy, FaProjectDiagram } from 'react-icons/fa';
 import ClubShield from '../ui/ClubShield';
+import {
+  ETIQUETA_COPA,
+  agruparPorFase,
+  campeonDeLlaves,
+  copasDe,
+  ganadorDeLlave,
+  normalizarLlave,
+} from '../../utils/playoffs';
 
-export default function PlayoffBracket({ llaves = [], cargando = false }) {
+export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando = false }) {
+  const [copaElegida, setCopaElegida] = useState(null);
+
   if (cargando) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
@@ -14,7 +24,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
     );
   }
 
-  if (!llaves || llaves.length === 0) {
+  if (!llavesRecibidas || llavesRecibidas.length === 0) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm space-y-4 max-w-lg mx-auto">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
@@ -32,35 +42,13 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
     );
   }
 
-  // Agrupar llaves por fase
-  const fasesMap = {};
-  llaves.forEach((llave) => {
-    const f = llave.fase || 'Playoffs';
-    if (!fasesMap[f]) fasesMap[f] = [];
-    fasesMap[f].push(llave);
-  });
+  const todasLasLlaves = llavesRecibidas.map(normalizarLlave);
+  const copas = copasDe(todasLasLlaves);
+  const copaActiva = copas.includes(copaElegida) ? copaElegida : copas[0];
+  const hayCopas = copaActiva !== 'Unica';
+  const llaves = todasLasLlaves.filter((l) => l.copa === copaActiva);
 
-  const ordenJerarquia = {
-    '16avos de Final': 1,
-    'Octavos de Final': 2,
-    'Cuartos de Final': 3,
-    'Semifinal': 4,
-    'Final': 5,
-  };
-
-  const fasesOrdenadas = Object.keys(fasesMap).sort(
-    (a, b) => (ordenJerarquia[a] || 99) - (ordenJerarquia[b] || 99)
-  );
-
-  const getGanadorId = (llave) => {
-    if (llave.estado_partido !== 2) return null;
-    const gl = llave.goles_local;
-    const gv = llave.goles_visitante;
-    if (gl === null || gv === null) return null;
-    if (gl > gv) return Number(llave.id_equipo_local);
-    if (gv > gl) return Number(llave.id_equipo_visitante);
-    return llave.id_equipo_ganador ? Number(llave.id_equipo_ganador) : null;
-  };
+  const { fasesMap, fasesOrdenadas } = agruparPorFase(llaves);
 
   const esPorPenales = (llave) =>
     llave.estado_partido === 2 &&
@@ -69,30 +57,34 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
     llave.goles_local === llave.goles_visitante &&
     llave.id_equipo_ganador != null;
 
-  // Campeón del torneo
-  const llaveFinal = llaves.find((l) => l.fase === 'Final');
-  let campeonNombre = null;
-  let campeonEsClub = false;
-  if (llaveFinal && llaveFinal.estado_partido === 2) {
-    const gl = llaveFinal.goles_local;
-    const gv = llaveFinal.goles_visitante;
-    if (gl !== null && gv !== null) {
-      if (gl > gv) {
-        campeonNombre = llaveFinal.equipo_local_nombre;
-        campeonEsClub = llaveFinal.local_es_argentinos;
-      } else if (gv > gl) {
-        campeonNombre = llaveFinal.equipo_visitante_nombre;
-        campeonEsClub = llaveFinal.visitante_es_argentinos;
-      } else if (llaveFinal.id_equipo_ganador) {
-        const esLocal = Number(llaveFinal.id_equipo_ganador) === Number(llaveFinal.id_equipo_local);
-        campeonNombre = esLocal ? llaveFinal.equipo_local_nombre : llaveFinal.equipo_visitante_nombre;
-        campeonEsClub = esLocal ? llaveFinal.local_es_argentinos : llaveFinal.visitante_es_argentinos;
-      }
-    }
-  }
+  const campeon = campeonDeLlaves(llaves);
+  const campeonNombre = campeon?.nombre ?? null;
+  const campeonEsClub = campeon?.esClub ?? false;
 
   return (
     <div className="space-y-6">
+      {hayCopas && copas.length > 1 && (
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1.5 bg-white rounded-full p-1.5 border border-slate-200 shadow-sm">
+            {copas.map((copa) => (
+              <button
+                key={copa}
+                type="button"
+                onClick={() => setCopaElegida(copa)}
+                className={`flex items-center gap-2 px-5 py-2 rounded-full font-headline uppercase text-xs sm:text-sm tracking-wider transition-all whitespace-nowrap ${
+                  copa === copaActiva
+                    ? 'bg-[#151f89] text-white shadow-md'
+                    : 'text-slate-600 hover:text-[#151f89] hover:bg-slate-100/60'
+                }`}
+              >
+                <FaTrophy className={copa === copaActiva ? 'text-white' : copa === 'Oro' ? 'text-amber-500' : 'text-slate-400'} />
+                <span>{ETIQUETA_COPA[copa]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
         {/* Encabezado */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
@@ -102,7 +94,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
             </div>
             <div>
               <h3 className="font-headline text-slate-900 text-xl uppercase tracking-wide">
-                Cuadro de Eliminación Directa
+                {hayCopas ? ETIQUETA_COPA[copaActiva] : 'Cuadro de Eliminación Directa'}
               </h3>
               <p className="text-xs text-slate-500 font-body">
                 Definición del campeonato por eliminación simple hacia la gran final.
@@ -114,7 +106,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-amber-900 font-headline uppercase text-xs tracking-wider shadow-2xs">
               <FaTrophy className="text-amber-600 text-base" />
               <span>
-                Campeón Oficial: <strong>{campeonNombre}</strong>
+                {hayCopas ? `Campeón ${ETIQUETA_COPA[copaActiva]}` : 'Campeón Oficial'}: <strong>{campeonNombre}</strong>
               </span>
             </div>
           )}
@@ -150,7 +142,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
                   {/* Partidos de la Fase */}
                   <div className="flex flex-col justify-around flex-1 gap-5">
                     {llavesDeFase.map((llave) => {
-                      const ganadorId = getGanadorId(llave);
+                      const ganadorId = ganadorDeLlave(llave);
                       const penales = esPorPenales(llave);
                       const localGano =
                         ganadorId !== null &&
@@ -261,7 +253,7 @@ export default function PlayoffBracket({ llaves = [], cargando = false }) {
                 <FaTrophy className="text-3xl" />
               </div>
               <span className="font-headline uppercase tracking-widest text-xs text-amber-800 font-bold block">
-                CAMPEÓN DEL TORNEO
+                {hayCopas ? `CAMPEÓN ${ETIQUETA_COPA[copaActiva]}` : 'CAMPEÓN DEL TORNEO'}
               </span>
               <h4 className="font-headline text-lg text-slate-900 uppercase tracking-wide mt-1 flex items-center justify-center gap-1.5">
                 {campeonEsClub && <ClubShield className="w-5 h-5 shrink-0" />}

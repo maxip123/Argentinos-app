@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
 import ConfirmModal from '../ui/ConfirmModal';
 import { formatFecha } from '../../utils/fechas';
+import { ETIQUETA_COPA, normalizarLlave } from '../../utils/playoffs';
 import {
   FaTrophy,
   FaMedal,
@@ -106,7 +107,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
       // Usar directamente los datos archivados en el snapshot
       setTablaPosiciones(torneoSeleccionado.tabla_posiciones || []);
       setPartidosTorneo(torneoSeleccionado.partidos || []);
-      setLlavesPlayoff(torneoSeleccionado.playoffs || []);
+      setLlavesPlayoff((torneoSeleccionado.playoffs || []).map(normalizarLlave));
       setGoleadoresClub(torneoSeleccionado.goleadores_club || []);
       setTarjetasClub(torneoSeleccionado.tarjetas_club || []);
       setCargandoDetalle(false);
@@ -504,7 +505,9 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 {llavesPlayoff.map(llave => (
                   <div key={llave.id_llave} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-headline uppercase text-slate-500 pb-1 border-b border-slate-200">
-                      <span>{llave.fase}</span>
+                      <span>
+                        {llave.copa && llave.copa !== 'Unica' ? `${ETIQUETA_COPA[llave.copa]} · ` : ''}{llave.fase}
+                      </span>
                       <span>Partido {llave.orden}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
