@@ -63,6 +63,11 @@ const obtenerEstadoJugadores = async (req, res) => {
         j.es_inactivo,
         j.fecha_ultimo_pago,
         j.fecha_vencimiento,
+        j.id_division,
+        COALESCE(
+          string_agg(DISTINCT div.nombre_division, ', ') FILTER (WHERE div.terminado = FALSE AND ej.activo = TRUE),
+          dj.nombre_division
+        ) AS nombre_division,
         CASE
           WHEN j.es_inactivo = TRUE THEN 'Inactivo'
           WHEN j.fecha_vencimiento IS NULL THEN 'Sin cuota'
@@ -86,6 +91,7 @@ const obtenerEstadoJugadores = async (req, res) => {
       LEFT JOIN public.equipo_jugador ej ON ej.id_jugador = j.id_jugador AND ej.activo = TRUE
       LEFT JOIN public.equipo eq ON eq.id_equipo = ej.id_equipo AND eq.activo = TRUE
       LEFT JOIN public.division div ON div.id_division = eq.id_division
+      LEFT JOIN public.division dj ON dj.id_division = j.id_division
       WHERE j.activo = TRUE AND j.es_jugador_club = TRUE`;
     
     const params = [];
@@ -100,7 +106,7 @@ const obtenerEstadoJugadores = async (req, res) => {
         )
       )`;
     }
-    sql += ` GROUP BY j.id_jugador ORDER BY j.apellido ASC, j.nombre ASC`;
+    sql += ` GROUP BY j.id_jugador, dj.nombre_division ORDER BY j.apellido ASC, j.nombre ASC`;
     const { rows } = await query(sql, params);
     return respuestaExito(res, rows, 'Estado de cuotas de jugadores obtenido correctamente.');
   } catch (error) {

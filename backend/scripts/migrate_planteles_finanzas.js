@@ -1,12 +1,9 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+require('dotenv').config();
 const { Client } = require('pg');
 
 const client = new Client({
-  host: 'db.bdtffmgkowbwugpkeptb.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: 'rrSEiJSUdVJ5Brnq',
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 

@@ -4,6 +4,7 @@ import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
+import HistorialPage from './pages/HistorialPage';
 import AboutPage from './pages/AboutPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
@@ -45,6 +46,8 @@ export default function App() {
             <Route path="/masculino" element={<TournamentPage generoForzado="Masculino" />} />
             <Route path="/femenino" element={<TournamentPage generoForzado="Femenino" />} />
             <Route path="/torneo" element={<TournamentPage />} />
+            <Route path="/historial" element={<HistorialPage />} />
+            <Route path="/historial/:id" element={<HistorialPage />} />
             <Route path="/sobre-nosotros" element={<AboutPage />} />
             <Route path="/login" element={<LoginPage />} />
 

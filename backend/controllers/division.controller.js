@@ -466,6 +466,33 @@ const finalizarYArchivarTorneo = async (req, res) => {
 };
 
 /**
+ * Podio de una edición archivada. Si hubo final de playoff, manda sobre la tabla:
+ * campeón y subcampeón salen de la final y el 3.º del partido por el tercer puesto
+ * o, si no lo hubo, del mejor ubicado en la tabla entre los restantes.
+ */
+const calcularPodio = (tabla, playoffs) => {
+  const final = playoffs.find((l) => l.fase === 'Final' && l.estado_partido === 2 && l.id_equipo_ganador);
+  if (!final) return [tabla[0] || null, tabla[1] || null, tabla[2] || null];
+
+  const mismo = (a, b) => a != null && b != null && String(a) === String(b);
+  const enTabla = (id) => tabla.find((t) => mismo(t.id_equipo, id)) || null;
+  const perdedor = (l) => (mismo(l.id_equipo_ganador, l.id_equipo_local) ? l.id_equipo_visitante : l.id_equipo_local);
+
+  const campeon = enTabla(final.id_equipo_ganador) || { id_equipo: final.id_equipo_ganador, nombre_equipo: final.ganador_nombre };
+  const idSub = perdedor(final);
+  const subcampeon = enTabla(idSub) || {
+    id_equipo: idSub,
+    nombre_equipo: mismo(idSub, final.id_equipo_local) ? final.local_nombre : final.visitante_nombre,
+  };
+  const partidoTercero = playoffs.find((l) => l.fase === 'Tercer Puesto' && l.id_equipo_ganador);
+  const tercero = partidoTercero
+    ? enTabla(partidoTercero.id_equipo_ganador)
+    : tabla.find((t) => !mismo(t.id_equipo, campeon.id_equipo) && !mismo(t.id_equipo, idSub)) || null;
+
+  return [campeon, subcampeon, tercero];
+};
+
+/**
  * GET /api/divisiones/historial
  * Retorna las ediciones finalizadas de torneos a partir de los snapshots ricos de public.historial_torneo
  * y mantiene compatibilidad con torneos legacy.
@@ -488,6 +515,8 @@ const obtenerHistorialTorneos = async (req, res) => {
 
     const listaHistorial = snapshots.map((s) => {
       const tabla = Array.isArray(s.tabla_posiciones) ? s.tabla_posiciones : [];
+      const playoffs = Array.isArray(s.playoffs) ? s.playoffs : [];
+      const [primero, segundo, tercero] = calcularPodio(tabla, playoffs);
       return {
         id_historial: s.id_historial,
         id_division: s.id_division,
@@ -499,14 +528,14 @@ const obtenerHistorialTorneos = async (req, res) => {
         cantidad_equipos: s.resumen_estadisticas?.total_equipos || tabla.length,
         partidos_jugados: s.resumen_estadisticas?.total_partidos || 0,
         total_goles: s.resumen_estadisticas?.total_goles || 0,
-        campeon_definitivo: s.campeon_definitivo?.nombre_equipo ? s.campeon_definitivo : (tabla[0] || null),
-        campeon_tabla: tabla[0] || null,
-        subcampeon_tabla: tabla[1] || null,
-        tercer_puesto_tabla: tabla[2] || null,
+        campeon_definitivo: s.campeon_definitivo?.nombre_equipo ? s.campeon_definitivo : primero,
+        campeon_tabla: primero,
+        subcampeon_tabla: segundo,
+        tercer_puesto_tabla: tercero,
         // Snapshots ricos estructurados
         tabla_posiciones: tabla,
         partidos: Array.isArray(s.partidos_resultados) ? s.partidos_resultados : [],
-        playoffs: Array.isArray(s.playoffs) ? s.playoffs : [],
+        playoffs,
         goleadores_club: Array.isArray(s.goleadores_club) ? s.goleadores_club : [],
         tarjetas_club: Array.isArray(s.tarjetas_club) ? s.tarjetas_club : [],
         es_snapshot_rico: true,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
 import ConfirmModal from '../ui/ConfirmModal';
+import { formatFecha } from '../../utils/fechas';
 import {
   FaTrophy,
   FaMedal,
@@ -469,7 +470,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                           {p.nombre_partido || `Fecha ${p.jornada_numero}`}
                         </span>
                         <div className="text-xs text-slate-500 font-title">
-                          {p.fecha_partido ? new Date(p.fecha_partido).toLocaleDateString('es-AR') : '—'}
+                          {formatFecha(p.fecha_partido)}
                           {p.nombre_sede && ` • ${p.nombre_sede}`}
                         </div>
                       </div>
