@@ -464,9 +464,9 @@ function definirLlave(a, b, ganaARG) {
   };
 }
 
-async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false }) {
+async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false, copa = 'Unica' }) {
   const idDivision = ids.division[divKey];
-  const base = { id_division: idDivision, activo: true };
+  const base = { id_division: idDivision, activo: true, copa };
   if (soloFinal) {
     const final = definirLlave(posiciones[0], posiciones[1], campeonARG);
     await insertar(client, 'llave_playoff', [{ ...base, fase: 'Final', orden: 1, ...final.fila }]);
@@ -595,7 +595,8 @@ async function cargarApertura(client) {
   const primera = await jugarEdicion(client, 'PRIMERA', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 7, registrarCaja: true,
   });
-  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones, { campeonARG: true });
+  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(0, 4), { campeonARG: true, copa: 'Oro' });
+  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(4, 8), { campeonARG: false, copa: 'Plata' });
   const fem = await jugarEdicion(client, 'FEMENINO', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 5, registrarCaja: true,
   });
@@ -794,6 +795,14 @@ async function verificar() {
   for (const h of historial) {
     if (!h.equipos || !h.partidos || !h.nombre_equipo_campeon) problemas.push(`historial incompleto: ${h.nombre_torneo} ${h.temporada}`);
   }
+
+  // Con dos copas, el campeón del torneo es siempre el de Oro
+  const [{ total: campeonMal }] = await q(`
+    SELECT count(*)::int AS total
+    FROM public.historial_torneo h, jsonb_array_elements(h.playoffs) l
+    WHERE l->>'fase' = 'Final' AND l->>'copa' = 'Oro'
+      AND (l->>'id_equipo_ganador')::bigint IS DISTINCT FROM h.id_equipo_campeon`);
+  if (campeonMal) problemas.push(`${campeonMal} ediciones cuyo campeón no es el de Copa Oro`);
 
   const divisiones = await q(`
     SELECT d.nombre_division, d.temporada, d.terminado,

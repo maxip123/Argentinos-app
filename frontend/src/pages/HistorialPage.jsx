@@ -98,6 +98,7 @@ function TarjetaEdicion({ h }) {
         <Podio etiqueta="Campeón" equipo={campeon} destacado />
         <Podio etiqueta="Subcampeón" equipo={h.subcampeon_tabla} />
         <Podio etiqueta="3.º puesto" equipo={h.tercer_puesto_tabla} />
+        <Podio etiqueta="Campeón Copa Plata" equipo={h.campeon_plata} />
       </div>
 
       <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 bg-slate-50/70 text-center">
@@ -218,6 +219,12 @@ function DetalleHistorial({ id }) {
                 <span className="flex items-center gap-2">
                   <FaTrophy className="text-amber-500 shrink-0" />
                   Campeón: <strong>{nombreEquipo(campeon)}</strong>
+                </span>
+              )}
+              {nombreEquipo(h.campeon_plata) && (
+                <span className="flex items-center gap-2">
+                  <FaTrophy className="text-slate-400 shrink-0" />
+                  Campeón Copa Plata: <strong>{nombreEquipo(h.campeon_plata)}</strong>
                 </span>
               )}
               <span className="flex items-center gap-2">
