@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/axios';
-import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha, fechaClub, mediodiaClub } from '../../utils/fechas';
 import {
   FaMoneyBillWave,
@@ -72,6 +73,113 @@ function EstadoBadge({ estado }) {
 
 function formatMoney(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n || 0);
+}
+
+const CATEGORIA_CUOTA = 'Cuota Socio';
+const FILTRO_ANULADOS = 'ANULADOS';
+
+/* ─── Modal de Anulación de Movimiento ───────────────────────────────────────── */
+function ModalAnularMovimiento({ movimiento, onClose, onSuccess }) {
+  const [motivo, setMotivo] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const esCobroCuota = movimiento.categoria === CATEGORIA_CUOTA;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!motivo.trim()) { setError('Indicá el motivo de la anulación.'); return; }
+    setCargando(true);
+    setError('');
+    try {
+      const res = await api.post(`/gastos/${movimiento.id_gasto}/anular`, { motivo: motivo.trim() });
+      onSuccess(res.data.mensaje);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'Error al anular el movimiento.');
+      setCargando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="bg-gradient-to-r from-[#991b1b] to-[#7f1d1d] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-red-200 font-bold">Caja y Tesorería</span>
+            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">
+              {esCobroCuota ? 'Anular Cobro de Cuota' : 'Anular Movimiento'}
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+            <FaTimes />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+          {error && (
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
+              <FaExclamationCircle className="shrink-0" /> {error}
+            </div>
+          )}
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
+            <strong className="block text-slate-900 break-words">{movimiento.concepto}</strong>
+            <span className="text-xs text-slate-500 font-mono">
+              {formatFecha(movimiento.fecha_gasto)} · {formatMoney(movimiento.monto)}
+            </span>
+          </div>
+
+          <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+            <FaExclamationCircle className="text-amber-700 mt-0.5 shrink-0" />
+            <div>
+              {esCobroCuota
+                ? 'Se quita el monto de la cuota y el vencimiento del socio vuelve al de su último pago válido. Si no le quedan pagos, pasa a figurar sin cuota.'
+                : 'El movimiento deja de contar en los balances, pero queda registrado como anulado.'}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Motivo *</label>
+            <textarea
+              required
+              rows={3}
+              maxLength={500}
+              value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              placeholder="Ej: se cargó al socio equivocado"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit" disabled={cargando}
+              className="flex-1 bg-[#991b1b] hover:bg-[#7f1d1d] disabled:opacity-60 text-white py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
+            >
+              {cargando ? 'Anulando...' : 'Confirmar Anulación'}
+            </button>
+            <button
+              type="button" onClick={onClose}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-600 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* Quién, cuándo y por qué se anuló un movimiento */
+function DetalleAnulacion({ movimiento }) {
+  return (
+    <p className="text-[11px] text-red-700 font-medium mt-1 break-words">
+      Anulado{movimiento.fecha_anulacion ? ` el ${formatFecha(movimiento.fecha_anulacion)}` : ''}
+      {movimiento.anulado_por_nombre ? ` por ${movimiento.anulado_por_nombre}` : ''}
+      : {movimiento.motivo_anulacion || 'sin motivo registrado'}
+    </p>
+  );
 }
 
 /* ─── Modal de Cobro Rápido de Cuota ─────────────────────────────────────────── */
@@ -527,6 +635,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
 
   // Refs para uso dentro del useCallback estable
   const filtroTipoMovRef   = useRef('');
+  const filtroCategoriaMovRef = useRef('');
   const busquedaMovRef     = useRef('');
   const paginaCajaRef      = useRef(1);
   const busquedaTimeoutRef = useRef(null);
@@ -543,16 +652,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const [tipoMovimientoModal, setTipoMovimientoModal] = useState('INGRESO');
   const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
 
-  // Modal de confirmación UI (reemplazo de window.confirm)
-  const [modalConfirmacion, setModalConfirmacion] = useState({
-    isOpen: false,
-    title: '',
-    description: '',
-    confirmText: 'Confirmar',
-    variant: 'danger',
-    badge: 'Tesorería',
-    onConfirm: null,
-  });
+  const [movimientoAnular, setMovimientoAnular] = useState(null);
 
   const cargarJugadores = useCallback(async () => {
     setCargandoJugadores(true);
@@ -571,11 +671,24 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     setCargandoMovimientos(true);
     try {
       const params = new URLSearchParams();
-      if (filtroTipoMovRef.current)       params.append('tipo',   filtroTipoMovRef.current);
+      if (filtroTipoMovRef.current === FILTRO_ANULADOS) params.append('anulados', 'true');
+      else if (filtroTipoMovRef.current)  params.append('tipo',   filtroTipoMovRef.current);
+      if (filtroCategoriaMovRef.current)  params.append('categoria', filtroCategoriaMovRef.current);
       if (busquedaMovRef.current.trim())  params.append('q',      busquedaMovRef.current.trim());
       params.append('limit',  String(LIMIT_CAJA));
-      params.append('offset', String((paginaCajaRef.current - 1) * LIMIT_CAJA));
-      const res = await api.get(`/gastos?${params.toString()}`);
+
+      const pedirPagina = () => {
+        params.set('offset', String((paginaCajaRef.current - 1) * LIMIT_CAJA));
+        return api.get(`/gastos?${params.toString()}`);
+      };
+
+      let res = await pedirPagina();
+      // Si se anuló el último movimiento de la última página, volver a la anterior
+      while (!res.data.data?.movimientos?.length && paginaCajaRef.current > 1) {
+        paginaCajaRef.current -= 1;
+        setPaginaCaja(paginaCajaRef.current);
+        res = await pedirPagina();
+      }
       setMovimientos(res.data.data?.movimientos || []);
       setTotalMovimientos(res.data.data?.total  || 0);
     } catch (err) {
@@ -622,11 +735,20 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     }
     return true;
   });
+  const paginacionCuotas = usePaginacion(jugadoresFiltrados, 15, `${divisionFiltro}|${estadoFiltro}|${busqueda}`);
 
   // Handlers para filtros de caja (sincronizan ref + estado + recargan)
   const handleCambioTipoMov = (val) => {
     setFiltroTipoMov(val);
     filtroTipoMovRef.current = val;
+    setPaginaCaja(1);
+    paginaCajaRef.current = 1;
+    cargarMovimientos();
+  };
+
+  const handleCambioCategoriaMov = (val) => {
+    setFiltroCategoriaMov(val);
+    filtroCategoriaMovRef.current = val;
     setPaginaCaja(1);
     paginaCajaRef.current = 1;
     cargarMovimientos();
@@ -649,41 +771,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     cargarMovimientos();
   };
 
-  // Filtrado local (solo categoría, que es secundaria — tipo y búsqueda van server-side)
-  const movimientosFiltrados = movimientos.filter(m => {
-    if (filtroCategoriaMov && m.categoria !== filtroCategoriaMov) return false;
-    return true;
-  });
-
   const totalPaginasCaja = Math.ceil(totalMovimientos / LIMIT_CAJA);
-
-  // Eliminar movimiento
-  const handleEliminarMovimiento = (movimiento) => {
-    const esObj = typeof movimiento === 'object' && movimiento !== null;
-    const id = esObj ? movimiento.id_gasto : movimiento;
-    const concepto = esObj ? (movimiento.concepto || movimiento.categoria || 'este registro') : 'este registro';
-    const montoStr = esObj && movimiento.monto ? ` por ${formatMoney(movimiento.monto)}` : '';
-
-    setModalConfirmacion({
-      isOpen: true,
-      title: '¿Anular movimiento de caja?',
-      description: `¿Estás seguro de que deseás anular "${concepto}"${montoStr}? El registro se dará de baja y no se computará en los balances de tesorería.`,
-      confirmText: 'Sí, Anular Movimiento',
-      variant: 'danger',
-      badge: 'Caja y Tesorería',
-      onConfirm: async () => {
-        try {
-          await api.delete(`/gastos/${id}`);
-          mostrarMensaje && mostrarMensaje('exito', 'Movimiento anulado correctamente.');
-          cargarMovimientos();
-          if (tab === 'resumen') cargarResumen();
-          setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
-        } catch (err) {
-          mostrarMensaje && mostrarMensaje('error', 'Error al eliminar movimiento.');
-        }
-      },
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -828,6 +916,8 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
             </button>
           </div>
 
+          <div id={paginacionCuotas.idLista} className="scroll-mt-24" />
+
           {/* Vista móvil: Cards de jugadores */}
           <div className="block md:hidden space-y-3">
             {cargandoJugadores ? (
@@ -835,7 +925,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
             ) : jugadoresFiltrados.length === 0 ? (
               <div className="p-8 text-center text-slate-400 font-title text-xs">No se encontraron jugadores.</div>
             ) : (
-              jugadoresFiltrados.map(j => (
+              paginacionCuotas.visibles.map(j => (
                 <div key={j.id_jugador} className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 ${j.es_inactivo ? 'opacity-60' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -848,7 +938,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                     <div>
                       <span className="text-[10px] text-slate-400 block uppercase font-mono">Vencimiento</span>
                       <span className={`font-mono font-bold ${
-                        j.fecha_vencimiento && new Date(j.fecha_vencimiento) < new Date() ? 'text-red-600' : 'text-slate-800'
+                        j.estado_cuota === 'Pendiente' ? 'text-red-600' : 'text-slate-800'
                       }`}>
                         {formatFecha(j.fecha_vencimiento)}
                       </span>
@@ -895,7 +985,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title text-xs">
-                    {jugadoresFiltrados.map(j => (
+                    {paginacionCuotas.visibles.map(j => (
                       <tr
                         key={j.id_jugador}
                         className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-50' : ''}`}
@@ -909,7 +999,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                         <td className="p-3.5">
                           {j.fecha_vencimiento ? (
                             <span className={`font-bold font-mono ${
-                              new Date(j.fecha_vencimiento) < new Date() ? 'text-red-600' : 'text-slate-800'
+                              j.estado_cuota === 'Pendiente' ? 'text-red-600' : 'text-slate-800'
                             }`}>
                               {formatFecha(j.fecha_vencimiento)}
                             </span>
@@ -943,6 +1033,8 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               </div>
             )}
           </div>
+
+          {!cargandoJugadores && <Paginacion paginacion={paginacionCuotas} singular="jugador" plural="jugadores" />}
         </div>
       )}
 
@@ -970,15 +1062,17 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               <option value="">Todos los movimientos</option>
               <option value="INGRESO">Solo Entradas / Ingresos</option>
               <option value="EGRESO">Solo Gastos / Salidas</option>
+              <option value={FILTRO_ANULADOS}>Movimientos anulados</option>
             </select>
 
             <select
               value={filtroCategoriaMov}
-              onChange={e => setFiltroCategoriaMov(e.target.value)}
+              onChange={e => handleCambioCategoriaMov(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todas las categorías</option>
               <optgroup label="Ingresos">
+                <option value={CATEGORIA_CUOTA}>{CATEGORIA_CUOTA}</option>
                 {CATEGORIAS_ENTRADA.map(c => <option key={c} value={c}>{c}</option>)}
               </optgroup>
               <optgroup label="Gastos">
@@ -999,15 +1093,16 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
           <div className="block md:hidden space-y-3">
             {cargandoMovimientos ? (
               <div className="p-8 text-center text-slate-400 font-title text-xs">Cargando libro de caja...</div>
-            ) : movimientosFiltrados.length === 0 ? (
+            ) : movimientos.length === 0 ? (
               <div className="p-8 text-center text-slate-400 font-title text-xs">No hay movimientos registrados con los filtros aplicados.</div>
             ) : (
-              movimientosFiltrados.map(m => {
+              movimientos.map(m => {
                 const esIngreso = m.tipo === 'INGRESO';
+                const anulado = m.activo === false;
                 return (
                   <div key={m.id_gasto} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2.5">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-1.5 ${
                           esIngreso
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1018,33 +1113,38 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                         </span>
                         <h4 className="font-bold text-slate-900 text-sm leading-tight">{m.concepto}</h4>
                         <span className="text-[11px] text-slate-500 font-medium">{m.categoria} · {m.metodo_pago || 'Efectivo'}</span>
+                        {anulado && <DetalleAnulacion movimiento={m} />}
                       </div>
-                      <div className={`font-headline text-lg font-bold shrink-0 ${esIngreso ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <div className={`font-headline text-lg font-bold shrink-0 ${anulado ? 'text-slate-400 line-through' : esIngreso ? 'text-emerald-600' : 'text-red-600'}`}>
                         {esIngreso ? '+' : '-'}{formatMoney(m.monto)}
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-400 font-mono">
                       <span>{formatFecha(m.fecha_gasto)}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setMovimientoEditar(m);
-                            setTipoMovimientoModal(m.tipo);
-                            setMostrarModalMovimiento(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
-                          title="Editar movimiento"
-                        >
-                          <FaEdit className="text-xs" />
-                        </button>
-                        <button
-                          onClick={() => handleEliminarMovimiento(m)}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                          title="Anular movimiento"
-                        >
-                          <FaTrash className="text-xs" />
-                        </button>
-                      </div>
+                      {!anulado && (
+                        <div className="flex items-center gap-2">
+                          {m.categoria !== CATEGORIA_CUOTA && (
+                            <button
+                              onClick={() => {
+                                setMovimientoEditar(m);
+                                setTipoMovimientoModal(m.tipo);
+                                setMostrarModalMovimiento(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                              title="Editar movimiento"
+                            >
+                              <FaEdit className="text-xs" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setMovimientoAnular(m)}
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                            title="Anular movimiento"
+                          >
+                            <FaTrash className="text-xs" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1056,7 +1156,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
           <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             {cargandoMovimientos ? (
               <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando libro de caja...</div>
-            ) : movimientosFiltrados.length === 0 ? (
+            ) : movimientos.length === 0 ? (
               <div className="p-12 text-center space-y-2">
                 <FaReceipt className="mx-auto text-3xl text-slate-300" />
                 <p className="text-slate-400 font-title text-sm">No hay movimientos registrados con los filtros aplicados.</p>
@@ -1076,8 +1176,9 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title text-xs">
-                    {movimientosFiltrados.map(m => {
+                    {movimientos.map(m => {
                       const esIngreso = m.tipo === 'INGRESO';
+                      const anulado = m.activo === false;
                       return (
                         <tr key={m.id_gasto} className="hover:bg-slate-50/80 transition-colors">
                           <td className="p-3.5">
@@ -1090,7 +1191,10 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                               {esIngreso ? 'Entrada' : 'Gasto'}
                             </span>
                           </td>
-                          <td className="p-3.5 font-bold text-slate-900 text-sm">{m.concepto}</td>
+                          <td className="p-3.5">
+                            <span className="font-bold text-slate-900 text-sm">{m.concepto}</span>
+                            {anulado && <DetalleAnulacion movimiento={m} />}
+                          </td>
                           <td className="p-3.5">
                             <span className="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
                               {m.categoria}
@@ -1099,31 +1203,35 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                           <td className="p-3.5 text-slate-500 font-medium">{m.metodo_pago || 'Efectivo'}</td>
                           <td className="p-3.5 text-slate-500 font-mono">{formatFecha(m.fecha_gasto)}</td>
                           <td className="p-3.5 text-right font-headline text-base">
-                            <span className={esIngreso ? 'text-emerald-600' : 'text-red-600'}>
+                            <span className={anulado ? 'text-slate-400 line-through' : esIngreso ? 'text-emerald-600' : 'text-red-600'}>
                               {esIngreso ? '+' : '-'}{formatMoney(m.monto)}
                             </span>
                           </td>
                           <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => {
-                                  setMovimientoEditar(m);
-                                  setTipoMovimientoModal(m.tipo);
-                                  setMostrarModalMovimiento(true);
-                                }}
-                                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-                                title="Editar movimiento"
-                              >
-                                <FaEdit className="text-xs" />
-                              </button>
-                              <button
-                                onClick={() => handleEliminarMovimiento(m)}
-                                className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                title="Anular movimiento"
-                              >
-                                <FaTrash className="text-xs" />
-                              </button>
-                            </div>
+                            {!anulado && (
+                              <div className="flex items-center justify-end gap-1.5">
+                                {m.categoria !== CATEGORIA_CUOTA && (
+                                  <button
+                                    onClick={() => {
+                                      setMovimientoEditar(m);
+                                      setTipoMovimientoModal(m.tipo);
+                                      setMostrarModalMovimiento(true);
+                                    }}
+                                    className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                    title="Editar movimiento"
+                                  >
+                                    <FaEdit className="text-xs" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setMovimientoAnular(m)}
+                                  className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                  title="Anular movimiento"
+                                >
+                                  <FaTrash className="text-xs" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1371,18 +1479,16 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
         />
       )}
 
-      {/* Modal de confirmación UI (reemplazo de window.confirm) */}
-      <ConfirmModal
-        isOpen={modalConfirmacion.isOpen}
-        onClose={() => setModalConfirmacion(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={modalConfirmacion.onConfirm}
-        title={modalConfirmacion.title}
-        description={modalConfirmacion.description}
-        confirmText={modalConfirmacion.confirmText}
-        variant={modalConfirmacion.variant}
-        badge={modalConfirmacion.badge}
-        cargando={cargandoMovimientos}
-      />
+      {movimientoAnular && (
+        <ModalAnularMovimiento
+          movimiento={movimientoAnular}
+          onClose={() => setMovimientoAnular(null)}
+          onSuccess={(msg) => {
+            mostrarMensaje && mostrarMensaje('exito', msg);
+            cargarMovimientos();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -89,6 +89,9 @@ const actualizar = async (req, res) => {
     if (rows.length === 0) return respuestaError(res, 'Equipo no encontrado.', 404);
     return respuestaExito(res, rows[0], 'Equipo actualizado correctamente.');
   } catch (error) {
+    if (error.code === '23505') {
+      return respuestaError(res, 'Ya existe un equipo con ese nombre en esta división.', 409);
+    }
     console.error('[equipo.controller] actualizar error:', error);
     return respuestaError(res, 'Error al actualizar el equipo.', 500, error.message);
   }

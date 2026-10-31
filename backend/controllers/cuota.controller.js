@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { CATEGORIA_CUOTA } = require('../utils/cobrosCuota');
 
 // GET /api/cuotas — Todas las cuotas. Filtros: ?id_jugador= ?id_division= ?estado_pago=
 const obtenerTodas = async (req, res) => {
@@ -261,8 +262,9 @@ const pagoRapido = async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'Pagado', $8, $9)
          ON CONFLICT (id_jugador, periodo_mes, periodo_anio)
          DO UPDATE SET
-           monto_abonado     = public.cuota_jugador.monto_abonado + EXCLUDED.monto_abonado,
-           monto_esperado    = public.cuota_jugador.monto_esperado + EXCLUDED.monto_esperado,
+           monto_abonado     = CASE WHEN public.cuota_jugador.activo THEN public.cuota_jugador.monto_abonado ELSE 0 END + EXCLUDED.monto_abonado,
+           monto_esperado    = CASE WHEN public.cuota_jugador.activo THEN public.cuota_jugador.monto_esperado ELSE 0 END + EXCLUDED.monto_esperado,
+           activo            = TRUE,
            fecha_pago        = EXCLUDED.fecha_pago,
            fecha_vencimiento = EXCLUDED.fecha_vencimiento,
            estado_pago       = 'Pagado',
@@ -293,9 +295,9 @@ const pagoRapido = async (req, res) => {
         const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         const concepto = `Cuota - ${jugRows[0].apellido} ${jugRows[0].nombre} - ${meses[periodoMes - 1]} ${periodoAnio}`;
         await client.query(
-          `INSERT INTO public.gasto_club (concepto, monto, fecha_gasto, categoria, tipo, metodo_pago)
-           VALUES ($1, $2, $3, 'Cuota Socio', 'INGRESO', $4)`,
-          [concepto, montoNum, fechaBase, metodo_pago || 'Efectivo']
+          `INSERT INTO public.gasto_club (concepto, monto, fecha_gasto, categoria, tipo, metodo_pago, id_cuota)
+           VALUES ($1, $2, $3, $4, 'INGRESO', $5, $6)`,
+          [concepto, montoNum, fechaBase, CATEGORIA_CUOTA, metodo_pago || 'Efectivo', cuotaRows[0].id_cuota]
         );
       }
 
@@ -368,6 +370,14 @@ const actualizar = async (req, res) => {
 const eliminar = async (req, res) => {
   try {
     const { id } = req.params;
+    const { rows: cobros } = await query(
+      `SELECT 1 FROM public.gasto_club WHERE id_cuota = $1 AND activo = TRUE LIMIT 1`,
+      [id]
+    );
+    if (cobros.length > 0) {
+      return respuestaError(res, 'Esta cuota tiene cobros en la caja: anulalos desde el libro de caja.', 409);
+    }
+
     const { rows } = await query(
       `UPDATE public.cuota_jugador SET activo = FALSE, updated_at = NOW() WHERE id_cuota = $1 AND activo = TRUE RETURNING id_cuota`,
       [id]

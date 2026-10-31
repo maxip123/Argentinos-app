@@ -102,7 +102,7 @@ const registro = async (req, res) => {
 const obtenerPerfil = async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT id_perfil, email, nombre_completo, rol, telefono, id_division_asignada, activo, created_at
+      `SELECT id_perfil, id_perfil AS id, email, nombre_completo, nombre_completo AS nombre, rol, telefono, id_division_asignada, activo, created_at
        FROM public.perfil_usuario
        WHERE id_perfil = $1 AND activo = TRUE`,
       [req.usuario.id]
@@ -190,29 +190,32 @@ const actualizarUsuario = async (req, res) => {
       return respuestaError(res, `Rol inválido. Roles permitidos: ${ROLES_VALIDOS.join(', ')}.`, 400);
     }
 
-    let sql = `UPDATE public.perfil_usuario SET
-                 nombre_completo = COALESCE($1, nombre_completo),
-                 rol = COALESCE($2, rol),
-                 telefono = $3,
-                 id_division_asignada = $4,
-                 activo = COALESCE($5, activo),
-                 updated_at = NOW()`;
-    const params = [
-      nombre_completo ? nombre_completo.trim() : null,
-      rol || null,
-      telefono !== undefined ? (telefono ? telefono.trim() : null) : null,
-      id_division_asignada ? Number(id_division_asignada) : null,
-      activo !== undefined ? Boolean(activo) : null,
-    ];
-
-    if (contrasena && contrasena.trim().length >= 6) {
-      const hash = await bcrypt.hash(contrasena.trim(), 10);
-      params.push(hash);
-      sql += `, contrasena_hash = $${params.length}`;
+    if (contrasena !== undefined && String(contrasena).trim().length < 8) {
+      return respuestaError(res, 'La contraseña debe tener al menos 8 caracteres.', 400);
+    }
+    if (activo === false && req.usuario?.id === id) {
+      return respuestaError(res, 'No podés desactivar tu propia cuenta en uso.', 400);
     }
 
+    // Solo se tocan los campos enviados: activar o resetear la clave no debe borrar el resto
+    const campos = ['updated_at = NOW()'];
+    const params = [];
+    const asignar = (columna, valor) => {
+      params.push(valor);
+      campos.push(`${columna} = $${params.length}`);
+    };
+
+    if (nombre_completo) asignar('nombre_completo', nombre_completo.trim());
+    if (rol) asignar('rol', rol);
+    if (telefono !== undefined) asignar('telefono', telefono ? telefono.trim() : null);
+    if (id_division_asignada !== undefined) asignar('id_division_asignada', id_division_asignada ? Number(id_division_asignada) : null);
+    if (activo !== undefined) asignar('activo', Boolean(activo));
+    if (contrasena !== undefined) asignar('contrasena_hash', await bcrypt.hash(String(contrasena).trim(), 10));
+
     params.push(id);
-    sql += ` WHERE id_perfil = $${params.length} RETURNING id_perfil, email, nombre_completo, rol, telefono, id_division_asignada, activo, updated_at`;
+    const sql = `UPDATE public.perfil_usuario SET ${campos.join(', ')}
+                 WHERE id_perfil = $${params.length}
+                 RETURNING id_perfil, email, nombre_completo, rol, telefono, id_division_asignada, activo, updated_at`;
 
     const { rows } = await query(sql, params);
     if (rows.length === 0) return respuestaError(res, 'Usuario no encontrado.', 404);
