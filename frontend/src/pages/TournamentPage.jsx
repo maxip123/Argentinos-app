@@ -156,6 +156,7 @@ export default function TournamentPage({ generoForzado = null }) {
 
         {tabActiva === 'goleadores' && (
           <ScorersTable
+            key={divisionActivaId}
             goleadores={goleadores}
             cargando={cargando}
             soloClub={soloClub}
@@ -165,6 +166,7 @@ export default function TournamentPage({ generoForzado = null }) {
 
         {tabActiva === 'tarjetas' && (
           <CardsTable
+            key={divisionActivaId}
             tarjetas={tarjetas}
             cargando={cargando}
             soloClub={soloClub}

@@ -6,6 +6,8 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
+import Paginacion from '../components/ui/Paginacion';
+import usePaginacion from '../hooks/usePaginacion';
 import {
   FaTrophy,
   FaFutbol,
@@ -130,6 +132,7 @@ function ListaHistorial() {
     () => ediciones.filter((h) => genero === 'Todos' || h.genero?.toLowerCase() === genero.toLowerCase()),
     [ediciones, genero]
   );
+  const paginacion = usePaginacion(visibles, 9, genero);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f2fc] pb-16">
@@ -169,10 +172,13 @@ function ListaHistorial() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visibles.map((h) => (
-              <TarjetaEdicion key={h.id_historial} h={h} />
-            ))}
+          <div id={paginacion.idLista} className="space-y-6 scroll-mt-24">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paginacion.visibles.map((h) => (
+                <TarjetaEdicion key={h.id_historial} h={h} />
+              ))}
+            </div>
+            <Paginacion paginacion={paginacion} singular="torneo" plural="torneos" />
           </div>
         )}
       </main>

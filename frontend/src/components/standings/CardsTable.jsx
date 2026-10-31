@@ -1,7 +1,11 @@
 import React from 'react';
 import ClubShield from '../ui/ClubShield';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 
 export default function CardsTable({ tarjetas = [], cargando = false, soloClub = false, onToggleSoloClub }) {
+  const paginacion = usePaginacion(tarjetas, 15);
+
   if (cargando) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
@@ -27,7 +31,7 @@ export default function CardsTable({ tarjetas = [], cargando = false, soloClub =
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div id={paginacion.idLista} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-24">
       {/* Header */}
       <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -61,18 +65,18 @@ export default function CardsTable({ tarjetas = [], cargando = false, soloClub =
             </tr>
           </thead>
           <tbody className="font-body text-sm divide-y divide-slate-100">
-            {tarjetas.map((jugador, index) => {
+            {paginacion.visibles.map((jugador, index) => {
               const esClub = jugador.es_jugador_club || jugador.es_argentinos_del_norte;
 
               return (
                 <tr
-                  key={jugador.id_jugador || index}
+                  key={`${jugador.id_jugador}-${jugador.nombre_equipo}-${index}`}
                   className={`transition-colors ${
                     esClub ? 'bg-blue-50/50 hover:bg-blue-100/50' : 'hover:bg-slate-50'
                   }`}
                 >
                   <td className="py-3.5 px-3 text-center font-title font-bold text-slate-500">
-                    {index + 1}
+                    {paginacion.desde + index + 1}
                   </td>
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-2">
@@ -104,6 +108,7 @@ export default function CardsTable({ tarjetas = [], cargando = false, soloClub =
           </tbody>
         </table>
       </div>
+      <Paginacion paginacion={paginacion} singular="jugador" plural="jugadores" className="p-4 border-t border-slate-100" />
     </div>
   );
 }

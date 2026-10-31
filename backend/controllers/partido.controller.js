@@ -159,7 +159,7 @@ const actualizar = async (req, res) => {
         nuevoVisitante,
         fecha_partido,
         jornada_numero ? parseInt(jornada_numero) : null,
-        nombre_partido ? nombre_partido.trim() : null,
+        nombre_partido !== undefined && nombre_partido !== null ? nombre_partido.trim() : null,
         goles_local !== undefined && goles_local !== null ? parseInt(goles_local) : null,
         goles_visitante !== undefined && goles_visitante !== null ? parseInt(goles_visitante) : null,
         estado_partido !== undefined && estado_partido !== null ? parseInt(estado_partido) : null,

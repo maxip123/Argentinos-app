@@ -78,7 +78,7 @@ const validarCrearCuota = [
 const validarCrearSede = [
   body('nombre_sede').trim().notEmpty().withMessage('El nombre de la sede es requerido.'),
   body('direccion').trim().notEmpty().withMessage('La dirección es requerida.'),
-  body('google_maps_url').optional().isURL().withMessage('El enlace de Google Maps debe ser una URL válida.'),
+  body('google_maps_url').optional({ checkFalsy: true }).isURL().withMessage('El enlace de Google Maps debe ser una URL válida.'),
 ];
 
 module.exports = {

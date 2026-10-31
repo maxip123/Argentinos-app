@@ -12,6 +12,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { getPool, withTransaction } = require('../config/db');
 const { finalizarYArchivarTorneo, iniciarNuevaEdicion } = require('../controllers/division.controller');
+const { SQL_VINCULAR_COBROS } = require('../utils/cobrosCuota');
 
 const EMAIL_ADMIN = process.env.ADMIN_EMAIL;
 
@@ -497,8 +498,8 @@ async function limpiar(client) {
   await client.query(`UPDATE public.division SET id_equipo_campeon = NULL`);
   const orden = [
     ['partido_estadistica_jugador', 'id_estadistica'], ['sancion_jugador', 'id_sancion'], ['llave_playoff', 'id_llave'],
-    ['clasificacion', 'id_clasificacion'], ['historial_torneo', 'id_historial'], ['cuota_jugador', 'id_cuota'],
-    ['gasto_club', 'id_gasto'], ['equipo_jugador', 'id_equipo_jugador'], ['equipo_cuerpo_tecnico', 'id_equipo_cuerpo_tecnico'],
+    ['clasificacion', 'id_clasificacion'], ['historial_torneo', 'id_historial'], ['gasto_club', 'id_gasto'],
+    ['cuota_jugador', 'id_cuota'], ['equipo_jugador', 'id_equipo_jugador'], ['equipo_cuerpo_tecnico', 'id_equipo_cuerpo_tecnico'],
     ['cuerpo_tecnico', 'id_cuerpo_tecnico'], ['partido', 'id_partido'], ['jugador', 'id_jugador'], ['equipo', 'id_equipo'],
     ['division', 'id_division'], ['sede', 'id_sede'],
   ];
@@ -735,6 +736,7 @@ async function cargarClausura(client) {
     params
   );
   await insertar(client, 'gasto_club', generarCaja(cuotas));
+  await client.query(SQL_VINCULAR_COBROS);
 
   const inicioClausura = (jugadas) => isoFecha(enCurso(jugadas)(1));
   const fechas = [
@@ -786,6 +788,10 @@ async function verificar() {
            (SELECT COALESCE(SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE -monto END), 0) FROM public.gasto_club)::numeric AS saldo,
            (SELECT count(*) FROM public.gasto_club)::int AS movimientos`);
   if (Number(caja.cuotas) !== Number(caja.caja)) problemas.push(`cuotas cobradas (${caja.cuotas}) != ingresos de caja por cuotas (${caja.caja})`);
+
+  const [{ total: cobrosSinVincular }] = await q(`
+    SELECT count(*)::int AS total FROM public.gasto_club WHERE categoria = 'Cuota Socio' AND id_cuota IS NULL`);
+  if (cobrosSinVincular) problemas.push(`${cobrosSinVincular} cobros de caja sin vincular a su cuota`);
 
   const historial = await q(`
     SELECT nombre_torneo, temporada, jsonb_array_length(tabla_posiciones) AS equipos,

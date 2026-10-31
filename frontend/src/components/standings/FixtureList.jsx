@@ -1,7 +1,9 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import MatchCard from '../matches/MatchCard';
+import Paginacion from '../ui/Paginacion';
 import SwitchSoloClub from '../ui/SwitchSoloClub';
-import { FaChevronDown, FaChevronLeft, FaChevronRight, FaSearch } from 'react-icons/fa';
+import usePaginacion from '../../hooks/usePaginacion';
+import { FaChevronDown, FaSearch } from 'react-icons/fa';
 
 const PARTIDOS_POR_PAGINA = 9;
 
@@ -45,8 +47,6 @@ export default function FixtureList({ partidos = [], cargando = false }) {
   const [estado, setEstado] = useState('jugados');
   const [jornada, setJornada] = useState('');
   const [soloClub, setSoloClub] = useState(false);
-  const [pagina, setPagina] = useState(1);
-  const listaRef = useRef(null);
 
   const lista = useMemo(() => (partidos || []).map(normalizarPartido), [partidos]);
 
@@ -66,27 +66,14 @@ export default function FixtureList({ partidos = [], cargando = false }) {
     });
   }, [lista, busqueda, estado, jornada, soloClub]);
 
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PARTIDOS_POR_PAGINA));
-  const paginaActual = Math.min(pagina, totalPaginas);
-  const desde = (paginaActual - 1) * PARTIDOS_POR_PAGINA;
-  const visibles = filtrados.slice(desde, desde + PARTIDOS_POR_PAGINA);
-
-  const conFiltro = (setter) => (valor) => {
-    setter(valor);
-    setPagina(1);
-  };
+  const paginacion = usePaginacion(filtrados, PARTIDOS_POR_PAGINA, `${busqueda}|${estado}|${jornada}|${soloClub}`);
+  const { visibles } = paginacion;
 
   const limpiarFiltros = () => {
     setBusqueda('');
     setEstado('');
     setJornada('');
     setSoloClub(false);
-    setPagina(1);
-  };
-
-  const irAPagina = (nueva) => {
-    setPagina(nueva);
-    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   if (cargando) {
@@ -114,7 +101,7 @@ export default function FixtureList({ partidos = [], cargando = false }) {
   }
 
   return (
-    <div ref={listaRef} className="space-y-6 scroll-mt-24">
+    <div id={paginacion.idLista} className="space-y-6 scroll-mt-24">
       {/* Filtros */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="relative flex-1">
@@ -124,13 +111,13 @@ export default function FixtureList({ partidos = [], cargando = false }) {
             placeholder="Buscar por equipo o sede..."
             aria-label="Buscar partidos por equipo o sede"
             value={busqueda}
-            onChange={(e) => conFiltro(setBusqueda)(e.target.value)}
+            onChange={(e) => setBusqueda(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm font-body focus:outline-none focus:border-[#151f89]"
           />
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <SelectFiltro etiqueta="Filtrar por estado" value={estado} onChange={conFiltro(setEstado)}>
+          <SelectFiltro etiqueta="Filtrar por estado" value={estado} onChange={setEstado}>
             <option value="">Todos los estados</option>
             {Object.entries(ESTADOS).map(([id, { etiqueta }]) => (
               <option key={id} value={id}>{etiqueta}</option>
@@ -138,7 +125,7 @@ export default function FixtureList({ partidos = [], cargando = false }) {
           </SelectFiltro>
 
           {jornadas.length > 0 && (
-            <SelectFiltro etiqueta="Filtrar por fecha" value={jornada} onChange={conFiltro(setJornada)}>
+            <SelectFiltro etiqueta="Filtrar por fecha" value={jornada} onChange={setJornada}>
               <option value="">Todas las fechas</option>
               {jornadas.map((j) => (
                 <option key={j} value={String(j)}>Fecha {j}</option>
@@ -146,7 +133,7 @@ export default function FixtureList({ partidos = [], cargando = false }) {
             </SelectFiltro>
           )}
 
-          <SwitchSoloClub activo={soloClub} onChange={conFiltro(setSoloClub)} />
+          <SwitchSoloClub activo={soloClub} onChange={setSoloClub} />
         </div>
       </div>
 
@@ -171,38 +158,7 @@ export default function FixtureList({ partidos = [], cargando = false }) {
             ))}
           </div>
 
-          {/* Paginación */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-slate-500 font-body">
-              Mostrando {desde + 1}–{desde + visibles.length} de {filtrados.length} {filtrados.length === 1 ? 'partido' : 'partidos'}
-            </p>
-
-            {totalPaginas > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => irAPagina(paginaActual - 1)}
-                  disabled={paginaActual === 1}
-                  aria-label="Página anterior"
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-slate-200 text-[#151f89] hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <FaChevronLeft className="text-xs" />
-                </button>
-                <span className="px-2 text-sm font-title font-bold text-slate-700">
-                  Página {paginaActual} de {totalPaginas}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => irAPagina(paginaActual + 1)}
-                  disabled={paginaActual === totalPaginas}
-                  aria-label="Página siguiente"
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-slate-200 text-[#151f89] hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <FaChevronRight className="text-xs" />
-                </button>
-              </div>
-            )}
-          </div>
+          <Paginacion paginacion={paginacion} singular="partido" plural="partidos" />
         </>
       )}
     </div>

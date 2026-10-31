@@ -313,14 +313,29 @@ const actualizar = async (req, res) => {
     const { id } = req.params;
     const { nombre, apellido, dni, fecha_nacimiento, telefono, email, foto_url, es_inactivo } = req.body;
 
+    if (dni?.trim()) {
+      const { rows: existente } = await query(
+        `SELECT nombre, apellido FROM public.jugador WHERE dni = $1 AND activo = TRUE AND id_jugador <> $2`,
+        [dni.trim(), id]
+      );
+      if (existente.length > 0) {
+        return respuestaError(
+          res,
+          `Ya existe un jugador registrado con el DNI ${dni.trim()} (${existente[0].nombre} ${existente[0].apellido}).`,
+          409
+        );
+      }
+    }
+
+    // fecha_nacimiento, telefono y email se pueden vaciar: solo se conservan si no vienen en el body
     const { rows } = await query(
       `UPDATE public.jugador
        SET nombre           = COALESCE($1, nombre),
            apellido         = COALESCE($2, apellido),
            dni              = COALESCE($3, dni),
-           fecha_nacimiento = COALESCE($4, fecha_nacimiento),
-           telefono         = COALESCE($5, telefono),
-           email            = COALESCE($6, email),
+           fecha_nacimiento = CASE WHEN $10::boolean THEN $4::date ELSE fecha_nacimiento END,
+           telefono         = CASE WHEN $11::boolean THEN $5 ELSE telefono END,
+           email            = CASE WHEN $12::boolean THEN $6 ELSE email END,
            foto_url         = COALESCE($7, foto_url),
            es_inactivo      = COALESCE($8, es_inactivo),
            updated_at       = NOW()
@@ -330,12 +345,15 @@ const actualizar = async (req, res) => {
         nombre?.trim(),
         apellido?.trim(),
         dni?.trim(),
-        fecha_nacimiento,
-        telefono,
-        email?.toLowerCase(),
+        fecha_nacimiento || null,
+        telefono?.trim() || null,
+        email?.trim().toLowerCase() || null,
         foto_url,
         es_inactivo !== undefined ? Boolean(es_inactivo) : null,
         id,
+        fecha_nacimiento !== undefined,
+        telefono !== undefined,
+        email !== undefined,
       ]
     );
 

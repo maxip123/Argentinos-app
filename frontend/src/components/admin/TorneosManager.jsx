@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import api from '../../api/axios';
 import PlayoffsManager from './PlayoffsManager';
 import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import {
   FaTrophy,
   FaPlus,
@@ -26,6 +28,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
   const [cargandoEquiposDiv, setCargandoEquiposDiv] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+  const paginacion = usePaginacion(divisiones, 10);
 
   // Modal de confirmación UI (reemplazo de window.confirm)
   const [modalConfirmacion, setModalConfirmacion] = useState({
@@ -572,13 +575,13 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
       )}
 
       {/* Lista de Torneos */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      <div id={paginacion.idLista} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm scroll-mt-24">
         {/* Vista Móvil: Cards */}
         <div className="block md:hidden divide-y divide-slate-100">
           {divisiones.length === 0 ? (
             <div className="p-8 text-center text-slate-400 font-title text-xs">No hay torneos registrados.</div>
           ) : (
-            divisiones.map((div) => {
+            paginacion.visibles.map((div) => {
               const esFinalizado = div.terminado;
               return (
                 <div key={div.id_division} className="p-4 space-y-3">
@@ -690,7 +693,7 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-title">
-              {divisiones.map((div) => {
+              {paginacion.visibles.map((div) => {
                 const esFinalizado = div.terminado;
 
                 return (
@@ -788,7 +791,12 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
               })}
             </tbody>
           </table>
+          {divisiones.length === 0 && (
+            <div className="p-12 text-center text-slate-400 font-title text-sm">No hay torneos registrados.</div>
+          )}
         </div>
+
+        <Paginacion paginacion={paginacion} singular="torneo" plural="torneos" className="p-4 border-t border-slate-100" />
       </div>
 
       {/* Modal de confirmación UI (reemplazo de window.confirm) */}

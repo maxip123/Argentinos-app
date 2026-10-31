@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
 import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import {
   FaShieldAlt,
   FaPlus,
@@ -559,6 +561,7 @@ function ModalAsignarStaff({ idEquipo, nombreEquipo, onClose, onSuccess }) {
 export default function EquiposManager({ divisiones = [], divisionInicialId = '' }) {
   const [divisionSel, setDivisionSel] = useState(divisionInicialId || (divisiones[0]?.id_division || ''));
   const [equipos, setEquipos] = useState([]);
+  const paginacion = usePaginacion(equipos, 12, divisionSel);
   const [cargando, setCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
@@ -1348,8 +1351,8 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
           )}
 
           {/* Grid de Equipos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {equipos.map((eq) => {
+          <div id={paginacion.idLista} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 scroll-mt-24">
+            {paginacion.visibles.map((eq) => {
               const esClub = eq.es_argentinos_del_norte;
               return (
                 <div
@@ -1430,6 +1433,8 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
               );
             })}
           </div>
+
+          <Paginacion paginacion={paginacion} singular="equipo" plural="equipos" />
         </>
       )}
 
