@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import ClubShield from '../components/ui/ClubShield';
 import { FaLock, FaEnvelope, FaExclamationTriangle } from 'react-icons/fa';
@@ -101,6 +101,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <p className="mt-6 text-center text-xs text-slate-500 font-body">
+          Al ingresar aceptás los{' '}
+          <Link to="/terminos" className="font-semibold text-[#151f89] hover:underline">Términos y Condiciones</Link>
+          {' '}y la{' '}
+          <Link to="/privacidad" className="font-semibold text-[#151f89] hover:underline">Política de Privacidad</Link>.
+        </p>
       </div>
     </div>
   );
