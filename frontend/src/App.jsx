@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import TournamentPage from './pages/TournamentPage';
 import HistorialPage from './pages/HistorialPage';
 import AboutPage from './pages/AboutPage';
+import LegalPage from './pages/LegalPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import { useAuthStore } from './stores/authStore';
@@ -49,6 +50,8 @@ export default function App() {
             <Route path="/historial" element={<HistorialPage />} />
             <Route path="/historial/:id" element={<HistorialPage />} />
             <Route path="/sobre-nosotros" element={<AboutPage />} />
+            <Route path="/privacidad" element={<LegalPage documento="privacidad" />} />
+            <Route path="/terminos" element={<LegalPage documento="terminos" />} />
             <Route path="/login" element={<LoginPage />} />
 
             {/* Rutas Privadas / Administración protegida */}

@@ -684,6 +684,14 @@ export default function JugadoresManager({ divisiones = [] }) {
             </div>
 
             <form onSubmit={handleCrear} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+                <FaExclamationCircle className="text-amber-700 mt-0.5 shrink-0" />
+                <p>
+                  Antes de cargar los datos, el club debe contar con el consentimiento firmado de la persona o, si es menor de edad,
+                  de sus responsables. Ver la <a href="/privacidad" target="_blank" rel="noreferrer" className="font-bold underline">Política de Privacidad</a>.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Nombre *</label>

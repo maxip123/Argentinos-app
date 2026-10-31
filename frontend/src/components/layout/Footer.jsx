@@ -58,10 +58,10 @@ export default function Footer() {
                 <FaMapMarkerAlt className="text-[#FF9C67] text-base shrink-0 mt-0.5" />
                 <span>Av. Benjamín Aráoz 650, San Miguel de Tucumán, Tucumán</span>
               </div>
-              <div className="flex items-center gap-2.5">
+              <a href="mailto:contacto@argentinosdelnorte.com" className="flex items-center gap-2.5 hover:text-[#FF9C67] transition-colors">
                 <FaEnvelope className="text-[#FF9C67] text-sm shrink-0" />
                 <span className="min-w-0 break-all">contacto@argentinosdelnorte.com</span>
-              </div>
+              </a>
             </div>
           </div>
         </div>
@@ -69,9 +69,10 @@ export default function Footer() {
         {/* Barra inferior */}
         <div className="mt-12 pt-6 border-t border-[#303a9f] flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 font-body gap-4">
           <p>© {new Date().getFullYear()} Club Atlético Argentinos del Norte. Todos los derechos reservados.</p>
-          <p className="flex items-center gap-1">
-            Sistema Oficial desarrollado para la Liga Futsal AFA
-          </p>
+          <nav aria-label="Información legal" className="flex items-center gap-4">
+            <Link to="/privacidad" className="hover:text-[#FF9C67] transition-colors">Política de Privacidad</Link>
+            <Link to="/terminos" className="hover:text-[#FF9C67] transition-colors">Términos y Condiciones</Link>
+          </nav>
         </div>
       </div>
     </footer>

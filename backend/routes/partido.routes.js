@@ -19,9 +19,9 @@ const router = Router();
 router.get('/',                  obtenerTodos);
 router.get('/proximos',          obtenerProximos);
 router.get('/:id',               validarIdParam, validar, obtenerPorId);
-router.get('/:id/estadisticas',  validarIdParam, validar, obtenerEstadisticasPartido);
 
 // Autenticadas
+router.get('/:id/estadisticas',  verificarToken, validarIdParam, validar, obtenerEstadisticasPartido);
 router.post('/',                 verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearPartido, validar, crear);
 router.post('/:id/estadisticas', verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, guardarEstadisticasPartido);
 router.put('/:id',               verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, actualizar);
