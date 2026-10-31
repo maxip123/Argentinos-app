@@ -1,5 +1,7 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+
+const COPAS = ['Unica', 'Oro', 'Plata'];
 
 /**
  * GET /api/playoff/:id_division
@@ -18,7 +20,7 @@ const obtenerPorDivision = async (req, res) => {
        LEFT JOIN public.equipo ev ON ev.id_equipo = lp.id_equipo_visitante
        LEFT JOIN public.equipo eg ON eg.id_equipo = lp.id_equipo_ganador
        WHERE lp.id_division = $1 AND lp.activo = TRUE
-       ORDER BY lp.id_llave ASC`,
+       ORDER BY lp.copa ASC, lp.id_llave ASC`,
       [id_division]
     );
     return respuestaExito(res, rows, 'Llaves de playoff obtenidas correctamente.');
@@ -30,12 +32,13 @@ const obtenerPorDivision = async (req, res) => {
 
 /**
  * POST /api/playoff/generar
- * Genera la estructura de llaves eliminatorias (Bracket) para un torneo
+ * Genera la estructura de llaves eliminatorias (Bracket) de una copa del torneo
  * según la cantidad de equipos elegida (2, 4, 8, 16 o 32).
+ * Un torneo tiene un cuadro 'Unica' o, si la liga lo define, uno 'Oro' y uno 'Plata'.
  */
 const generarBracket = async (req, res) => {
   try {
-    const { id_division, cantidad_equipos } = req.body;
+    const { id_division, cantidad_equipos, copa = 'Unica' } = req.body;
 
     if (!id_division) {
       return respuestaError(res, 'El ID de la división es obligatorio.', 422);
@@ -46,14 +49,23 @@ const generarBracket = async (req, res) => {
       return respuestaError(res, 'La cantidad de equipos debe ser 2, 4, 8, 16 o 32.', 422);
     }
 
-    // Verificar si ya existe bracket activo
-    const { rows: existente } = await query(
-      `SELECT COUNT(*) AS total FROM public.llave_playoff WHERE id_division = $1 AND activo = TRUE`,
+    if (!COPAS.includes(copa)) {
+      return respuestaError(res, 'La copa debe ser Unica, Oro o Plata.', 422);
+    }
+
+    // Verificar qué cuadros activos tiene el torneo
+    const { rows: existentes } = await query(
+      `SELECT DISTINCT copa FROM public.llave_playoff WHERE id_division = $1 AND activo = TRUE`,
       [id_division]
     );
+    const copasActivas = existentes.map((e) => e.copa);
 
-    if (parseInt(existente[0].total) > 0) {
-      return respuestaError(res, 'Ya existe un cuadro de playoff para este torneo. Podés reiniciarlo si deseás crear uno nuevo.', 400);
+    if (copasActivas.includes(copa)) {
+      return respuestaError(res, 'Ya existe ese cuadro de playoff para este torneo. Podés reiniciarlo si deseás crear uno nuevo.', 400);
+    }
+
+    if (copa === 'Unica' ? copasActivas.length > 0 : copasActivas.includes('Unica')) {
+      return respuestaError(res, 'Un torneo no puede combinar un cuadro único con Copa Oro y Plata. Reinicialo para cambiar el formato.', 400);
     }
 
     // 1. Armar rondas virtuales
@@ -109,29 +121,31 @@ const generarBracket = async (req, res) => {
     // 3. Insertar llaves en la base de datos y mapear IDs reales
     const mapaIds = new Map(); // virtual_id -> real id_llave
 
-    for (const l of llavesFinales) {
-      const { rows } = await query(
-        `INSERT INTO public.llave_playoff (id_division, fase, orden, es_local_siguiente)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id_llave`,
-        [l.id_division, l.fase, l.orden, l.es_local_siguiente]
-      );
-      mapaIds.set(l.virtual_id, rows[0].id_llave);
-    }
-
-    // 4. Actualizar id_llave_siguiente con los IDs reales
-    for (const l of llavesFinales) {
-      if (l.virtual_siguiente !== null) {
-        const realId = mapaIds.get(l.virtual_id);
-        const nextRealId = mapaIds.get(l.virtual_siguiente);
-        await query(
-          `UPDATE public.llave_playoff
-           SET id_llave_siguiente = $1, es_local_siguiente = $2
-           WHERE id_llave = $3`,
-          [nextRealId, l.es_local_siguiente, realId]
+    await withTransaction(async (client) => {
+      for (const l of llavesFinales) {
+        const { rows } = await client.query(
+          `INSERT INTO public.llave_playoff (id_division, fase, orden, es_local_siguiente, copa)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id_llave`,
+          [l.id_division, l.fase, l.orden, l.es_local_siguiente, copa]
         );
+        mapaIds.set(l.virtual_id, rows[0].id_llave);
       }
-    }
+
+      // 4. Actualizar id_llave_siguiente con los IDs reales
+      for (const l of llavesFinales) {
+        if (l.virtual_siguiente !== null) {
+          const realId = mapaIds.get(l.virtual_id);
+          const nextRealId = mapaIds.get(l.virtual_siguiente);
+          await client.query(
+            `UPDATE public.llave_playoff
+             SET id_llave_siguiente = $1, es_local_siguiente = $2
+             WHERE id_llave = $3`,
+            [nextRealId, l.es_local_siguiente, realId]
+          );
+        }
+      }
+    });
 
     return respuestaExito(
       res,
@@ -183,7 +197,18 @@ const actualizarResultado = async (req, res) => {
     const nuevosPenalesLocal = penales_local !== undefined ? (penales_local === '' || penales_local === null ? null : parseInt(penales_local)) : actual.penales_local;
     const nuevosPenalesVisitante = penales_visitante !== undefined ? (penales_visitante === '' || penales_visitante === null ? null : parseInt(penales_visitante)) : actual.penales_visitante;
     const nuevoEstado = estado_partido !== undefined ? parseInt(estado_partido) : actual.estado_partido;
-    const nuevoGanador = id_equipo_ganador !== undefined ? (id_equipo_ganador ? parseInt(id_equipo_ganador) : null) : actual.id_equipo_ganador;
+    const ganadorElegido = id_equipo_ganador !== undefined ? (id_equipo_ganador ? parseInt(id_equipo_ganador) : null) : actual.id_equipo_ganador;
+
+    // El resultado define al ganador; la elección manual solo vale para desempatar por penales
+    const hayResultado = nuevosGolesLocal !== null && nuevosGolesVisitante !== null;
+    let nuevoGanador = ganadorElegido;
+    if (hayResultado && nuevosGolesLocal !== nuevosGolesVisitante) {
+      if (nuevoEstado === 2) {
+        nuevoGanador = nuevosGolesLocal > nuevosGolesVisitante ? nuevoLocal : nuevoVisitante;
+      } else {
+        nuevoGanador = null;
+      }
+    }
 
     const { rows } = await query(
       `UPDATE public.llave_playoff
@@ -259,14 +284,22 @@ const actualizarResultado = async (req, res) => {
 
 /**
  * DELETE /api/playoff/division/:id_division
- * Reinicia / elimina todas las llaves de playoff de un torneo para poder rearmarlo desde cero.
+ * Reinicia / elimina las llaves de playoff de un torneo para poder rearmarlo desde cero.
+ * Con ?copa=Oro reinicia solo esa copa; sin el parámetro reinicia todas.
  */
 const reiniciarBracket = async (req, res) => {
   try {
     const { id_division } = req.params;
+    const { copa } = req.query;
+
+    if (copa !== undefined && !COPAS.includes(copa)) {
+      return respuestaError(res, 'La copa debe ser Unica, Oro o Plata.', 422);
+    }
+
     await query(
-      `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_division = $1 AND activo = TRUE`,
-      [id_division]
+      `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW()
+       WHERE id_division = $1 AND activo = TRUE AND ($2::varchar IS NULL OR copa = $2)`,
+      [id_division, copa ?? null]
     );
     return respuestaExito(res, null, 'Cuadro de playoff reiniciado correctamente.');
   } catch (error) {

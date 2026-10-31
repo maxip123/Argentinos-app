@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { useAuthStore } from '../../stores/authStore';
 import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import {
   FaUserShield,
   FaUserPlus,
@@ -26,7 +28,9 @@ const ROLES_SISTEMA = [
   { valor: 'Superadmin', label: 'Superadministrador', color: 'bg-red-50 text-[#991b1b] border-red-200' },
   { valor: 'Administrador', label: 'Administrador General', color: 'bg-blue-50 text-[#151f89] border-blue-200' },
   { valor: 'Tesorero', label: 'Tesorero / Finanzas', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  { valor: 'Planillero', label: 'Planillero de Partidos', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+  { valor: 'Delegado', label: 'Delegado', color: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { valor: 'DT', label: 'Director Técnico', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { valor: 'Visor', label: 'Visor (solo lectura)', color: 'bg-slate-100 text-slate-700 border-slate-300' },
 ];
 
 function RoleBadge({ rol }) {
@@ -117,8 +121,8 @@ export default function UsuariosManager({ divisiones = [] }) {
       setErrorModal('El formato del correo electrónico no es válido.');
       return;
     }
-    if (nuevoUsuario.contrasena.length < 6) {
-      setErrorModal('La contraseña debe tener al menos 6 caracteres.');
+    if (nuevoUsuario.contrasena.length < 8) {
+      setErrorModal('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
 
@@ -181,8 +185,8 @@ export default function UsuariosManager({ divisiones = [] }) {
   const handleResetearClave = async (e) => {
     e.preventDefault();
     if (!usuarioResetClave) return;
-    if (!nuevaClave || nuevaClave.length < 6) {
-      setErrorModal('La nueva contraseña debe tener al menos 6 caracteres.');
+    if (!nuevaClave || nuevaClave.length < 8) {
+      setErrorModal('La nueva contraseña debe tener al menos 8 caracteres.');
       return;
     }
 
@@ -244,7 +248,8 @@ export default function UsuariosManager({ divisiones = [] }) {
   });
 
   const totalSuperadmins = usuarios.filter(u => u.rol === 'Superadmin' && u.activo).length;
-  const totalAdmins = usuarios.filter(u => (u.rol === 'Administrador' || u.rol === 'Tesorero' || u.rol === 'Planillero') && u.activo).length;
+  const totalAdmins = usuarios.filter(u => u.rol !== 'Superadmin' && u.activo).length;
+  const paginacion = usePaginacion(usuariosFiltrados, 15, `${busqueda}|${filtroRol}|${filtroEstado}`);
   const totalInactivos = usuarios.filter(u => !u.activo).length;
 
   return (
@@ -351,7 +356,7 @@ export default function UsuariosManager({ divisiones = [] }) {
       </div>
 
       {/* ─── Listado de Usuarios: Mobile Cards & Desktop Table ─────────────── */}
-      <div className="space-y-3">
+      <div id={paginacion.idLista} className="space-y-3 scroll-mt-24">
         {/* Vista Móvil: Cards */}
         <div className="block md:hidden space-y-3">
           {cargando ? (
@@ -361,19 +366,19 @@ export default function UsuariosManager({ divisiones = [] }) {
               No se encontraron usuarios con estos filtros.
             </div>
           ) : (
-            usuariosFiltrados.map(u => (
+            paginacion.visibles.map(u => (
               <div
                 key={u.id_perfil}
                 className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 ${!u.activo ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-slate-900 text-white font-headline text-sm flex items-center justify-center shrink-0">
                       {u.nombre_completo?.[0] || 'U'}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h4 className="font-bold text-slate-900 text-sm leading-tight">{u.nombre_completo}</h4>
-                      <span className="text-[11px] text-slate-400 font-mono block mt-0.5">{u.email}</span>
+                      <span className="text-[11px] text-slate-400 font-mono block mt-0.5 break-all">{u.email}</span>
                     </div>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
@@ -385,7 +390,7 @@ export default function UsuariosManager({ divisiones = [] }) {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
                   <RoleBadge rol={u.rol} />
                   {u.nombre_division && (
                     <span className="text-[11px] text-slate-500 font-title bg-slate-100 px-2 py-0.5 rounded-md">
@@ -461,7 +466,7 @@ export default function UsuariosManager({ divisiones = [] }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-title text-xs">
-                  {usuariosFiltrados.map(u => (
+                  {paginacion.visibles.map(u => (
                     <tr key={u.id_perfil} className={`hover:bg-slate-50/80 transition-colors ${!u.activo ? 'opacity-60' : ''}`}>
                       <td className="p-3.5">
                         <div className="flex items-center gap-2.5">
@@ -542,6 +547,8 @@ export default function UsuariosManager({ divisiones = [] }) {
             </div>
           )}
         </div>
+
+        {!cargando && <Paginacion paginacion={paginacion} singular="usuario" plural="usuarios" />}
       </div>
 
       {/* ─── Modal: Crear Nuevo Usuario ───────────────────────────────────── */}
@@ -593,9 +600,9 @@ export default function UsuariosManager({ divisiones = [] }) {
                 <div className="relative">
                   <input
                     type={verClaveNueva ? 'text' : 'password'}
-                    required minLength={6}
+                    required minLength={8}
                     autoComplete="new-password"
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     value={nuevoUsuario.contrasena}
                     onChange={e => setNuevoUsuario({ ...nuevoUsuario, contrasena: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
@@ -806,9 +813,9 @@ export default function UsuariosManager({ divisiones = [] }) {
                 <div className="relative">
                   <input
                     type={verClaveReset ? 'text' : 'password'}
-                    required minLength={6}
+                    required minLength={8}
                     autoComplete="new-password"
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     value={nuevaClave}
                     onChange={e => setNuevaClave(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/30"

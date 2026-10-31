@@ -61,8 +61,9 @@ export const useAuthStore = create((set, get) => ({
       localStorage.setItem('usuario', JSON.stringify(usuario));
       set({ usuario, token });
     } catch (err) {
-      console.warn('Sesión no válida o expirada:', err.message);
-      get().logout();
+      console.warn('No se pudo verificar la sesión:', err.message);
+      // Un corte de red o un error del servidor no invalida la sesión
+      if (err.response?.status === 401 || err.response?.status === 404) get().logout();
     }
   },
 }));

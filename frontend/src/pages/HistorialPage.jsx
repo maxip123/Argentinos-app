@@ -6,6 +6,8 @@ import ScorersTable from '../components/standings/ScorersTable';
 import CardsTable from '../components/standings/CardsTable';
 import PlayoffBracket from '../components/standings/PlayoffBracket';
 import FixtureList from '../components/standings/FixtureList';
+import Paginacion from '../components/ui/Paginacion';
+import usePaginacion from '../hooks/usePaginacion';
 import {
   FaTrophy,
   FaFutbol,
@@ -97,7 +99,7 @@ function TarjetaEdicion({ h }) {
       <div className="flex-1 p-5 space-y-2.5">
         <Podio etiqueta="Campeón" equipo={campeon} destacado />
         <Podio etiqueta="Subcampeón" equipo={h.subcampeon_tabla} />
-        <Podio etiqueta="3.º puesto" equipo={h.tercer_puesto_tabla} />
+        <Podio etiqueta="Copa Plata" equipo={h.campeon_plata} />
       </div>
 
       <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 bg-slate-50/70 text-center">
@@ -130,6 +132,7 @@ function ListaHistorial() {
     () => ediciones.filter((h) => genero === 'Todos' || h.genero?.toLowerCase() === genero.toLowerCase()),
     [ediciones, genero]
   );
+  const paginacion = usePaginacion(visibles, 9, genero);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f2fc] pb-16">
@@ -169,10 +172,13 @@ function ListaHistorial() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visibles.map((h) => (
-              <TarjetaEdicion key={h.id_historial} h={h} />
-            ))}
+          <div id={paginacion.idLista} className="space-y-6 scroll-mt-24">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paginacion.visibles.map((h) => (
+                <TarjetaEdicion key={h.id_historial} h={h} />
+              ))}
+            </div>
+            <Paginacion paginacion={paginacion} singular="torneo" plural="torneos" />
           </div>
         )}
       </main>
@@ -218,6 +224,12 @@ function DetalleHistorial({ id }) {
                 <span className="flex items-center gap-2">
                   <FaTrophy className="text-amber-500 shrink-0" />
                   Campeón: <strong>{nombreEquipo(campeon)}</strong>
+                </span>
+              )}
+              {nombreEquipo(h.campeon_plata) && (
+                <span className="flex items-center gap-2">
+                  <FaTrophy className="text-slate-400 shrink-0" />
+                  Campeón Copa Plata: <strong>{nombreEquipo(h.campeon_plata)}</strong>
                 </span>
               )}
               <span className="flex items-center gap-2">
