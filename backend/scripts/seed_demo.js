@@ -12,6 +12,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { getPool, withTransaction } = require('../config/db');
 const { finalizarYArchivarTorneo, iniciarNuevaEdicion } = require('../controllers/division.controller');
+const { SQL_VINCULAR_COBROS } = require('../utils/cobrosCuota');
 
 const EMAIL_ADMIN = process.env.ADMIN_EMAIL;
 
@@ -464,9 +465,9 @@ function definirLlave(a, b, ganaARG) {
   };
 }
 
-async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false }) {
+async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false, copa = 'Unica' }) {
   const idDivision = ids.division[divKey];
-  const base = { id_division: idDivision, activo: true };
+  const base = { id_division: idDivision, activo: true, copa };
   if (soloFinal) {
     const final = definirLlave(posiciones[0], posiciones[1], campeonARG);
     await insertar(client, 'llave_playoff', [{ ...base, fase: 'Final', orden: 1, ...final.fila }]);
@@ -497,8 +498,8 @@ async function limpiar(client) {
   await client.query(`UPDATE public.division SET id_equipo_campeon = NULL`);
   const orden = [
     ['partido_estadistica_jugador', 'id_estadistica'], ['sancion_jugador', 'id_sancion'], ['llave_playoff', 'id_llave'],
-    ['clasificacion', 'id_clasificacion'], ['historial_torneo', 'id_historial'], ['cuota_jugador', 'id_cuota'],
-    ['gasto_club', 'id_gasto'], ['equipo_jugador', 'id_equipo_jugador'], ['equipo_cuerpo_tecnico', 'id_equipo_cuerpo_tecnico'],
+    ['clasificacion', 'id_clasificacion'], ['historial_torneo', 'id_historial'], ['gasto_club', 'id_gasto'],
+    ['cuota_jugador', 'id_cuota'], ['equipo_jugador', 'id_equipo_jugador'], ['equipo_cuerpo_tecnico', 'id_equipo_cuerpo_tecnico'],
     ['cuerpo_tecnico', 'id_cuerpo_tecnico'], ['partido', 'id_partido'], ['jugador', 'id_jugador'], ['equipo', 'id_equipo'],
     ['division', 'id_division'], ['sede', 'id_sede'],
   ];
@@ -595,7 +596,8 @@ async function cargarApertura(client) {
   const primera = await jugarEdicion(client, 'PRIMERA', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 7, registrarCaja: true,
   });
-  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones, { campeonARG: true });
+  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(0, 4), { campeonARG: true, copa: 'Oro' });
+  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(4, 8), { campeonARG: false, copa: 'Plata' });
   const fem = await jugarEdicion(client, 'FEMENINO', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 5, registrarCaja: true,
   });
@@ -734,6 +736,7 @@ async function cargarClausura(client) {
     params
   );
   await insertar(client, 'gasto_club', generarCaja(cuotas));
+  await client.query(SQL_VINCULAR_COBROS);
 
   const inicioClausura = (jugadas) => isoFecha(enCurso(jugadas)(1));
   const fechas = [
@@ -786,6 +789,10 @@ async function verificar() {
            (SELECT count(*) FROM public.gasto_club)::int AS movimientos`);
   if (Number(caja.cuotas) !== Number(caja.caja)) problemas.push(`cuotas cobradas (${caja.cuotas}) != ingresos de caja por cuotas (${caja.caja})`);
 
+  const [{ total: cobrosSinVincular }] = await q(`
+    SELECT count(*)::int AS total FROM public.gasto_club WHERE categoria = 'Cuota Socio' AND id_cuota IS NULL`);
+  if (cobrosSinVincular) problemas.push(`${cobrosSinVincular} cobros de caja sin vincular a su cuota`);
+
   const historial = await q(`
     SELECT nombre_torneo, temporada, jsonb_array_length(tabla_posiciones) AS equipos,
            jsonb_array_length(partidos_resultados) AS partidos, jsonb_array_length(goleadores_club) AS goleadores,
@@ -794,6 +801,14 @@ async function verificar() {
   for (const h of historial) {
     if (!h.equipos || !h.partidos || !h.nombre_equipo_campeon) problemas.push(`historial incompleto: ${h.nombre_torneo} ${h.temporada}`);
   }
+
+  // Con dos copas, el campeón del torneo es siempre el de Oro
+  const [{ total: campeonMal }] = await q(`
+    SELECT count(*)::int AS total
+    FROM public.historial_torneo h, jsonb_array_elements(h.playoffs) l
+    WHERE l->>'fase' = 'Final' AND l->>'copa' = 'Oro'
+      AND (l->>'id_equipo_ganador')::bigint IS DISTINCT FROM h.id_equipo_campeon`);
+  if (campeonMal) problemas.push(`${campeonMal} ediciones cuyo campeón no es el de Copa Oro`);
 
   const divisiones = await q(`
     SELECT d.nombre_division, d.temporada, d.terminado,

@@ -2,6 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
 import {
+  ETIQUETA_COPA,
+  agruparPorFase,
+  campeonDeLlaves,
+  copasDe,
+  ganadorDeLlave,
+} from '../../utils/playoffs';
+import {
   FaTrophy,
   FaProjectDiagram,
   FaCheck,
@@ -26,12 +33,15 @@ export default function PlayoffsManager({
   const [divisionSel, setDivisionSel] = useState(
     divisionInicialId || (divisiones[0]?.id_division || '')
   );
-  const [llaves, setLlaves] = useState([]);
+  const [todasLasLlaves, setTodasLasLlaves] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
   const [generando, setGenerando] = useState(false);
   const [cantidadEquipos, setCantidadEquipos] = useState(8);
+  const [dosCopas, setDosCopas] = useState(false);
+  const [cantidadSegundaCopa, setCantidadSegundaCopa] = useState(4);
+  const [copaElegida, setCopaElegida] = useState(null);
   const [vistaActiva, setVistaActiva] = useState('editor'); // 'editor' | 'diagrama'
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [modalReiniciar, setModalReiniciar] = useState(false);
@@ -60,7 +70,7 @@ export default function PlayoffsManager({
         api.get(`/playoff/${divisionSel}`),
         api.get(`/equipos?id_division=${divisionSel}`),
       ]);
-      setLlaves(resLlaves.data.data || []);
+      setTodasLasLlaves(resLlaves.data.data || []);
       setEquipos(resEquipos.data.data || []);
     } catch (err) {
       console.error(err);
@@ -74,29 +84,50 @@ export default function PlayoffsManager({
     cargarDatos();
   }, [cargarDatos]);
 
-  // Generar Bracket
-  const handleGenerarBracket = async () => {
+  // Copa que se está viendo: las acciones del panel actúan solo sobre ella
+  const copas = copasDe(todasLasLlaves);
+  const copaActiva = copas.includes(copaElegida) ? copaElegida : copas[0];
+  const llaves = todasLasLlaves.filter((l) => l.copa === copaActiva);
+  const hayCopas = copas.length > 0 && copaActiva !== 'Unica';
+  const copaFaltante = hayCopas && copas.length === 1 ? (copaActiva === 'Oro' ? 'Plata' : 'Oro') : null;
+
+  // Generar uno o más cuadros, uno por copa
+  const generarCuadros = async (cuadros) => {
     setGenerando(true);
     try {
-      const res = await api.post('/playoff/generar', {
-        id_division: Number(divisionSel),
-        cantidad_equipos: parseInt(cantidadEquipos, 10),
-      });
-      mostrarAviso('exito', res.data.mensaje || '¡Cuadro de playoff generado con éxito!');
-      await cargarDatos(false);
+      for (const { copa, cantidad } of cuadros) {
+        await api.post('/playoff/generar', {
+          id_division: Number(divisionSel),
+          cantidad_equipos: parseInt(cantidad, 10),
+          copa,
+        });
+      }
+      mostrarAviso('exito', cuadros.length > 1 ? '¡Copa Oro y Copa Plata generadas con éxito!' : '¡Cuadro de playoff generado con éxito!');
+      setCopaElegida(cuadros[0].copa);
     } catch (err) {
       mostrarAviso('error', err.response?.data?.mensaje || 'Error al generar el cuadro.');
     } finally {
+      await cargarDatos(false);
       setGenerando(false);
     }
   };
 
-  // Reiniciar Bracket (eliminar llaves de la división)
+  const handleGenerarBracket = () =>
+    generarCuadros(
+      dosCopas
+        ? [
+            { copa: 'Oro', cantidad: cantidadEquipos },
+            { copa: 'Plata', cantidad: cantidadSegundaCopa },
+          ]
+        : [{ copa: 'Unica', cantidad: cantidadEquipos }]
+    );
+
+  // Reiniciar Bracket (eliminar las llaves de la copa activa)
   const handleReiniciarBracket = async () => {
     setReiniciando(true);
     try {
-      await api.delete(`/playoff/division/${divisionSel}`);
-      mostrarAviso('exito', 'Cuadro de playoff reiniciado correctamente.');
+      await api.delete(`/playoff/division/${divisionSel}?copa=${copaActiva}`);
+      mostrarAviso('exito', hayCopas ? `${ETIQUETA_COPA[copaActiva]} reiniciada correctamente.` : 'Cuadro de playoff reiniciado correctamente.');
       setModalReiniciar(false);
       await cargarDatos(false);
     } catch (err) {
@@ -173,23 +204,7 @@ export default function PlayoffsManager({
     }
   };
 
-  // Agrupar llaves por fase
-  const fasesMap = {};
-  llaves.forEach((llave) => {
-    if (!fasesMap[llave.fase]) fasesMap[llave.fase] = [];
-    fasesMap[llave.fase].push(llave);
-  });
-  // Ordenar fases según jerarquía: 16avos -> Octavos -> Cuartos -> Semifinal -> Final
-  const ordenJerarquia = {
-    '16avos de Final': 1,
-    'Octavos de Final': 2,
-    'Cuartos de Final': 3,
-    'Semifinal': 4,
-    'Final': 5,
-  };
-  const fasesOrdenadas = Object.keys(fasesMap).sort(
-    (a, b) => (ordenJerarquia[a] || 99) - (ordenJerarquia[b] || 99)
-  );
+  const { fasesMap, fasesOrdenadas } = agruparPorFase(llaves);
 
   const divisionActual = divisiones.find(
     (d) => Number(d.id_division) === Number(divisionSel)
@@ -198,22 +213,8 @@ export default function PlayoffsManager({
   // Estadísticas del bracket
   const totalPartidos = llaves.length;
   const partidosFinalizados = llaves.filter((l) => l.estado_partido === 2).length;
-  const llaveFinal = llaves.find((l) => l.fase === 'Final');
-  let campeonNombre = null;
-  if (llaveFinal && llaveFinal.estado_partido === 2) {
-    const gl = llaveFinal.goles_local;
-    const gv = llaveFinal.goles_visitante;
-    if (gl !== null && gv !== null) {
-      if (gl > gv) campeonNombre = llaveFinal.equipo_local_nombre;
-      else if (gv > gl) campeonNombre = llaveFinal.equipo_visitante_nombre;
-      else if (llaveFinal.id_equipo_ganador) {
-        campeonNombre =
-          llaveFinal.id_equipo_ganador === llaveFinal.id_equipo_local
-            ? llaveFinal.equipo_local_nombre
-            : llaveFinal.equipo_visitante_nombre;
-      }
-    }
-  }
+  const campeonNombre = campeonDeLlaves(llaves)?.nombre ?? null;
+  const etiquetaCampeon = hayCopas ? `Campeón ${ETIQUETA_COPA[copaActiva]}` : 'Campeón';
 
   return (
     <div className="space-y-6">
@@ -264,7 +265,7 @@ export default function PlayoffsManager({
               title="Borrar todas las llaves y volver a generar el bracket"
             >
               <FaUndo className="text-xs" />
-              <span>Reiniciar Bracket</span>
+              <span>Reiniciar {hayCopas ? ETIQUETA_COPA[copaActiva] : 'Bracket'}</span>
             </button>
           )}
         </div>
@@ -311,6 +312,33 @@ export default function PlayoffsManager({
               Seleccioná la cantidad de equipos clasificados para estructurar automáticamente el árbol de llaves eliminatorias directas.
             </p>
           </div>
+
+          {/* Una copa o Copa Oro y Plata */}
+          <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl max-w-full">
+            {[
+              { valor: false, titulo: 'Una copa' },
+              { valor: true, titulo: 'Copa Oro y Plata' },
+            ].map((opc) => (
+              <button
+                key={opc.titulo}
+                type="button"
+                onClick={() => setDosCopas(opc.valor)}
+                className={`px-4 py-2 rounded-lg font-headline text-xs uppercase tracking-wider transition-all ${
+                  dosCopas === opc.valor
+                    ? 'bg-white text-[#151f89] shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {opc.titulo}
+              </button>
+            ))}
+          </div>
+
+          {dosCopas && (
+            <p className="font-headline text-xs uppercase tracking-wider text-slate-500 text-left">
+              Equipos en Copa Oro
+            </p>
+          )}
 
           {/* Opciones de formato de Playoff */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
@@ -390,6 +418,14 @@ export default function PlayoffsManager({
             </button>
           </div>
 
+          {dosCopas && (
+            <SelectorCantidad
+              etiqueta="Equipos en Copa Plata"
+              value={cantidadSegundaCopa}
+              onChange={setCantidadSegundaCopa}
+            />
+          )}
+
           <div className="pt-4 border-t border-slate-100">
             <button
               onClick={handleGenerarBracket}
@@ -404,7 +440,11 @@ export default function PlayoffsManager({
               ) : (
                 <>
                   <FaProjectDiagram />
-                  <span>Generar Cuadro de Playoff ({cantidadEquipos} Equipos)</span>
+                  <span>
+                    {dosCopas
+                      ? `Generar Copa Oro (${cantidadEquipos}) y Copa Plata (${cantidadSegundaCopa})`
+                      : `Generar Cuadro de Playoff (${cantidadEquipos} Equipos)`}
+                  </span>
                 </>
               )}
             </button>
@@ -413,6 +453,48 @@ export default function PlayoffsManager({
       ) : (
         /* ─── ESTADO ACTIVO: BRACKET GENERADO ────────────────────────────── */
         <div className="space-y-6">
+          {/* Selector de Copa y alta de la copa que falta */}
+          {hayCopas && (
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                {copas.map((copa) => (
+                  <button
+                    key={copa}
+                    type="button"
+                    onClick={() => setCopaElegida(copa)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-headline text-xs uppercase tracking-wider transition-all ${
+                      copa === copaActiva
+                        ? 'bg-white text-[#151f89] shadow-xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <FaTrophy className={copa === 'Oro' ? 'text-amber-500' : 'text-slate-400'} />
+                    <span>{ETIQUETA_COPA[copa]}</span>
+                  </button>
+                ))}
+              </div>
+
+              {copaFaltante && (
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <SelectorCantidad
+                    etiqueta={`Equipos en ${ETIQUETA_COPA[copaFaltante]}`}
+                    value={cantidadSegundaCopa}
+                    onChange={setCantidadSegundaCopa}
+                  />
+                  <button
+                    type="button"
+                    disabled={generando}
+                    onClick={() => generarCuadros([{ copa: copaFaltante, cantidad: cantidadSegundaCopa }])}
+                    className="inline-flex items-center justify-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-4 py-2.5 rounded-xl font-headline uppercase tracking-wider text-xs shadow-md transition-all disabled:opacity-50"
+                  >
+                    <FaProjectDiagram />
+                    <span>{generando ? 'Generando...' : `Agregar ${ETIQUETA_COPA[copaFaltante]}`}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Barra de Estadísticas y Selector de Vistas */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -425,7 +507,7 @@ export default function PlayoffsManager({
               {campeonNombre && (
                 <span className="font-headline text-xs uppercase tracking-wider bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5">
                   <FaTrophy className="text-amber-600" />
-                  <span>Campeón: {campeonNombre}</span>
+                  <span>{etiquetaCampeon}: {campeonNombre}</span>
                 </span>
               )}
             </div>
@@ -512,6 +594,7 @@ export default function PlayoffsManager({
                 fasesOrdenadas={fasesOrdenadas}
                 fasesMap={fasesMap}
                 campeonNombre={campeonNombre}
+                tituloCampeon={hayCopas ? `CAMPEÓN ${ETIQUETA_COPA[copaActiva]}` : 'CAMPEÓN DEL TORNEO'}
               />
             </div>
           )}
@@ -528,10 +611,10 @@ export default function PlayoffsManager({
 
             <div className="text-center space-y-1">
               <h4 className="font-headline text-xl uppercase tracking-wide text-slate-900">
-                ¿Reiniciar Cuadro de Playoff?
+                ¿Reiniciar {hayCopas ? ETIQUETA_COPA[copaActiva] : 'Cuadro de Playoff'}?
               </h4>
               <p className="text-xs text-slate-500 font-body">
-                Esta acción eliminará todas las llaves, cruces y resultados cargados para{' '}
+                Esta acción eliminará todas las llaves, cruces y resultados cargados {hayCopas ? `de ${ETIQUETA_COPA[copaActiva]} ` : ''}para{' '}
                 <strong>{divisionActual?.nombre_division}</strong>. Podrás volver a generar un nuevo cuadro inmediatamente.
               </p>
             </div>
@@ -557,6 +640,26 @@ export default function PlayoffsManager({
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTE: SELECTOR DE CANTIDAD DE EQUIPOS DE UNA COPA
+// ─────────────────────────────────────────────────────────────────────────────
+function SelectorCantidad({ etiqueta, value, onChange }) {
+  return (
+    <label className="flex items-center justify-center gap-3 text-xs font-title font-semibold text-slate-600">
+      <span>{etiqueta}:</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 font-headline text-sm text-slate-900 focus:outline-none focus:border-[#151f89]"
+      >
+        {[2, 4, 8, 16, 32].map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -856,17 +959,7 @@ function LlavePartidoCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE: DIAGRAMA VISUAL DEL BRACKET (ÁRBOL HORIZONTAL)
 // ─────────────────────────────────────────────────────────────────────────────
-function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre }) {
-  const getGanadorId = (llave) => {
-    if (llave.estado_partido !== 2) return null;
-    const gl = llave.goles_local;
-    const gv = llave.goles_visitante;
-    if (gl === null || gv === null) return null;
-    if (gl > gv) return Number(llave.id_equipo_local);
-    if (gv > gl) return Number(llave.id_equipo_visitante);
-    return llave.id_equipo_ganador ? Number(llave.id_equipo_ganador) : null;
-  };
-
+function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre, tituloCampeon }) {
   const esPorPenales = (llave) =>
     llave.estado_partido === 2 &&
     llave.goles_local !== null &&
@@ -904,7 +997,7 @@ function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre }) {
               {/* Partidos de la columna */}
               <div className="flex flex-col justify-around flex-1 gap-6">
                 {llavesDeFase.map((llave) => {
-                  const ganadorId = getGanadorId(llave);
+                  const ganadorId = ganadorDeLlave(llave);
                   const penales = esPorPenales(llave);
                   const localGano =
                     ganadorId !== null &&
@@ -1015,7 +1108,7 @@ function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre }) {
             <FaTrophy className="text-3xl" />
           </div>
           <span className="font-headline uppercase tracking-widest text-xs text-amber-800 font-bold block">
-            CAMPEÓN DEL TORNEO
+            {tituloCampeon}
           </span>
           <h4 className="font-headline text-lg text-slate-900 uppercase tracking-wide mt-1">
             {campeonNombre || 'Por Definir'}

@@ -39,7 +39,7 @@ Padrón, planteles, cuotas y caja para la dirigencia.
 | Módulo | Qué permite |
 |---|---|
 | **Torneos** | Crear divisiones, cargar partidos y resultados, cerrar una edición y arrancar la siguiente. |
-| **Playoffs** | Armar y jugar las llaves eliminatorias. |
+| **Playoffs** | Armar y jugar las llaves eliminatorias, con un cuadro único o con Copa Oro y Copa Plata. |
 | **Equipos** | Gestionar los equipos del club y los rivales, con planteles y cuerpo técnico. |
 | **Jugadores** | Padrón completo. Un mismo jugador puede estar en varios equipos del club a la vez. |
 | **Finanzas** | Estado de cuotas por jugador, cobros y libro de caja con ingresos y egresos. |

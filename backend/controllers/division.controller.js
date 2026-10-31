@@ -328,8 +328,8 @@ const finalizarYArchivarTorneo = async (req, res) => {
       // 4. Llaves de Playoff
       const { rows: playoffs } = await client.query(
         `SELECT lp.*,
-                el.nombre_equipo AS local_nombre, el.logo_url AS local_logo,
-                ev.nombre_equipo AS visitante_nombre, ev.logo_url AS visitante_logo,
+                el.nombre_equipo AS local_nombre, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_argentinos,
+                ev.nombre_equipo AS visitante_nombre, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_argentinos,
                 eg.nombre_equipo AS ganador_nombre
          FROM public.llave_playoff lp
          LEFT JOIN public.equipo el ON el.id_equipo = lp.id_equipo_local
@@ -381,10 +381,10 @@ const finalizarYArchivarTorneo = async (req, res) => {
 
       if (!campeonEquipoId) {
         // Chequear ganador de la final de playoff
-        const finalPlayoff = playoffs.find(l => l.fase === 'Final' && l.estado_partido === 2 && l.id_equipo_ganador);
+        const finalPlayoff = finalDeCopa(playoffs);
         if (finalPlayoff) {
+          // El nombre, logo y escudo del club se completan abajo a partir del id
           campeonEquipoId = finalPlayoff.id_equipo_ganador;
-          campeonNombre = finalPlayoff.ganador_nombre;
         } else if (tablaPosiciones.length > 0) {
           // Ganador por tabla regular
           campeonEquipoId = tablaPosiciones[0].id_equipo;
@@ -466,12 +466,34 @@ const finalizarYArchivarTorneo = async (req, res) => {
 };
 
 /**
+ * Final jugada de una copa, con el ganador resuelto. Sin copa busca la que define al
+ * campeón del torneo (la Única o la de Oro), nunca la de Plata. Los snapshots previos
+ * pueden tener finales ganadas por goles sin id_equipo_ganador: se calcula con el resultado.
+ */
+const finalDeCopa = (playoffs, copa = null) => {
+  const final = playoffs.find(
+    (l) => l.fase === 'Final' && l.estado_partido === 2 && (copa ? l.copa === copa : l.copa !== 'Plata')
+  );
+  if (!final) return null;
+  if (final.id_equipo_ganador) return final;
+
+  const { goles_local: gl, goles_visitante: gv } = final;
+  if (gl === null || gv === null || gl === gv) return null;
+  const ganoLocal = gl > gv;
+  return {
+    ...final,
+    id_equipo_ganador: ganoLocal ? final.id_equipo_local : final.id_equipo_visitante,
+    ganador_nombre: ganoLocal ? final.local_nombre : final.visitante_nombre,
+  };
+};
+
+/**
  * Podio de una edición archivada. Si hubo final de playoff, manda sobre la tabla:
  * campeón y subcampeón salen de la final y el 3.º del partido por el tercer puesto
  * o, si no lo hubo, del mejor ubicado en la tabla entre los restantes.
  */
 const calcularPodio = (tabla, playoffs) => {
-  const final = playoffs.find((l) => l.fase === 'Final' && l.estado_partido === 2 && l.id_equipo_ganador);
+  const final = finalDeCopa(playoffs);
   if (!final) return [tabla[0] || null, tabla[1] || null, tabla[2] || null];
 
   const mismo = (a, b) => a != null && b != null && String(a) === String(b);
@@ -484,7 +506,7 @@ const calcularPodio = (tabla, playoffs) => {
     id_equipo: idSub,
     nombre_equipo: mismo(idSub, final.id_equipo_local) ? final.local_nombre : final.visitante_nombre,
   };
-  const partidoTercero = playoffs.find((l) => l.fase === 'Tercer Puesto' && l.id_equipo_ganador);
+  const partidoTercero = playoffs.find((l) => l.fase === 'Tercer Puesto' && l.copa !== 'Plata' && l.id_equipo_ganador);
   const tercero = partidoTercero
     ? enTabla(partidoTercero.id_equipo_ganador)
     : tabla.find((t) => !mismo(t.id_equipo, campeon.id_equipo) && !mismo(t.id_equipo, idSub)) || null;
@@ -517,6 +539,7 @@ const obtenerHistorialTorneos = async (req, res) => {
       const tabla = Array.isArray(s.tabla_posiciones) ? s.tabla_posiciones : [];
       const playoffs = Array.isArray(s.playoffs) ? s.playoffs : [];
       const [primero, segundo, tercero] = calcularPodio(tabla, playoffs);
+      const finalPlata = finalDeCopa(playoffs, 'Plata');
       return {
         id_historial: s.id_historial,
         id_division: s.id_division,
@@ -532,6 +555,9 @@ const obtenerHistorialTorneos = async (req, res) => {
         campeon_tabla: primero,
         subcampeon_tabla: segundo,
         tercer_puesto_tabla: tercero,
+        campeon_plata: finalPlata
+          ? { id_equipo: finalPlata.id_equipo_ganador, nombre_equipo: finalPlata.ganador_nombre }
+          : null,
         // Snapshots ricos estructurados
         tabla_posiciones: tabla,
         partidos: Array.isArray(s.partidos_resultados) ? s.partidos_resultados : [],

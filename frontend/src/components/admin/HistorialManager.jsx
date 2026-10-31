@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
 import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha } from '../../utils/fechas';
+import { ETIQUETA_COPA, normalizarLlave } from '../../utils/playoffs';
 import {
   FaTrophy,
   FaMedal,
@@ -105,8 +108,13 @@ export default function HistorialManager({ onActualizarTorneos }) {
     if (torneoSeleccionado.es_snapshot_rico) {
       // Usar directamente los datos archivados en el snapshot
       setTablaPosiciones(torneoSeleccionado.tabla_posiciones || []);
-      setPartidosTorneo(torneoSeleccionado.partidos || []);
-      setLlavesPlayoff(torneoSeleccionado.playoffs || []);
+      // Los partidos del snapshot guardan los equipos con otros nombres de campo
+      setPartidosTorneo((torneoSeleccionado.partidos || []).map((p) => ({
+        ...p,
+        equipo_local: p.equipo_local ?? p.local_nombre,
+        equipo_visitante: p.equipo_visitante ?? p.visitante_nombre,
+      })));
+      setLlavesPlayoff((torneoSeleccionado.playoffs || []).map(normalizarLlave));
       setGoleadoresClub(torneoSeleccionado.goleadores_club || []);
       setTarjetasClub(torneoSeleccionado.tarjetas_club || []);
       setCargandoDetalle(false);
@@ -186,6 +194,12 @@ export default function HistorialManager({ onActualizarTorneos }) {
     if (busqueda && !t.nombre_division.toLowerCase().includes(busqueda.toLowerCase())) return false;
     return true;
   });
+
+  const claveTorneo = torneoSeleccionado?.id_historial ?? torneoSeleccionado?.id_division ?? '';
+  const pagTorneos = usePaginacion(torneosFiltrados, 9, `${filtroTemporada}|${filtroCategoria}`);
+  const pagPartidos = usePaginacion(partidosTorneo, 15, claveTorneo);
+  const pagGoleadores = usePaginacion(goleadoresClub, 15, claveTorneo);
+  const pagTarjetas = usePaginacion(tarjetasClub, 15, claveTorneo);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -458,12 +472,12 @@ export default function HistorialManager({ onActualizarTorneos }) {
 
           {/* TAB 2: PARTIDOS HISTÓRICOS */}
           {subTab === 'partidos' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div id={pagPartidos.idLista} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm scroll-mt-24">
               <div className="divide-y divide-slate-100">
                 {partidosTorneo.length === 0 ? (
                   <div className="p-12 text-center text-slate-400 font-title text-sm">No hay partidos registrados en este torneo.</div>
                 ) : (
-                  partidosTorneo.map(p => (
+                  pagPartidos.visibles.map(p => (
                     <div key={p.id_partido} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md shrink-0">
@@ -490,6 +504,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                   ))
                 )}
               </div>
+              <Paginacion paginacion={pagPartidos} singular="partido" plural="partidos" className="p-4 border-t border-slate-100" />
             </div>
           )}
 
@@ -504,7 +519,9 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 {llavesPlayoff.map(llave => (
                   <div key={llave.id_llave} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-headline uppercase text-slate-500 pb-1 border-b border-slate-200">
-                      <span>{llave.fase}</span>
+                      <span>
+                        {llave.copa && llave.copa !== 'Unica' ? `${ETIQUETA_COPA[llave.copa]} · ` : ''}{llave.fase}
+                      </span>
                       <span>Partido {llave.orden}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
@@ -556,8 +573,8 @@ export default function HistorialManager({ onActualizarTorneos }) {
                       </tr>
                     </thead>
                     <tbody className="font-body text-sm divide-y divide-slate-100">
-                      {goleadoresClub.map((jugador, index) => {
-                        const pos = index + 1;
+                      {pagGoleadores.visibles.map((jugador, index) => {
+                        const pos = pagGoleadores.desde + index + 1;
                         return (
                           <tr key={jugador.id_jugador || index} className="hover:bg-blue-50/50 transition-colors">
                             <td className="py-3.5 px-3 text-center">
@@ -614,6 +631,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                   </table>
                 </div>
               )}
+              <Paginacion paginacion={pagGoleadores} singular="goleador" plural="goleadores" className="p-4 border-t border-slate-100" />
             </div>
           )}
 
@@ -657,10 +675,10 @@ export default function HistorialManager({ onActualizarTorneos }) {
                       </tr>
                     </thead>
                     <tbody className="font-body text-sm divide-y divide-slate-100">
-                      {tarjetasClub.map((jugador, index) => (
+                      {pagTarjetas.visibles.map((jugador, index) => (
                         <tr key={jugador.id_jugador || index} className="hover:bg-slate-50 transition-colors">
                           <td className="py-3.5 px-3 text-center font-title font-bold text-slate-500">
-                            {index + 1}
+                            {pagTarjetas.desde + index + 1}
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-2">
@@ -690,6 +708,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                   </table>
                 </div>
               )}
+              <Paginacion paginacion={pagTarjetas} singular="jugador" plural="jugadores" className="p-4 border-t border-slate-100" />
             </div>
           )}
         </div>
@@ -765,14 +784,14 @@ export default function HistorialManager({ onActualizarTorneos }) {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {torneosFiltrados.map(torneo => {
+            <div id={pagTorneos.idLista} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 scroll-mt-24">
+              {pagTorneos.visibles.map(torneo => {
                 const campeon = torneo.campeon_definitivo;
                 const subcampeon = torneo.subcampeon_tabla;
 
                 return (
                   <div
-                    key={torneo.id_division}
+                    key={torneo.id_historial ?? `division-${torneo.id_division}`}
                     className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-400/80 transition-all p-5 flex flex-col justify-between"
                   >
                     <div>
@@ -841,6 +860,8 @@ export default function HistorialManager({ onActualizarTorneos }) {
               })}
             </div>
           )}
+
+          {!cargando && <Paginacion paginacion={pagTorneos} singular="torneo" plural="torneos" />}
         </>
       )}
 

@@ -10,6 +10,8 @@ import FinanzasManager from '../components/admin/FinanzasManager';
 import HistorialManager from '../components/admin/HistorialManager';
 import UsuariosManager from '../components/admin/UsuariosManager';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import Paginacion from '../components/ui/Paginacion';
+import usePaginacion from '../hooks/usePaginacion';
 import { aInputFechaHora, desdeInputFechaHora } from '../utils/fechas';
 import {
   FaTrophy,
@@ -33,6 +35,19 @@ import {
   FaTimes,
 } from 'react-icons/fa';
 
+const ESTADOS_PARTIDO = {
+  0: { etiqueta: 'Programado', clase: 'bg-slate-100 text-slate-700' },
+  1: { etiqueta: 'En Vivo', clase: 'bg-red-100 text-red-800 animate-pulse' },
+  2: { etiqueta: 'Finalizado', clase: 'bg-emerald-100 text-emerald-800' },
+  3: { etiqueta: 'Suspendido', clase: 'bg-amber-100 text-amber-800' },
+  4: { etiqueta: 'Cancelado', clase: 'bg-slate-200 text-slate-600' },
+};
+
+function EstadoPartido({ estado, className = '' }) {
+  const { etiqueta, clase } = ESTADOS_PARTIDO[estado] || ESTADOS_PARTIDO[0];
+  return <span className={`font-bold ${clase} ${className}`}>{etiqueta}</span>;
+}
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const { usuario, estaAutenticado } = useAuthStore();
@@ -53,6 +68,8 @@ export default function AdminPage() {
   const [cuotas, setCuotas] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [sedes, setSedes] = useState([]);
+  const paginacionPartidos = usePaginacion(partidos, 15, divisionSel);
+  const paginacionSedes = usePaginacion(sedes, 10);
 
   // Formulario nuevo partido modal
   const [mostrarCrearPartido, setMostrarCrearPartido] = useState(false);
@@ -225,20 +242,37 @@ export default function AdminPage() {
       estado_partido: 2,
     });
 
-    const idEquipoClub = p.local_es_argentinos
-      ? p.id_equipo_local
-      : (p.visitante_es_argentinos ? p.id_equipo_visitante : null);
+    // Dos equipos del club pueden enfrentarse entre sí: se cargan los planteles de ambos
+    const equiposClub = [
+      p.local_es_argentinos && { id: p.id_equipo_local, nombre: p.equipo_local },
+      p.visitante_es_argentinos && { id: p.id_equipo_visitante, nombre: p.equipo_visitante },
+    ].filter(Boolean);
 
-    if (idEquipoClub) {
+    setPlantelPartido([]);
+    setStatsPartido({});
+
+    if (equiposClub.length > 0) {
       setCargandoStatsPartido(true);
       try {
-        const [resPlantel, resStats] = await Promise.all([
-          api.get(`/equipos/${idEquipoClub}/plantel`),
+        const [resStats, ...resPlanteles] = await Promise.all([
           api.get(`/partidos/${p.id_partido}/estadisticas`),
+          ...equiposClub.map((eq) => api.get(`/equipos/${eq.id}/plantel`)),
         ]);
 
-        const jugadores = resPlantel.data.data || [];
         const statsExistentes = resStats.data.data || [];
+        const porJugador = new Map();
+        resPlanteles.forEach((resPlantel, i) => {
+          (resPlantel.data.data || []).forEach((jug) => {
+            if (!porJugador.has(jug.id_jugador)) {
+              porJugador.set(jug.id_jugador, {
+                ...jug,
+                nombre_equipo_partido: equiposClub.length > 1 ? equiposClub[i].nombre : null,
+                id_equipo_partido: equiposClub[i].id,
+              });
+            }
+          });
+        });
+        const jugadores = [...porJugador.values()];
 
         setPlantelPartido(jugadores);
 
@@ -247,7 +281,7 @@ export default function AdminPage() {
           const found = statsExistentes.find((s) => Number(s.id_jugador) === Number(jug.id_jugador));
           mapStats[jug.id_jugador] = {
             id_jugador: jug.id_jugador,
-            id_equipo: idEquipoClub,
+            id_equipo: found ? found.id_equipo : jug.id_equipo_partido,
             goles: found ? found.goles : 0,
             tarjetas_amarillas: found ? found.tarjetas_amarillas : 0,
             tarjetas_rojas: found ? found.tarjetas_rojas : 0,
@@ -256,12 +290,10 @@ export default function AdminPage() {
         setStatsPartido(mapStats);
       } catch (err) {
         console.error('Error cargando estadísticas del partido:', err);
+        mostrarMensaje('error', 'No se pudo cargar el plantel del partido. Las estadísticas individuales no se modificarán.');
       } finally {
         setCargandoStatsPartido(false);
       }
-    } else {
-      setPlantelPartido([]);
-      setStatsPartido({});
     }
   };
 
@@ -279,14 +311,10 @@ export default function AdminPage() {
       });
 
       // 2. Si juega Argentinos del Norte, guardar estadísticas individuales
-      const idEquipoClub = partidoEditando.local_es_argentinos
-        ? partidoEditando.id_equipo_local
-        : (partidoEditando.visitante_es_argentinos ? partidoEditando.id_equipo_visitante : null);
-
-      if (idEquipoClub && Object.keys(statsPartido).length > 0) {
+      if (Object.keys(statsPartido).length > 0) {
         const statsPayload = Object.values(statsPartido).map((s) => ({
           id_jugador: s.id_jugador,
-          id_equipo: idEquipoClub,
+          id_equipo: s.id_equipo,
           goles: Number(s.goles || 0),
           tarjetas_amarillas: Number(s.tarjetas_amarillas || 0),
           tarjetas_rojas: Number(s.tarjetas_rojas || 0),
@@ -445,8 +473,8 @@ export default function AdminPage() {
 
   const handleGuardarSede = async (e) => {
     e.preventDefault();
-    if (!formSede.nombre_sede.trim()) {
-      mostrarMensaje('error', 'El nombre de la sede es obligatorio.');
+    if (!formSede.nombre_sede.trim() || !formSede.direccion.trim()) {
+      mostrarMensaje('error', 'El nombre y la dirección de la sede son obligatorios.');
       return;
     }
     setCargandoAccion(true);
@@ -866,12 +894,12 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
                 {/* Selector de División */}
                 <select
                   value={divisionSel}
                   onChange={(e) => setDivisionSel(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-sm text-slate-800"
+                  className="w-full sm:w-auto sm:max-w-xs min-w-0 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-sm text-slate-800"
                 >
                   {divisiones.map((d) => (
                     <option key={d.id_division} value={d.id_division}>
@@ -882,7 +910,7 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => setMostrarCrearPartido(!mostrarCrearPartido)}
-                  className="flex items-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-4 py-2 rounded-xl text-sm font-headline uppercase tracking-wider"
+                  className="flex items-center justify-center gap-2 shrink-0 bg-[#151f89] hover:bg-[#303a9f] text-white px-4 py-2 rounded-xl text-sm font-headline uppercase tracking-wider"
                 >
                   <FaPlus className="text-xs" />
                   <span>Programar</span>
@@ -1089,9 +1117,14 @@ export default function AdminPage() {
                                     <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0 uppercase">
                                       {jug.nombre?.[0]}{jug.apellido?.[0]}
                                     </div>
-                                    <span className="font-bold text-slate-800 font-title">
-                                      {jug.apellido}, {jug.nombre}
-                                    </span>
+                                    <div>
+                                      <span className="font-bold text-slate-800 font-title block">
+                                        {jug.apellido}, {jug.nombre}
+                                      </span>
+                                      {jug.nombre_equipo_partido && (
+                                        <span className="text-[10px] text-slate-500 font-title">{jug.nombre_equipo_partido}</span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center gap-4">
@@ -1366,31 +1399,19 @@ export default function AdminPage() {
             )}
 
             {/* Lista y Tabla de partidos */}
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div id={paginacionPartidos.idLista} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm scroll-mt-24">
               {/* Vista Móvil: Cards */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {partidos.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 font-title text-xs">No hay partidos programados en esta división.</div>
                 ) : (
-                  partidos.map((p) => (
+                  paginacionPartidos.visibles.map((p) => (
                     <div key={p.id_partido} className="p-4 space-y-3">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-500 font-mono">
                           {p.nombre_partido || `Fecha ${p.jornada_numero}`}
                         </span>
-                        {p.estado_partido === 2 ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                            Finalizado
-                          </span>
-                        ) : p.estado_partido === 1 ? (
-                          <span className="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">
-                            En Vivo
-                          </span>
-                        ) : (
-                          <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                            Programado
-                          </span>
-                        )}
+                        <EstadoPartido estado={p.estado_partido} className="text-[10px] px-2 py-0.5 rounded-full" />
                       </div>
 
                       <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
@@ -1446,7 +1467,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title">
-                    {partidos.map((p) => (
+                    {paginacionPartidos.visibles.map((p) => (
                       <tr key={p.id_partido} className="hover:bg-slate-50/80">
                         <td className="p-3.5 font-bold text-slate-500">
                           {p.nombre_partido || `Fecha ${p.jornada_numero}`}
@@ -1457,19 +1478,7 @@ export default function AdminPage() {
                         </td>
                         <td className="p-3.5 font-bold text-slate-900">{p.equipo_visitante}</td>
                         <td className="p-3.5">
-                          {p.estado_partido === 2 ? (
-                            <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">
-                              Finalizado
-                            </span>
-                          ) : p.estado_partido === 1 ? (
-                            <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded font-bold animate-pulse">
-                              En Vivo
-                            </span>
-                          ) : (
-                            <span className="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded font-bold">
-                              Programado
-                            </span>
-                          )}
+                          <EstadoPartido estado={p.estado_partido} className="text-xs px-2 py-0.5 rounded" />
                         </td>
                         <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1500,7 +1509,12 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                {partidos.length === 0 && (
+                  <div className="p-12 text-center text-slate-400 font-title text-sm">No hay partidos programados en esta división.</div>
+                )}
               </div>
+
+              <Paginacion paginacion={paginacionPartidos} singular="partido" plural="partidos" className="p-4 border-t border-slate-100" />
             </div>
           </div>
         )}
@@ -1518,11 +1532,11 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 w-full sm:w-auto">
                 <select
                   value={divisionSel}
                   onChange={(e) => setDivisionSel(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-sm text-slate-800"
+                  className="w-full sm:w-auto sm:max-w-xs min-w-0 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-sm text-slate-800"
                 >
                   {divisiones.map((d) => (
                     <option key={d.id_division} value={d.id_division}>
@@ -1534,7 +1548,7 @@ export default function AdminPage() {
                 <button
                   onClick={handleRecalcularPosiciones}
                   disabled={cargandoAccion}
-                  className="flex items-center gap-2 bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
+                  className="flex items-center justify-center gap-2 shrink-0 bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
                 >
                   <FaSync className={cargandoAccion ? 'animate-spin' : ''} />
                   <span>{cargandoAccion ? 'Calculando...' : 'Recalcular Ahora'}</span>
@@ -1671,13 +1685,13 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div id={paginacionSedes.idLista} className="grid grid-cols-1 md:grid-cols-2 gap-4 scroll-mt-24">
               {sedes.length === 0 ? (
-                <div className="col-span-2 p-12 text-center text-slate-400 font-title text-sm bg-white rounded-2xl border border-slate-200">
+                <div className="md:col-span-2 p-12 text-center text-slate-400 font-title text-sm bg-white rounded-2xl border border-slate-200">
                   No hay sedes registradas en el sistema.
                 </div>
               ) : (
-                sedes.map((s) => (
+                paginacionSedes.visibles.map((s) => (
                   <div key={s.id_sede} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-xs hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1725,6 +1739,8 @@ export default function AdminPage() {
                 ))
               )}
             </div>
+
+            <Paginacion paginacion={paginacionSedes} singular="sede" plural="sedes" />
           </div>
         )}
 

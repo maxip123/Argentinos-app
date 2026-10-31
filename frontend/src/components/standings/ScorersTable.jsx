@@ -1,8 +1,12 @@
 import React from 'react';
 import ClubShield from '../ui/ClubShield';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import { FaFutbol } from 'react-icons/fa';
 
 export default function ScorersTable({ goleadores = [], cargando = false, soloClub = false, onToggleSoloClub }) {
+  const paginacion = usePaginacion(goleadores, 15);
+
   if (cargando) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
@@ -28,7 +32,7 @@ export default function ScorersTable({ goleadores = [], cargando = false, soloCl
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div id={paginacion.idLista} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-24">
       {/* Header con filtro "Solo Argentinos del Norte" */}
       <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -58,13 +62,13 @@ export default function ScorersTable({ goleadores = [], cargando = false, soloCl
             </tr>
           </thead>
           <tbody className="font-body text-sm divide-y divide-slate-100">
-            {goleadores.map((jugador, index) => {
-              const pos = index + 1;
+            {paginacion.visibles.map((jugador, index) => {
+              const pos = paginacion.desde + index + 1;
               const esClub = jugador.es_jugador_club || jugador.es_argentinos_del_norte;
 
               return (
                 <tr
-                  key={jugador.id_jugador || index}
+                  key={`${jugador.id_jugador}-${jugador.nombre_equipo}-${index}`}
                   className={`transition-colors ${
                     esClub ? 'bg-blue-50/50 hover:bg-blue-100/50' : 'hover:bg-slate-50'
                   }`}
@@ -138,6 +142,7 @@ export default function ScorersTable({ goleadores = [], cargando = false, soloCl
           </tbody>
         </table>
       </div>
+      <Paginacion paginacion={paginacion} singular="goleador" plural="goleadores" className="p-4 border-t border-slate-100" />
     </div>
   );
 }

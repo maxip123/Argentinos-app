@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../ui/ConfirmModal';
+import Paginacion from '../ui/Paginacion';
+import usePaginacion from '../../hooks/usePaginacion';
 import {
   FaUserPlus,
   FaUserEdit,
@@ -235,8 +237,9 @@ export default function JugadoresManager({ divisiones = [] }) {
   };
 
   // Helpers de estado de cuota y vencimiento
-  const esAlDia = (j) => !j.es_inactivo && j.fecha_vencimiento && new Date(j.fecha_vencimiento) >= new Date();
-  const esPendiente = (j) => !j.es_inactivo && (!j.fecha_vencimiento || new Date(j.fecha_vencimiento) < new Date());
+  // El backend calcula el estado por fecha: el día del vencimiento todavía cuenta como al día
+  const esAlDia = (j) => j.estado_cuota === 'Al dia';
+  const esPendiente = (j) => j.estado_cuota === 'Pendiente';
 
   const formatearVencimiento = (fechaStr, esInactivo) => {
     if (esInactivo) {
@@ -303,6 +306,7 @@ export default function JugadoresManager({ divisiones = [] }) {
     if (filtroEstado === 'inactivos') return j.es_inactivo;
     return true;
   });
+  const paginacion = usePaginacion(jugadoresFiltrados, 15, `${busqueda}|${filtroEquipo}|${filtroEstado}`);
 
   return (
     <div className="space-y-6">
@@ -441,7 +445,7 @@ export default function JugadoresManager({ divisiones = [] }) {
       </div>
 
       {/* ─── Padrón Central: Vista Móvil y Desktop ─────────────────── */}
-      <div className="space-y-3">
+      <div id={paginacion.idLista} className="space-y-3 scroll-mt-24">
         {/* Vista Móvil: Cards */}
         <div className="block md:hidden space-y-3">
           {cargando ? (
@@ -449,7 +453,7 @@ export default function JugadoresManager({ divisiones = [] }) {
           ) : jugadoresFiltrados.length === 0 ? (
             <div className="p-8 text-center text-slate-500 font-title text-xs">No se encontraron socios con estos filtros.</div>
           ) : (
-            jugadoresFiltrados.map(j => {
+            paginacion.visibles.map(j => {
               const equipos = Array.isArray(j.equipos_asignados) ? j.equipos_asignados : [];
               return (
                 <div key={j.id_jugador} className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 ${j.es_inactivo ? 'opacity-60' : ''}`}>
@@ -566,7 +570,7 @@ export default function JugadoresManager({ divisiones = [] }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-title text-xs">
-                {jugadoresFiltrados.map(j => {
+                {paginacion.visibles.map(j => {
                   const equipos = Array.isArray(j.equipos_asignados) ? j.equipos_asignados : [];
                   return (
                     <tr key={j.id_jugador} className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-60' : ''}`}>
@@ -661,6 +665,8 @@ export default function JugadoresManager({ divisiones = [] }) {
           </div>
         )}
       </div>
+
+      {!cargando && <Paginacion paginacion={paginacion} singular="jugador" plural="jugadores" />}
     </div>
 
       {/* ── Modal: Registrar Jugador en Padrón ── */}
