@@ -97,8 +97,7 @@ function TarjetaEdicion({ h }) {
       <div className="flex-1 p-5 space-y-2.5">
         <Podio etiqueta="Campeón" equipo={campeon} destacado />
         <Podio etiqueta="Subcampeón" equipo={h.subcampeon_tabla} />
-        <Podio etiqueta="3.º puesto" equipo={h.tercer_puesto_tabla} />
-        <Podio etiqueta="Campeón Copa Plata" equipo={h.campeon_plata} />
+        <Podio etiqueta="Copa Plata" equipo={h.campeon_plata} />
       </div>
 
       <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 bg-slate-50/70 text-center">
