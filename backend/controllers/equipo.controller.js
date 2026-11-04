@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
 
 // GET /api/equipos — Todos los equipos activos (opcionalmente filtrar por division)
@@ -54,13 +54,23 @@ const obtenerPorId = async (req, res) => {
 const crear = async (req, res) => {
   try {
     const { id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte } = req.body;
-    const { rows } = await query(
-      `INSERT INTO public.equipo (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [id_division, nombre_equipo.trim(), nombre_corto?.trim() || null, logo_url || null, es_argentinos_del_norte ?? false]
-    );
-    return respuestaExito(res, rows[0], 'Equipo creado exitosamente.', 201);
+    const equipo = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO public.equipo (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [id_division, nombre_equipo.trim(), nombre_corto?.trim() || null, logo_url || null, es_argentinos_del_norte ?? false]
+      );
+      // El equipo entra a la tabla de posiciones en cero, sin esperar a que se juegue un partido.
+      await client.query(
+        `INSERT INTO public.clasificacion (id_division, id_equipo)
+         VALUES ($1, $2)
+         ON CONFLICT (id_division, id_equipo) DO NOTHING`,
+        [rows[0].id_division, rows[0].id_equipo]
+      );
+      return rows[0];
+    });
+    return respuestaExito(res, equipo, 'Equipo creado exitosamente.', 201);
   } catch (error) {
     if (error.code === '23505') {
       return respuestaError(res, 'Ya existe un equipo con ese nombre en esta división.', 409);
