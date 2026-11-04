@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
-import { FaSync, FaEdit, FaTimes, FaExclamationCircle, FaUndo } from 'react-icons/fa';
+import { FaEdit, FaTimes, FaExclamationCircle, FaUndo } from 'react-icons/fa';
 
 // Columnas que se pueden corregir a mano. PJ y DG se calculan a partir de ellas.
 const CAMPOS = [
@@ -181,7 +181,6 @@ function ModalEditarFila({ fila, onClose, onGuardado }) {
 export default function PosicionesManager({ divisiones, divisionSel, setDivisionSel, mostrarMensaje }) {
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(false);
-  const [recalculando, setRecalculando] = useState(false);
   const [editando, setEditando] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
 
@@ -203,20 +202,6 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
   useEffect(() => {
     cargarTabla();
   }, [cargarTabla]);
-
-  const recalcular = async () => {
-    if (!divisionSel) return;
-    setRecalculando(true);
-    try {
-      await api.post(`/clasificacion/recalcular/${divisionSel}`);
-      mostrarMensaje('exito', 'Tabla recalculada a partir de los partidos finalizados. Los ajustes manuales se mantienen.');
-      await cargarTabla();
-    } catch (err) {
-      mostrarMensaje('error', 'Error al recalcular: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setRecalculando(false);
-    }
-  };
 
   const divisionActual = divisiones.find((d) => String(d.id_division) === String(divisionSel));
 
@@ -242,15 +227,6 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
               </option>
             ))}
           </select>
-
-          <button
-            onClick={recalcular}
-            disabled={recalculando}
-            className="flex items-center justify-center gap-2 shrink-0 bg-[#151f89] hover:bg-[#303a9f] disabled:opacity-60 text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
-          >
-            <FaSync className={recalculando ? 'animate-spin' : ''} />
-            <span>{recalculando ? 'Calculando...' : 'Recalcular Ahora'}</span>
-          </button>
         </div>
       </div>
 
@@ -278,7 +254,7 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
           <div className="p-12 text-center">
             <p className="font-headline text-slate-700 text-lg uppercase tracking-wide">No hay equipos en la tabla</p>
             <p className="text-slate-500 text-sm mt-1 font-body">
-              Cargá equipos en el torneo y tocá "Recalcular Ahora" para armarla.
+              Cargá equipos en el torneo desde la pestaña Equipos y van a aparecer acá.
             </p>
           </div>
         ) : (
