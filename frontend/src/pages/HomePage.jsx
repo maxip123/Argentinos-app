@@ -6,7 +6,25 @@ import MatchCard from '../components/matches/MatchCard';
 import SwitchSoloClub from '../components/ui/SwitchSoloClub';
 import { FaFutbol, FaChevronRight, FaChevronLeft, FaMapMarkerAlt, FaUsers } from 'react-icons/fa';
 
-const ANCHO_TARJETA = 'snap-start shrink-0 w-[85%] sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]';
+const MAX_ATAJOS = 9;
+
+// Partidos por página del carrusel: 6 en pantalla grande (3 arriba y 3 abajo), 2 en tablet y 1 en celular
+const porPaginaSegunAncho = () => {
+  if (window.matchMedia('(min-width: 1024px)').matches) return 6;
+  if (window.matchMedia('(min-width: 640px)').matches) return 2;
+  return 1;
+};
+
+function usePorPagina() {
+  const [porPagina, setPorPagina] = useState(porPaginaSegunAncho);
+  useEffect(() => {
+    const consultas = ['(min-width: 1024px)', '(min-width: 640px)'].map((q) => window.matchMedia(q));
+    const actualizar = () => setPorPagina(porPaginaSegunAncho());
+    consultas.forEach((c) => c.addEventListener('change', actualizar));
+    return () => consultas.forEach((c) => c.removeEventListener('change', actualizar));
+  }, []);
+  return porPagina;
+}
 
 function FlechaCarrusel({ direccion, visible, onClick }) {
   const Icono = direccion === 'izq' ? FaChevronLeft : FaChevronRight;
@@ -24,49 +42,103 @@ function FlechaCarrusel({ direccion, visible, onClick }) {
   );
 }
 
+function AtajosCarrusel({ total, activa, onIr }) {
+  if (total <= 1) return null;
+  // Con muchas páginas se muestra una ventana de atajos alrededor de la página actual
+  const desde = Math.min(Math.max(activa - Math.floor(MAX_ATAJOS / 2), 0), Math.max(total - MAX_ATAJOS, 0));
+  const indices = Array.from({ length: Math.min(total, MAX_ATAJOS) }, (_, i) => desde + i);
+
+  return (
+    <nav aria-label="Páginas de próximos partidos" className="mt-3 flex items-center justify-center gap-1">
+      {indices.map((i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onIr(i)}
+          aria-label={`Ir a la página ${i + 1} de ${total}`}
+          aria-current={i === activa ? 'true' : undefined}
+          className="p-1.5 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#151f89]"
+        >
+          <span
+            className={`block h-2 rounded-full transition-all ${
+              i === activa ? 'w-6 bg-[#151f89]' : 'w-2 bg-slate-300 hover:bg-[#303a9f]/60'
+            }`}
+          />
+        </button>
+      ))}
+      {total > MAX_ATAJOS && (
+        <span className="ml-2 text-xs text-slate-500 font-title tabular-nums">
+          {activa + 1}/{total}
+        </span>
+      )}
+    </nav>
+  );
+}
+
 function CarruselPartidos({ partidos }) {
   const pistaRef = useRef(null);
-  const [limites, setLimites] = useState({ inicio: true, fin: true });
+  const porPagina = usePorPagina();
+  const [activa, setActiva] = useState(0);
+
+  const paginas = [];
+  for (let i = 0; i < partidos.length; i += porPagina) paginas.push(partidos.slice(i, i + porPagina));
+
+  // Distancia entre el borde de una página y el punto donde encaja al deslizar
+  const separacion = (pista, pagina) =>
+    pagina.getBoundingClientRect().left -
+    pista.getBoundingClientRect().left -
+    (parseFloat(getComputedStyle(pista).scrollPaddingLeft) || 0);
 
   useEffect(() => {
     const pista = pistaRef.current;
     if (!pista) return undefined;
     pista.scrollTo({ left: 0 });
+    setActiva(0);
     const actualizar = () => {
-      setLimites({
-        inicio: pista.scrollLeft <= 4,
-        fin: pista.scrollLeft + pista.clientWidth >= pista.scrollWidth - 4,
+      let cercana = 0;
+      [...pista.children].forEach((pagina, i) => {
+        if (Math.abs(separacion(pista, pagina)) < Math.abs(separacion(pista, pista.children[cercana]))) cercana = i;
       });
+      setActiva(cercana);
     };
-    const observador = new ResizeObserver(actualizar);
-    observador.observe(pista);
     pista.addEventListener('scroll', actualizar, { passive: true });
-    return () => {
-      observador.disconnect();
-      pista.removeEventListener('scroll', actualizar);
-    };
-  }, [partidos]);
+    return () => pista.removeEventListener('scroll', actualizar);
+  }, [partidos, porPagina]);
 
-  const desplazar = (sentido) => {
+  const irA = (indice) => {
     const pista = pistaRef.current;
-    pista?.scrollBy({ left: sentido * pista.clientWidth * 0.9, behavior: 'smooth' });
+    const pagina = pista?.children[indice];
+    if (!pagina) return;
+    setActiva(indice);
+    pista.scrollTo({ left: pista.scrollLeft + separacion(pista, pagina), behavior: 'smooth' });
   };
 
   return (
-    <div className="relative">
-      <FlechaCarrusel direccion="izq" visible={!limites.inicio} onClick={() => desplazar(-1)} />
-      <div
-        ref={pistaRef}
-        className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-3 -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0"
-      >
-        {partidos.map((partido) => (
-          <div key={partido.id_partido} className={`${ANCHO_TARJETA} flex *:w-full`}>
-            <MatchCard partido={partido} />
-          </div>
-        ))}
+    <>
+      <div className="relative">
+        <FlechaCarrusel direccion="izq" visible={activa > 0} onClick={() => irA(activa - 1)} />
+        <div
+          ref={pistaRef}
+          className="flex items-start gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-3 -mx-4 px-4 scroll-px-4 sm:mx-0 sm:px-0 sm:scroll-px-0"
+        >
+          {paginas.map((pagina, i) => (
+            <div
+              key={pagina[0].id_partido}
+              aria-label={`Página ${i + 1} de ${paginas.length}`}
+              className="snap-start shrink-0 w-[85%] sm:w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+            >
+              {pagina.map((partido) => (
+                <div key={partido.id_partido} className="flex *:w-full">
+                  <MatchCard partido={partido} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <FlechaCarrusel direccion="der" visible={activa < paginas.length - 1} onClick={() => irA(activa + 1)} />
       </div>
-      <FlechaCarrusel direccion="der" visible={!limites.fin} onClick={() => desplazar(1)} />
-    </div>
+      <AtajosCarrusel total={paginas.length} activa={activa} onIr={irA} />
+    </>
   );
 }
 
@@ -150,22 +222,16 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-              <SwitchSoloClub activo={soloClub} onChange={setSoloClub} />
-              <Link
-                to="/masculino"
-                className="inline-flex items-center gap-1.5 text-sm font-title font-bold text-[#151f89] hover:text-[#303a9f] transition-colors"
-              >
-                <span>Ver fixture completo</span>
-                <FaChevronRight className="text-xs" />
-              </Link>
-            </div>
+            <SwitchSoloClub activo={soloClub} onChange={setSoloClub} />
           </div>
 
           {cargandoPartidos ? (
-            <div className="flex gap-6 overflow-hidden">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className={`${ANCHO_TARJETA} h-72 bg-white rounded-2xl animate-pulse border border-slate-200`}></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className={`${i === 0 ? '' : i === 1 ? 'hidden sm:block' : 'hidden lg:block'} h-72 bg-white rounded-2xl animate-pulse border border-slate-200`}
+                ></div>
               ))}
             </div>
           ) : partidosVisibles.length > 0 ? (
