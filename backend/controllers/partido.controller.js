@@ -4,7 +4,7 @@ const { respuestaExito, respuestaError } = require('../utils/respuesta');
 const BASE_SELECT = `
   SELECT
     p.*,
-    s.nombre_sede, s.direccion AS direccion_sede, s.google_maps_url,
+    s.nombre_sede, s.direccion AS direccion_sede,
     el.nombre_equipo AS equipo_local,  el.logo_url AS logo_local,  el.es_argentinos_del_norte AS local_es_argentinos,
     ev.nombre_equipo AS equipo_visitante, ev.logo_url AS logo_visitante, ev.es_argentinos_del_norte AS visitante_es_argentinos,
     (el.es_argentinos_del_norte OR ev.es_argentinos_del_norte) AS juega_argentinos,

@@ -512,7 +512,6 @@ async function cargarEstructura(client) {
   const sedes = await insertar(client, 'sede', SEDES.map((s) => ({
     nombre_sede: s.nombre,
     direccion: s.direccion,
-    google_maps_url: `https://maps.google.com/?q=${encodeURIComponent(s.direccion)}`,
     es_sede_propia: s.propia,
   })), 'id_sede');
   ids.sede = sedes.map((s) => s.id_sede);

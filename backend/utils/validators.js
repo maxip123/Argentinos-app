@@ -78,10 +78,23 @@ const validarCrearCuota = [
 const validarCrearSede = [
   body('nombre_sede').trim().notEmpty().withMessage('El nombre de la sede es requerido.'),
   body('direccion').trim().notEmpty().withMessage('La dirección es requerida.'),
-  body('google_maps_url').optional({ checkFalsy: true }).isURL().withMessage('El enlace de Google Maps debe ser una URL válida.'),
+];
+
+// ─── CLASIFICACIÓN ────────────────────────────────────────────────────────────
+const validarAjusteClasificacion = [
+  param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
+  body('puntos').isInt({ min: -999, max: 999 }).withMessage('Los puntos deben ser un número entero.'),
+  ...['partidos_ganados', 'partidos_empatados', 'partidos_perdidos'].map((campo) =>
+    body(campo).isInt({ min: 0, max: 999 }).withMessage('Los partidos deben ser un número entero de 0 o más.')
+  ),
+  ...['goles_a_favor', 'goles_en_contra'].map((campo) =>
+    body(campo).isInt({ min: 0, max: 9999 }).withMessage('Los goles deben ser un número entero de 0 o más.')
+  ),
+  body('motivo').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('El motivo no puede superar los 500 caracteres.'),
 ];
 
 module.exports = {
+  validarAjusteClasificacion,
   validarLogin,
   validarRegistro,
   validarCambioContrasena,

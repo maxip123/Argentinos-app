@@ -9,6 +9,7 @@ import JugadoresManager from '../components/admin/JugadoresManager';
 import FinanzasManager from '../components/admin/FinanzasManager';
 import HistorialManager from '../components/admin/HistorialManager';
 import UsuariosManager from '../components/admin/UsuariosManager';
+import PosicionesManager from '../components/admin/PosicionesManager';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import Paginacion from '../components/ui/Paginacion';
 import usePaginacion from '../hooks/usePaginacion';
@@ -19,7 +20,6 @@ import {
   FaWallet,
   FaMapMarkerAlt,
   FaChartBar,
-  FaSync,
   FaPlus,
   FaCheck,
   FaExclamationCircle,
@@ -80,6 +80,7 @@ export default function AdminPage() {
     fecha_partido: '',
     jornada_numero: 1,
     nombre_partido: '',
+    afecta_clasificacion: true,
   });
 
   // Edición de datos y programación de partido
@@ -102,7 +103,6 @@ export default function AdminPage() {
   const [formSede, setFormSede] = useState({
     nombre_sede: '',
     direccion: '',
-    google_maps_url: '',
     es_sede_propia: false,
   });
 
@@ -218,20 +218,6 @@ export default function AdminPage() {
       cargarSedes();
     }
   }, [moduloActivo, cargarPartidos, cargarCuotas, cargarEquipos, cargarSedes]);
-
-  // Recalcular posiciones manualmente
-  const handleRecalcularPosiciones = async () => {
-    if (!divisionSel) return;
-    setCargandoAccion(true);
-    try {
-      await api.post(`/clasificacion/recalcular/${divisionSel}`);
-      mostrarMensaje('exito', '¡Tabla de posiciones recalculada con éxito mediante Stored Procedure!');
-    } catch (err) {
-      mostrarMensaje('error', 'Error al recalcular: ' + (err.response?.data?.mensaje || err.message));
-    } finally {
-      setCargandoAccion(false);
-    }
-  };
 
   // Iniciar edición de resultado y cargar estadísticas si juega Argentinos del Norte
   const iniciarEdicionPartido = async (p) => {
@@ -368,6 +354,7 @@ export default function AdminPage() {
         fecha_partido: '',
         jornada_numero: 1,
         nombre_partido: '',
+        afecta_clasificacion: true,
       });
     } catch (err) {
       mostrarMensaje('error', 'Error al crear partido: ' + (err.response?.data?.mensaje || err.message));
@@ -454,7 +441,6 @@ export default function AdminPage() {
     setFormSede({
       nombre_sede: '',
       direccion: '',
-      google_maps_url: '',
       es_sede_propia: false,
     });
     setMostrarCrearSede(true);
@@ -465,7 +451,6 @@ export default function AdminPage() {
     setFormSede({
       nombre_sede: s.nombre_sede || '',
       direccion: s.direccion || '',
-      google_maps_url: s.google_maps_url || '',
       es_sede_propia: Boolean(s.es_sede_propia),
     });
     setMostrarCrearSede(true);
@@ -488,7 +473,7 @@ export default function AdminPage() {
       }
       setMostrarCrearSede(false);
       setSedeEditando(null);
-      setFormSede({ nombre_sede: '', direccion: '', google_maps_url: '', es_sede_propia: false });
+      setFormSede({ nombre_sede: '', direccion: '', es_sede_propia: false });
       cargarSedes();
     } catch (err) {
       mostrarMensaje('error', 'Error al guardar sede: ' + (err.response?.data?.mensaje || err.message));
@@ -672,7 +657,7 @@ export default function AdminPage() {
                 Posiciones y Tabla
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Revisar posiciones y disparar recálculo automático de la DB
+                Ver la tabla de cada torneo y corregirla a mano
               </p>
             </article>
 
@@ -1000,21 +985,32 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <div className="flex items-end gap-2">
-                    <button
-                      type="submit"
-                      disabled={cargandoAccion}
-                      className="flex-1 bg-[#151f89] hover:bg-[#303a9f] text-white py-2.5 rounded-lg font-headline uppercase text-sm"
-                    >
-                      {cargandoAccion ? 'Guardando...' : 'Guardar Partido'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMostrarCrearPartido(false)}
-                      className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm text-slate-600 font-bold"
-                    >
-                      Cancelar
-                    </button>
+                  <div className="flex flex-col justify-end gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-title font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={nuevoPartido.afecta_clasificacion}
+                        onChange={(e) => setNuevoPartido({ ...nuevoPartido, afecta_clasificacion: e.target.checked })}
+                        className="rounded text-[#151f89] focus:ring-[#151f89] h-4 w-4"
+                      />
+                      <span>Afecta la Tabla de Posiciones</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={cargandoAccion}
+                        className="flex-1 bg-[#151f89] hover:bg-[#303a9f] text-white py-2.5 rounded-lg font-headline uppercase text-sm"
+                      >
+                        {cargandoAccion ? 'Guardando...' : 'Guardar Partido'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMostrarCrearPartido(false)}
+                        className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm text-slate-600 font-bold"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -1519,43 +1515,14 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: CLASIFICACIONES Y RECALCULO */}
+        {/* VISTA 3: TABLA DE POSICIONES (ver y corregir a mano) */}
         {moduloActivo === 'clasificacion' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <h2 className="font-headline text-2xl uppercase tracking-wide text-slate-900">
-                  Gestión de Tabla de Posiciones
-                </h2>
-                <p className="text-xs text-slate-500 font-body">
-                  Podés forzar una sincronización total ejecutando el Stored Procedure de la base de datos.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 w-full sm:w-auto">
-                <select
-                  value={divisionSel}
-                  onChange={(e) => setDivisionSel(e.target.value)}
-                  className="w-full sm:w-auto sm:max-w-xs min-w-0 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 font-title font-bold text-sm text-slate-800"
-                >
-                  {divisiones.map((d) => (
-                    <option key={d.id_division} value={d.id_division}>
-                      {d.nombre_division}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  onClick={handleRecalcularPosiciones}
-                  disabled={cargandoAccion}
-                  className="flex items-center justify-center gap-2 shrink-0 bg-[#151f89] hover:bg-[#303a9f] text-white px-5 py-2.5 rounded-xl font-headline uppercase text-sm tracking-wider shadow-sm transition-all"
-                >
-                  <FaSync className={cargandoAccion ? 'animate-spin' : ''} />
-                  <span>{cargandoAccion ? 'Calculando...' : 'Recalcular Ahora'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          <PosicionesManager
+            divisiones={divisiones}
+            divisionSel={divisionSel}
+            setDivisionSel={setDivisionSel}
+            mostrarMensaje={mostrarMensaje}
+          />
         )}
 
         {/* VISTA 4: FINANZAS Y CUOTAS — nuevo módulo */}
@@ -1631,19 +1598,6 @@ export default function AdminPage() {
                       placeholder="ej. Av. Benjamín Aráoz 650, San Miguel de Tucumán"
                       value={formSede.direccion}
                       onChange={(e) => setFormSede({ ...formSede, direccion: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
-                      Enlace a Google Maps (Opcional)
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://maps.google.com/..."
-                      value={formSede.google_maps_url}
-                      onChange={(e) => setFormSede({ ...formSede, google_maps_url: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-body focus:outline-none"
                     />
                   </div>
@@ -1725,16 +1679,6 @@ export default function AdminPage() {
                       <FaMapMarkerAlt className="text-[#151f89] shrink-0" />
                       <span>{s.direccion}</span>
                     </p>
-                    {s.google_maps_url && (
-                      <a
-                        href={s.google_maps_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-block text-xs text-[#151f89] font-bold hover:underline"
-                      >
-                        Ver en Google Maps →
-                      </a>
-                    )}
                   </div>
                 ))
               )}

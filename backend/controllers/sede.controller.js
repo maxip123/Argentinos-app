@@ -24,11 +24,11 @@ const obtenerPorId = async (req, res) => {
 
 const crear = async (req, res) => {
   try {
-    const { nombre_sede, direccion, google_maps_url, es_sede_propia } = req.body;
+    const { nombre_sede, direccion, es_sede_propia } = req.body;
     const { rows } = await query(
-      `INSERT INTO public.sede (nombre_sede, direccion, google_maps_url, es_sede_propia)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [nombre_sede.trim(), direccion.trim(), google_maps_url || null, es_sede_propia ?? false]
+      `INSERT INTO public.sede (nombre_sede, direccion, es_sede_propia)
+       VALUES ($1,$2,$3) RETURNING *`,
+      [nombre_sede.trim(), direccion.trim(), es_sede_propia ?? false]
     );
     return respuestaExito(res, rows[0], 'Sede creada exitosamente.', 201);
   } catch (error) {
@@ -40,16 +40,15 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre_sede, direccion, google_maps_url, es_sede_propia } = req.body;
+    const { nombre_sede, direccion, es_sede_propia } = req.body;
     const { rows } = await query(
       `UPDATE public.sede
        SET nombre_sede    = COALESCE($1, nombre_sede),
            direccion      = COALESCE($2, direccion),
-           google_maps_url= COALESCE($3, google_maps_url),
-           es_sede_propia = COALESCE($4, es_sede_propia),
+           es_sede_propia = COALESCE($3, es_sede_propia),
            updated_at     = NOW()
-       WHERE id_sede = $5 AND activo = TRUE RETURNING *`,
-      [nombre_sede?.trim(), direccion?.trim(), google_maps_url, es_sede_propia, id]
+       WHERE id_sede = $4 AND activo = TRUE RETURNING *`,
+      [nombre_sede?.trim(), direccion?.trim(), es_sede_propia, id]
     );
     if (rows.length === 0) return respuestaError(res, 'Sede no encontrada.', 404);
     return respuestaExito(res, rows[0], 'Sede actualizada correctamente.');
