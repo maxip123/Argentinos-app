@@ -1,5 +1,16 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+
+// Columnas editables a mano. Cada una tiene su ajuste_<columna>, que el recálculo suma a lo que sale de los partidos.
+// partidos_jugados y diferencia_gol no se editan: se derivan de las demás.
+const COLUMNAS_EDITABLES = [
+  'puntos',
+  'partidos_ganados',
+  'partidos_empatados',
+  'partidos_perdidos',
+  'goles_a_favor',
+  'goles_en_contra',
+];
 
 // GET /api/clasificacion/:id_division — Tabla de posiciones de una división
 const obtenerPorDivision = async (req, res) => {
@@ -32,4 +43,62 @@ const recalcular = async (req, res) => {
   }
 };
 
-module.exports = { obtenerPorDivision, recalcular };
+// PUT /api/clasificacion/:id — Corrige a mano una fila (sanciones, puntos de mesa, partidos no cargados).
+// Recibe los valores finales; guarda la diferencia con lo que dicen los partidos como ajuste, con motivo y autor.
+const actualizarFila = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const motivo = String(req.body?.motivo ?? '').trim();
+
+    const resultado = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM public.clasificacion WHERE id_clasificacion = $1 AND activo = TRUE FOR UPDATE`,
+        [id]
+      );
+      if (rows.length === 0) return { codigo: 404 };
+      const fila = rows[0];
+
+      // Lo que dicen los partidos = valor actual menos el ajuste que ya tenía
+      const ajustes = {};
+      for (const col of COLUMNAS_EDITABLES) {
+        const segunPartidos = fila[col] - fila[`ajuste_${col}`];
+        ajustes[col] = Number(req.body[col]) - segunPartidos;
+      }
+      const hayAjuste = Object.values(ajustes).some((a) => a !== 0);
+      if (hayAjuste && !motivo) return { codigo: 400 };
+
+      const { rows: actualizada } = await client.query(
+        `UPDATE public.clasificacion
+         SET ${COLUMNAS_EDITABLES.map((col, i) => `${col} = $${i + 1}, ajuste_${col} = $${i + 7}`).join(', ')},
+             partidos_jugados = $2 + $3 + $4,
+             motivo_ajuste = $13, ajustado_por = $14, fecha_ajuste = $15
+         WHERE id_clasificacion = $16
+         RETURNING *`,
+        [
+          ...COLUMNAS_EDITABLES.map((col) => Number(req.body[col])),
+          ...COLUMNAS_EDITABLES.map((col) => ajustes[col]),
+          hayAjuste ? motivo : null,
+          hayAjuste ? req.usuario.id : null,
+          hayAjuste ? new Date() : null,
+          id,
+        ]
+      );
+      return { codigo: 200, fila: actualizada[0], hayAjuste };
+    });
+
+    if (resultado.codigo === 404) return respuestaError(res, 'Fila de la tabla no encontrada.', 404);
+    if (resultado.codigo === 400) {
+      return respuestaError(res, 'Indicá el motivo del cambio: queda registrado junto con el ajuste.', 400);
+    }
+    return respuestaExito(
+      res,
+      resultado.fila,
+      resultado.hayAjuste ? 'Tabla corregida. El ajuste se mantiene aunque se recalcule.' : 'La fila volvió a lo que dicen los partidos.'
+    );
+  } catch (error) {
+    console.error('[clasificacion.controller] actualizarFila error:', error);
+    return respuestaError(res, 'Error al corregir la tabla de posiciones.', 500, error.message);
+  }
+};
+
+module.exports = { obtenerPorDivision, recalcular, actualizarFila };

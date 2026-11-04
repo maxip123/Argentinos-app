@@ -164,9 +164,14 @@ export default function HomePage() {
     <div className="flex flex-col min-h-screen bg-[#f5f2fc]">
       {/* ─── Hero Section ─────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-[#151f89] text-white py-16 lg:py-24 border-b border-[#303a9f]">
-        {/* Background Overlay & Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1666]/90 via-[#151f89] to-[#151f89] z-0"></div>
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#303a9f]/30 blur-3xl pointer-events-none"></div>
+        {/* Foto de fondo con degradado oscuro para que el texto se lea */}
+        <img
+          src="/hero-futsal.webp"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover object-[center_35%] z-0"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/60 to-black/70 z-0"></div>
 
         <div className="relative z-10 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center">
           <div className="mb-6 transform hover:scale-105 transition-transform">
