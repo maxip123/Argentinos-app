@@ -1,0 +1,23 @@
+# Secretos: nunca deben entrar a la imagen
+.env
+.env.*
+!.env.example
+
+# Scripts locales: seed.js crea el administrador y no se versiona
+scripts/
+
+# Se instala dentro de la imagen
+node_modules/
+
+# No hacen falta para ejecutar la API
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+prisma/
+config/prisma.js
+services/
+vercel.json
+*.log
+*.sql
+*.md
