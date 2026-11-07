@@ -55,6 +55,12 @@ const crear = async (req, res) => {
   try {
     const { id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte } = req.body;
     const equipo = await withTransaction(async (client) => {
+      const { rows: division } = await client.query(
+        `SELECT 1 FROM public.division WHERE id_division = $1 AND activo = TRUE`,
+        [id_division]
+      );
+      if (division.length === 0) return null;
+
       const { rows } = await client.query(
         `INSERT INTO public.equipo (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte)
          VALUES ($1, $2, $3, $4, $5)
@@ -70,6 +76,7 @@ const crear = async (req, res) => {
       );
       return rows[0];
     });
+    if (!equipo) return respuestaError(res, 'El torneo elegido no existe o fue dado de baja.', 404);
     return respuestaExito(res, equipo, 'Equipo creado exitosamente.', 201);
   } catch (error) {
     if (error.code === '23505') {
@@ -111,11 +118,20 @@ const actualizar = async (req, res) => {
 const eliminar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows } = await query(
-      `UPDATE public.equipo SET activo = FALSE, updated_at = NOW() WHERE id_equipo = $1 AND activo = TRUE RETURNING id_equipo`,
-      [id]
-    );
-    if (rows.length === 0) return respuestaError(res, 'Equipo no encontrado.', 404);
+    const eliminado = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `UPDATE public.equipo SET activo = FALSE, updated_at = NOW() WHERE id_equipo = $1 AND activo = TRUE RETURNING id_equipo`,
+        [id]
+      );
+      if (rows.length === 0) return false;
+      // Su fila sale de la tabla de posiciones (los historiales archivados no cambian)
+      await client.query(
+        `UPDATE public.clasificacion SET activo = FALSE, updated_at = NOW() WHERE id_equipo = $1 AND activo = TRUE`,
+        [id]
+      );
+      return true;
+    });
+    if (!eliminado) return respuestaError(res, 'Equipo no encontrado.', 404);
     return respuestaExito(res, null, 'Equipo eliminado correctamente.');
   } catch (error) {
     console.error('[equipo.controller] eliminar error:', error);

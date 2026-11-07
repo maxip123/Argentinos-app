@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { SQL_TABLA_PUBLICA } = require('../utils/clasificacion');
 
 /**
  * GET /api/divisiones
@@ -300,14 +301,7 @@ const finalizarYArchivarTorneo = async (req, res) => {
 
     const snapshot = await withTransaction(async (client) => {
       // 2. Tabla final de posiciones
-      const { rows: tablaPosiciones } = await client.query(
-        `SELECT c.*, e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte
-         FROM public.clasificacion c
-         INNER JOIN public.equipo e ON e.id_equipo = c.id_equipo
-         WHERE c.id_division = $1 AND c.activo = TRUE
-         ORDER BY c.puntos DESC, c.diferencia_gol DESC, c.goles_a_favor DESC`,
-        [id]
-      );
+      const { rows: tablaPosiciones } = await client.query(SQL_TABLA_PUBLICA, [id]);
 
       // 3. Resultados de los partidos del torneo
       const { rows: partidosResultados } = await client.query(
@@ -644,11 +638,16 @@ const iniciarNuevaEdicion = async (req, res) => {
       // 2. Desactivar llaves de playoff del torneo anterior
       await client.query(`UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_division = $1`, [id]);
 
-      // 3. Resetear tabla de clasificacion a 0 puntos
+      // 3. Resetear tabla de clasificacion a 0 puntos, incluidas las correcciones manuales:
+      //    las sanciones de la temporada anterior no pasan a la nueva (quedan en el snapshot del historial).
       await client.query(
         `UPDATE public.clasificacion
          SET puntos = 0, partidos_jugados = 0, partidos_ganados = 0, partidos_empatados = 0,
-             partidos_perdidos = 0, goles_a_favor = 0, goles_en_contra = 0, updated_at = NOW()
+             partidos_perdidos = 0, goles_a_favor = 0, goles_en_contra = 0,
+             ajuste_puntos = 0, ajuste_partidos_ganados = 0, ajuste_partidos_empatados = 0,
+             ajuste_partidos_perdidos = 0, ajuste_goles_a_favor = 0, ajuste_goles_en_contra = 0,
+             motivo_ajuste = NULL, ajustado_por = NULL, fecha_ajuste = NULL,
+             updated_at = NOW()
          WHERE id_division = $1`,
         [id]
       );

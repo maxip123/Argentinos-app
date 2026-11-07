@@ -17,6 +17,12 @@ const CAMPOS = [
 const segunPartidos = (fila, clave) => fila[clave] - (fila[`ajuste_${clave}`] || 0);
 const tieneAjuste = (fila) => CAMPOS.some(({ clave }) => (fila[`ajuste_${clave}`] || 0) !== 0);
 const conSigno = (n) => (n > 0 ? `+${n}` : String(n));
+const descripcionAjuste = (fila) => {
+  const autoria = [fila.ajustado_por_nombre, fila.fecha_ajuste && new Date(fila.fecha_ajuste).toLocaleDateString('es-AR')]
+    .filter(Boolean)
+    .join(', ');
+  return `${fila.motivo_ajuste || 'Sin motivo'}${autoria ? ` (${autoria})` : ''}`;
+};
 
 function EscudoEquipo({ fila }) {
   return (
@@ -34,7 +40,7 @@ function EscudoEquipo({ fila }) {
   );
 }
 
-function ModalEditarFila({ fila, onClose, onGuardado }) {
+function ModalEditarFila({ fila, onClose, onGuardado, onConflicto }) {
   const [valores, setValores] = useState(() => Object.fromEntries(CAMPOS.map(({ clave }) => [clave, String(fila[clave])])));
   const [motivo, setMotivo] = useState(fila.motivo_ajuste || '');
   const [cargando, setCargando] = useState(false);
@@ -59,10 +65,16 @@ function ModalEditarFila({ fila, onClose, onGuardado }) {
     setError('');
     try {
       const datos = Object.fromEntries(CAMPOS.map(({ clave }) => [clave, numero(clave)]));
-      const res = await api.put(`/clasificacion/${fila.id_clasificacion}`, { ...datos, motivo: motivo.trim() });
+      // base: lo que decían los partidos al abrir el formulario, para detectar si cambió algo mientras tanto
+      const base = Object.fromEntries(CAMPOS.map(({ clave }) => [clave, segunPartidos(fila, clave)]));
+      const res = await api.put(`/clasificacion/${fila.id_clasificacion}`, { ...datos, base, motivo: motivo.trim() });
       onGuardado(res.data.mensaje);
       onClose();
     } catch (err) {
+      if (err.response?.status === 409) {
+        onConflicto(err.response.data?.mensaje || 'La tabla cambió mientras editabas. Volvé a abrir la fila.');
+        return;
+      }
       setError(err.response?.data?.mensaje || 'Error al guardar los cambios.');
       setCargando(false);
     }
@@ -189,7 +201,7 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
     setCargando(true);
     setErrorCarga('');
     try {
-      const res = await api.get(`/clasificacion/${divisionSel}`);
+      const res = await api.get(`/clasificacion/${divisionSel}/detalle`);
       setFilas(res.data.data || []);
     } catch (err) {
       setFilas([]);
@@ -286,7 +298,7 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
                             </span>
                             {ajustada && (
                               <span
-                                title={fila.motivo_ajuste || ''}
+                                title={descripcionAjuste(fila)}
                                 className="inline-block mt-0.5 text-[10px] font-title font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded"
                               >
                                 Ajustada
@@ -324,6 +336,11 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
           onClose={() => setEditando(null)}
           onGuardado={(texto) => {
             mostrarMensaje('exito', texto);
+            cargarTabla();
+          }}
+          onConflicto={(texto) => {
+            setEditando(null);
+            mostrarMensaje('error', texto);
             cargarTabla();
           }}
         />
