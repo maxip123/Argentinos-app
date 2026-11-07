@@ -60,6 +60,7 @@ const validarCrearPartido = [
   body('goles_local').optional().isInt({ min: 0 }).withMessage('Los goles locales deben ser un número positivo.'),
   body('goles_visitante').optional().isInt({ min: 0 }).withMessage('Los goles visitantes deben ser un número positivo.'),
   body('estado_partido').optional().isIn([0, 1, 2, 3, 4]).withMessage('Estado del partido inválido (0-4).'),
+  body('afecta_clasificacion').optional().isBoolean().withMessage('"Afecta la tabla" debe ser verdadero o falso.').toBoolean(),
 ];
 
 // ─── CUOTA ────────────────────────────────────────────────────────────────────
@@ -78,9 +79,22 @@ const validarCrearCuota = [
 const validarCrearSede = [
   body('nombre_sede').trim().notEmpty().withMessage('El nombre de la sede es requerido.'),
   body('direccion').trim().notEmpty().withMessage('La dirección es requerida.'),
+  body('es_sede_propia').optional().isBoolean().withMessage('"Sede propia" debe ser verdadero o falso.').toBoolean(),
+];
+
+// En la edición cada campo es opcional, pero si viene no puede quedar vacío.
+const validarActualizarSede = [
+  param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
+  body('nombre_sede').optional().isString().trim().notEmpty().withMessage('El nombre de la sede no puede quedar vacío.'),
+  body('direccion').optional().isString().trim().notEmpty().withMessage('La dirección no puede quedar vacía.'),
+  body('es_sede_propia').optional().isBoolean().withMessage('"Sede propia" debe ser verdadero o falso.').toBoolean(),
 ];
 
 // ─── CLASIFICACIÓN ────────────────────────────────────────────────────────────
+const validarIdDivisionParam = [
+  param('id_division').isInt({ min: 1 }).withMessage('El ID de la división debe ser un número entero positivo.'),
+];
+
 const validarAjusteClasificacion = [
   param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
   body('puntos').isInt({ min: -999, max: 999 }).withMessage('Los puntos deben ser un número entero.'),
@@ -91,10 +105,17 @@ const validarAjusteClasificacion = [
     body(campo).isInt({ min: 0, max: 9999 }).withMessage('Los goles deben ser un número entero de 0 o más.')
   ),
   body('motivo').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('El motivo no puede superar los 500 caracteres.'),
+  // Valores "según partidos" que vio el formulario: el controller los compara con los actuales.
+  body('base').isObject().withMessage('Faltan los valores de referencia de la fila. Recargá la página.'),
+  ...['puntos', 'partidos_ganados', 'partidos_empatados', 'partidos_perdidos', 'goles_a_favor', 'goles_en_contra'].map((campo) =>
+    body(`base.${campo}`).isInt().withMessage('Faltan los valores de referencia de la fila. Recargá la página.')
+  ),
 ];
 
 module.exports = {
   validarAjusteClasificacion,
+  validarIdDivisionParam,
+  validarActualizarSede,
   validarLogin,
   validarRegistro,
   validarCambioContrasena,

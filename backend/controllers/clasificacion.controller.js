@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { SQL_TABLA_PUBLICA } = require('../utils/clasificacion');
 
 // Columnas editables a mano. Cada una tiene su ajuste_<columna>, que el recálculo suma a lo que sale de los partidos.
 // partidos_jugados y diferencia_gol no se editan: se derivan de las demás.
@@ -15,18 +16,30 @@ const COLUMNAS_EDITABLES = [
 // GET /api/clasificacion/:id_division — Tabla de posiciones de una división
 const obtenerPorDivision = async (req, res) => {
   try {
-    const { id_division } = req.params;
-    const { rows } = await query(
-      `SELECT c.*, e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte
-       FROM public.clasificacion c
-       INNER JOIN public.equipo e ON e.id_equipo = c.id_equipo
-       WHERE c.id_division = $1 AND c.activo = TRUE
-       ORDER BY c.puntos DESC, c.diferencia_gol DESC, c.goles_a_favor DESC`,
-      [id_division]
-    );
+    const { rows } = await query(SQL_TABLA_PUBLICA, [req.params.id_division]);
     return respuestaExito(res, rows, 'Clasificación obtenida correctamente.');
   } catch (error) {
     console.error('[clasificacion.controller] obtenerPorDivision error:', error);
+    return respuestaError(res, 'Error al obtener la clasificación.', 500, error.message);
+  }
+};
+
+// GET /api/clasificacion/:id_division/detalle — Tabla con los ajustes manuales, su motivo y quién los cargó (panel)
+const obtenerDetallePorDivision = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT c.*, e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte,
+              pu.nombre_completo AS ajustado_por_nombre
+       FROM public.clasificacion c
+       INNER JOIN public.equipo e ON e.id_equipo = c.id_equipo AND e.activo = TRUE
+       LEFT JOIN public.perfil_usuario pu ON pu.id_perfil = c.ajustado_por
+       WHERE c.id_division = $1 AND c.activo = TRUE
+       ORDER BY c.puntos DESC, c.diferencia_gol DESC, c.goles_a_favor DESC`,
+      [req.params.id_division]
+    );
+    return respuestaExito(res, rows, 'Clasificación obtenida correctamente.');
+  } catch (error) {
+    console.error('[clasificacion.controller] obtenerDetallePorDivision error:', error);
     return respuestaError(res, 'Error al obtener la clasificación.', 500, error.message);
   }
 };
@@ -58,10 +71,13 @@ const actualizarFila = async (req, res) => {
       if (rows.length === 0) return { codigo: 404 };
       const fila = rows[0];
 
-      // Lo que dicen los partidos = valor actual menos el ajuste que ya tenía
+      // Lo que dicen los partidos = valor actual menos el ajuste que ya tenía.
+      // Si no coincide con lo que vio el formulario (base), un partido cambió mientras se editaba:
+      // guardar igual convertiría ese resultado en parte del ajuste manual.
       const ajustes = {};
       for (const col of COLUMNAS_EDITABLES) {
         const segunPartidos = fila[col] - fila[`ajuste_${col}`];
+        if (Number(req.body.base[col]) !== segunPartidos) return { codigo: 409 };
         ajustes[col] = Number(req.body[col]) - segunPartidos;
       }
       const hayAjuste = Object.values(ajustes).some((a) => a !== 0);
@@ -70,7 +86,7 @@ const actualizarFila = async (req, res) => {
       const { rows: actualizada } = await client.query(
         `UPDATE public.clasificacion
          SET ${COLUMNAS_EDITABLES.map((col, i) => `${col} = $${i + 1}, ajuste_${col} = $${i + 7}`).join(', ')},
-             partidos_jugados = $2 + $3 + $4,
+             partidos_jugados = $2::int + $3::int + $4::int,
              motivo_ajuste = $13, ajustado_por = $14, fecha_ajuste = $15
          WHERE id_clasificacion = $16
          RETURNING *`,
@@ -87,6 +103,13 @@ const actualizarFila = async (req, res) => {
     });
 
     if (resultado.codigo === 404) return respuestaError(res, 'Fila de la tabla no encontrada.', 404);
+    if (resultado.codigo === 409) {
+      return respuestaError(
+        res,
+        'La tabla cambió mientras editabas (se cargó o modificó un partido). Volvé a abrir la fila y cargá la corrección de nuevo.',
+        409
+      );
+    }
     if (resultado.codigo === 400) {
       return respuestaError(res, 'Indicá el motivo del cambio: queda registrado junto con el ajuste.', 400);
     }
@@ -101,4 +124,4 @@ const actualizarFila = async (req, res) => {
   }
 };
 
-module.exports = { obtenerPorDivision, recalcular, actualizarFila };
+module.exports = { obtenerPorDivision, obtenerDetallePorDivision, recalcular, actualizarFila };
