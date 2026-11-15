@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { decodificarImagen, rutaLogo } = require('../utils/logos');
 
 // GET /api/equipos — Todos los equipos activos (opcionalmente filtrar por division)
 const obtenerTodos = async (req, res) => {
@@ -92,16 +93,19 @@ const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte } = req.body;
+    // logo_url solo cambia si viene en el body; null = volver al escudo/iniciales por defecto.
+    // Las imágenes subidas antes no se borran: las siguen usando los historiales archivados.
+    const cambiaLogo = Object.prototype.hasOwnProperty.call(req.body, 'logo_url');
     const { rows } = await query(
       `UPDATE public.equipo
        SET nombre_equipo          = COALESCE($1, nombre_equipo),
            nombre_corto           = COALESCE($2, nombre_corto),
-           logo_url               = COALESCE($3, logo_url),
+           logo_url               = CASE WHEN $6 THEN $3 ELSE logo_url END,
            es_argentinos_del_norte = COALESCE($4, es_argentinos_del_norte),
            updated_at             = NOW()
        WHERE id_equipo = $5 AND activo = TRUE
        RETURNING *`,
-      [nombre_equipo?.trim(), nombre_corto?.trim(), logo_url, es_argentinos_del_norte, id]
+      [nombre_equipo?.trim(), nombre_corto?.trim(), logo_url || null, es_argentinos_del_norte, id, cambiaLogo]
     );
     if (rows.length === 0) return respuestaError(res, 'Equipo no encontrado.', 404);
     return respuestaExito(res, rows[0], 'Equipo actualizado correctamente.');
@@ -111,6 +115,64 @@ const actualizar = async (req, res) => {
     }
     console.error('[equipo.controller] actualizar error:', error);
     return respuestaError(res, 'Error al actualizar el equipo.', 500, error.message);
+  }
+};
+
+// GET /api/equipos/logos/:id — Una imagen subida (id_logo). Público, y sin mirar si el equipo sigue
+// activo: los historiales archivados y los equipos copiados a otro torneo apuntan a esta ruta.
+const obtenerLogo = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT contenido, tipo FROM public.equipo_logo WHERE id_logo = $1`,
+      [req.params.id]
+    );
+    if (rows.length === 0) return respuestaError(res, 'Imagen no encontrada.', 404);
+    // Los bytes de una ruta nunca cambian: se cachean para siempre en el navegador (max-age) y en la
+    // CDN de Vercel (s-maxage), así cada escudo no dispara una función y una consulta por visitante.
+    // helmet pone Cross-Origin-Resource-Policy: same-origin; el front está en otro dominio y la carga como <img>.
+    return res
+      .status(200)
+      .set({
+        'Content-Type': rows[0].tipo,
+        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+      })
+      .send(rows[0].contenido);
+  } catch (error) {
+    console.error('[equipo.controller] obtenerLogo error:', error);
+    return respuestaError(res, 'Error al obtener el logo.', 500, error.message);
+  }
+};
+
+// PUT /api/equipos/:id/logo — Guarda la imagen (data URL ya reducida en el navegador) como una fila nueva
+// y apunta logo_url a ella. La imagen anterior queda guardada para los historiales que la usan.
+const subirLogo = async (req, res) => {
+  try {
+    const imagen = decodificarImagen(req.body?.imagen);
+    if (imagen.error) return respuestaError(res, imagen.error, 400);
+
+    const equipo = await withTransaction(async (client) => {
+      const { rows: encontrado } = await client.query(
+        `SELECT id_equipo FROM public.equipo WHERE id_equipo = $1 AND activo = TRUE FOR UPDATE`,
+        [req.params.id]
+      );
+      if (encontrado.length === 0) return null;
+      const idEquipo = encontrado[0].id_equipo;
+      const { rows: [logo] } = await client.query(
+        `INSERT INTO public.equipo_logo (id_equipo, contenido, tipo) VALUES ($1, $2, $3) RETURNING id_logo`,
+        [idEquipo, imagen.contenido, imagen.tipo]
+      );
+      const { rows } = await client.query(
+        `UPDATE public.equipo SET logo_url = $1, updated_at = NOW() WHERE id_equipo = $2 RETURNING *`,
+        [rutaLogo(logo.id_logo), idEquipo]
+      );
+      return rows[0];
+    });
+    if (!equipo) return respuestaError(res, 'Equipo no encontrado.', 404);
+    return respuestaExito(res, equipo, 'Logo actualizado.');
+  } catch (error) {
+    console.error('[equipo.controller] subirLogo error:', error);
+    return respuestaError(res, 'Error al guardar el logo.', 500, error.message);
   }
 };
 
@@ -309,4 +371,6 @@ module.exports = {
   actualizarJugadorPlantel,
   desasignarJugador,
   transferirJugador,
+  obtenerLogo,
+  subirLogo,
 };

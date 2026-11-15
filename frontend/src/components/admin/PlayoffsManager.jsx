@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 import {
   ETIQUETA_COPA,
   agruparPorFase,
@@ -1032,13 +1032,16 @@ function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre, titulo
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0 pr-2">
-                          {llave.local_es_argentinos ? (
-                            <ClubShield className="w-5 h-5 shrink-0" />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] shrink-0 font-bold">
-                              {llave.equipo_local_nombre?.[0] || 'L'}
-                            </div>
-                          )}
+                          <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                            <EscudoEquipo
+                              logoUrl={llave.logo_local}
+                              esClub={llave.local_es_argentinos}
+                              nombre={llave.equipo_local_nombre || 'Por Definir'}
+                              nombreCorto={llave.nombre_corto_local}
+                              letras={1}
+                              textoClassName="text-[10px] font-bold text-slate-500 leading-none"
+                            />
+                          </div>
                           <span className="text-xs truncate font-title">
                             {llave.equipo_local_nombre || 'Por Definir'}
                           </span>
@@ -1068,13 +1071,16 @@ function DiagramaVisualBracket({ fasesOrdenadas, fasesMap, campeonNombre, titulo
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0 pr-2">
-                          {llave.visitante_es_argentinos ? (
-                            <ClubShield className="w-5 h-5 shrink-0" />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] shrink-0 font-bold">
-                              {llave.equipo_visitante_nombre?.[0] || 'V'}
-                            </div>
-                          )}
+                          <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                            <EscudoEquipo
+                              logoUrl={llave.logo_visitante}
+                              esClub={llave.visitante_es_argentinos}
+                              nombre={llave.equipo_visitante_nombre || 'Por Definir'}
+                              nombreCorto={llave.nombre_corto_visitante}
+                              letras={1}
+                              textoClassName="text-[10px] font-bold text-slate-500 leading-none"
+                            />
+                          </div>
                           <span className="text-xs truncate font-title">
                             {llave.equipo_visitante_nombre || 'Por Definir'}
                           </span>

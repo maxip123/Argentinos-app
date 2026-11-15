@@ -1,5 +1,5 @@
 import React from 'react';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 import { FaShieldAlt } from 'react-icons/fa';
 import { formatFecha, formatHora } from '../../utils/fechas';
 
@@ -10,10 +10,12 @@ export default function MatchCard({ partido }) {
     fecha_partido,
     equipo_local,
     logo_local,
+    nombre_corto_local,
     local_es_argentinos,
     goles_local,
     equipo_visitante,
     logo_visitante,
+    nombre_corto_visitante,
     visitante_es_argentinos,
     goles_visitante,
     estado_partido, // 0 = Programado, 1 = En Vivo, 2 = Finalizado, 3 = Suspendido
@@ -77,23 +79,13 @@ export default function MatchCard({ partido }) {
           {/* Equipo Local */}
           <div className="flex flex-col items-center gap-2 w-5/12 text-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center p-2 shadow-inner overflow-hidden">
-              {local_es_argentinos ? (
-                <ClubShield className="w-full h-full object-contain" />
-              ) : logo_local ? (
-                <img
-                  src={logo_local}
-                  alt={equipo_local}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                  }}
-                />
-              ) : (
-                <span className="font-headline text-sm font-bold text-slate-700">
-                  {equipo_local ? equipo_local.substring(0, 3).toUpperCase() : 'LOC'}
-                </span>
-              )}
+              <EscudoEquipo
+                logoUrl={logo_local}
+                esClub={local_es_argentinos}
+                nombre={equipo_local || 'Local'}
+                nombreCorto={nombre_corto_local}
+                textoClassName="font-headline text-sm font-bold text-slate-700"
+              />
             </div>
             <span
               className={`font-title font-bold text-xs sm:text-sm line-clamp-2 leading-tight ${
@@ -126,23 +118,13 @@ export default function MatchCard({ partido }) {
           {/* Equipo Visitante */}
           <div className="flex flex-col items-center gap-2 w-5/12 text-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center p-2 shadow-inner overflow-hidden">
-              {visitante_es_argentinos ? (
-                <ClubShield className="w-full h-full object-contain" />
-              ) : logo_visitante ? (
-                <img
-                  src={logo_visitante}
-                  alt={equipo_visitante}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                  }}
-                />
-              ) : (
-                <span className="font-headline text-sm font-bold text-slate-700">
-                  {equipo_visitante ? equipo_visitante.substring(0, 3).toUpperCase() : 'VIS'}
-                </span>
-              )}
+              <EscudoEquipo
+                logoUrl={logo_visitante}
+                esClub={visitante_es_argentinos}
+                nombre={equipo_visitante || 'Visitante'}
+                nombreCorto={nombre_corto_visitante}
+                textoClassName="font-headline text-sm font-bold text-slate-700"
+              />
             </div>
             <span
               className={`font-title font-bold text-xs sm:text-sm line-clamp-2 leading-tight ${

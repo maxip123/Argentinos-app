@@ -1,4 +1,14 @@
 const { body, param, query } = require('express-validator');
+const { RUTA_LOGO_PROPIA } = require('./logos');
+
+const esLinkHttps = (url) => {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && u.hostname.includes('.');
+  } catch {
+    return false;
+  }
+};
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 const validarLogin = [
@@ -37,6 +47,20 @@ const validarCrearEquipo = [
   body('nombre_equipo').trim().notEmpty().withMessage('El nombre del equipo es requerido.').isLength({ max: 120 }).withMessage('Máximo 120 caracteres.'),
   body('nombre_corto').optional({ checkFalsy: true }).isLength({ max: 30 }).withMessage('El nombre corto no puede superar 30 caracteres.'),
   body('es_argentinos_del_norte').optional().isBoolean().withMessage('Debe ser un valor booleano.'),
+];
+
+// logo_url: vacío/null (escudo o iniciales por defecto), un link https o la ruta de una imagen subida
+const validarLogoUrl = [
+  body('logo_url')
+    .optional({ nullable: true, checkFalsy: true })
+    .isString()
+    .custom((url) => RUTA_LOGO_PROPIA.test(url) || esLinkHttps(url))
+    .withMessage('El logo tiene que ser un link que empiece con https://.'),
+];
+
+const validarSubirLogo = [
+  param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
+  body('imagen').isString().isLength({ max: 500 * 1024 }).withMessage('La imagen es demasiado pesada.'),
 ];
 
 // ─── JUGADOR ──────────────────────────────────────────────────────────────────
@@ -122,6 +146,8 @@ module.exports = {
   validarCrearDivision,
   validarIdParam,
   validarCrearEquipo,
+  validarLogoUrl,
+  validarSubirLogo,
   validarCrearJugador,
   validarCrearPartido,
   validarCrearCuota,

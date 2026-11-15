@@ -1,5 +1,5 @@
 import React from 'react';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 
 export default function StandingsTable({ clasificacion = [], cargando = false }) {
   if (cargando) {
@@ -82,23 +82,13 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 border border-slate-200 p-0.5">
-                        {esClub ? (
-                          <ClubShield className="w-full h-full object-contain" />
-                        ) : fila.logo_url ? (
-                          <img
-                            src={fila.logo_url}
-                            alt={fila.nombre_equipo}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'inline';
-                            }}
-                          />
-                        ) : (
-                          <span className="font-headline text-xs font-bold text-slate-600">
-                            {(fila.nombre_corto || fila.nombre_equipo || 'EQ').substring(0, 3).toUpperCase()}
-                          </span>
-                        )}
+                        <EscudoEquipo
+                          logoUrl={fila.logo_url}
+                          esClub={esClub}
+                          nombre={fila.nombre_equipo}
+                          nombreCorto={fila.nombre_corto}
+                          textoClassName="font-headline text-xs font-bold text-slate-600"
+                        />
                       </div>
 
                       <div className="flex items-center gap-2">

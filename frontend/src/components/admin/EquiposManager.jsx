@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
+import SelectorLogo from './SelectorLogo';
+import { valorLogoInicial, errorLogo, camposLogo } from '../../utils/logos';
 import ConfirmModal from '../ui/ConfirmModal';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
@@ -11,7 +13,6 @@ import {
   FaTrash,
   FaUsers,
   FaCheck,
-  FaFutbol,
   FaSearch,
   FaTrophy,
   FaArrowLeft,
@@ -574,7 +575,6 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
   const [nuevoEquipo, setNuevoEquipo] = useState({
     nombre_equipo: '',
     nombre_corto: '',
-    logo_url: '',
     es_argentinos_del_norte: false,
   });
 
@@ -648,6 +648,22 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     }
   }, [equipoGestionPlantel, cargarDetallesPlantel]);
 
+  // Logo elegido en cada formulario (ver SelectorLogo)
+  const [logoNuevo, setLogoNuevo] = useState(() => valorLogoInicial(null));
+  const [logoEditar, setLogoEditar] = useState(() => valorLogoInicial(null));
+
+  // Sube la imagen nueva, si hay. Devuelve false si falló (el equipo ya quedó guardado).
+  const subirLogoSiHay = async (idEquipo, valorLogo) => {
+    if (valorLogo.modo !== 'archivo' || !valorLogo.imagen) return true;
+    try {
+      await api.put(`/equipos/${idEquipo}/logo`, { imagen: valorLogo.imagen });
+      return true;
+    } catch (err) {
+      mostrarAviso('error', 'El equipo se guardó, pero no se pudo subir el logo: ' + (err.response?.data?.mensaje || err.message));
+      return false;
+    }
+  };
+
   // Crear Equipo
   const handleCrear = async (e) => {
     e.preventDefault();
@@ -655,26 +671,30 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
       mostrarAviso('error', 'El nombre del equipo es obligatorio.');
       return;
     }
+    const problemaLogo = errorLogo(logoNuevo);
+    if (problemaLogo) {
+      mostrarAviso('error', problemaLogo);
+      return;
+    }
     setCargando(true);
     try {
-      await api.post('/equipos', {
+      const res = await api.post('/equipos', {
         id_division: Number(divisionSel),
         nombre_equipo: nuevoEquipo.nombre_equipo.trim(),
         nombre_corto: nuevoEquipo.nombre_corto?.trim() || null,
-        logo_url: nuevoEquipo.es_argentinos_del_norte
-          ? '/gemini-svg.svg'
-          : (nuevoEquipo.logo_url?.trim() || null),
+        ...camposLogo(logoNuevo),
         es_argentinos_del_norte: Boolean(nuevoEquipo.es_argentinos_del_norte),
       });
+      const logoOk = await subirLogoSiHay(res.data.data.id_equipo, logoNuevo);
 
-      mostrarAviso('exito', '¡Equipo creado exitosamente!');
+      if (logoOk) mostrarAviso('exito', '¡Equipo creado exitosamente!');
       setMostrarCrear(false);
       setNuevoEquipo({
         nombre_equipo: '',
         nombre_corto: '',
-        logo_url: '',
         es_argentinos_del_norte: false,
       });
+      setLogoNuevo(valorLogoInicial(null));
       cargarEquipos();
     } catch (err) {
       mostrarAviso('error', 'Error al crear equipo: ' + (err.response?.data?.mensaje || err.message));
@@ -687,7 +707,6 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
   const [formEditarEquipo, setFormEditarEquipo] = useState({
     nombre_equipo: '',
     nombre_corto: '',
-    logo_url: '',
     es_argentinos_del_norte: false,
   });
 
@@ -697,9 +716,9 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     setFormEditarEquipo({
       nombre_equipo: eq.nombre_equipo || '',
       nombre_corto: eq.nombre_corto || '',
-      logo_url: eq.logo_url || '',
       es_argentinos_del_norte: Boolean(eq.es_argentinos_del_norte),
     });
+    setLogoEditar(valorLogoInicial(eq.logo_url));
   };
 
   const handleGuardarEdicionEquipo = async (e) => {
@@ -709,18 +728,22 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
       mostrarAviso('error', 'El nombre del equipo es obligatorio.');
       return;
     }
+    const problemaLogo = errorLogo(logoEditar);
+    if (problemaLogo) {
+      mostrarAviso('error', problemaLogo);
+      return;
+    }
     setCargando(true);
     try {
       await api.put(`/equipos/${equipoEditando.id_equipo}`, {
         nombre_equipo: formEditarEquipo.nombre_equipo.trim(),
         nombre_corto: formEditarEquipo.nombre_corto?.trim() || null,
-        logo_url: formEditarEquipo.es_argentinos_del_norte
-          ? '/gemini-svg.svg'
-          : (formEditarEquipo.logo_url?.trim() || null),
+        ...camposLogo(logoEditar),
         es_argentinos_del_norte: Boolean(formEditarEquipo.es_argentinos_del_norte),
       });
+      const logoOk = await subirLogoSiHay(equipoEditando.id_equipo, logoEditar);
 
-      mostrarAviso('exito', '¡Equipo actualizado exitosamente!');
+      if (logoOk) mostrarAviso('exito', '¡Equipo actualizado exitosamente!');
       setEquipoEditando(null);
       cargarEquipos();
     } catch (err) {
@@ -1267,6 +1290,15 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                     </span>
                   </label>
                 </div>
+                <div className="sm:col-span-3">
+                  <SelectorLogo
+                    valor={logoNuevo}
+                    onChange={setLogoNuevo}
+                    esClub={nuevoEquipo.es_argentinos_del_norte}
+                    nombre={nuevoEquipo.nombre_equipo}
+                    nombreCorto={nuevoEquipo.nombre_corto}
+                  />
+                </div>
                 <div className="sm:col-span-3 flex items-center gap-2 pt-2">
                   <button
                     type="submit" disabled={cargando}
@@ -1332,6 +1364,15 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                     </span>
                   </label>
                 </div>
+                <div className="sm:col-span-3">
+                  <SelectorLogo
+                    valor={logoEditar}
+                    onChange={setLogoEditar}
+                    esClub={formEditarEquipo.es_argentinos_del_norte}
+                    nombre={formEditarEquipo.nombre_equipo}
+                    nombreCorto={formEditarEquipo.nombre_corto}
+                  />
+                </div>
                 <div className="sm:col-span-3 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button" onClick={() => setEquipoEditando(null)}
@@ -1363,12 +1404,14 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                 >
                   <div>
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-2 shrink-0">
-                        {esClub ? (
-                          <ClubShield className="w-8 h-9" />
-                        ) : (
-                          <FaFutbol className="text-slate-400 text-xl" />
-                        )}
+                      <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
+                        <EscudoEquipo
+                          logoUrl={eq.logo_url}
+                          esClub={esClub}
+                          nombre={eq.nombre_equipo}
+                          nombreCorto={eq.nombre_corto}
+                          textoClassName="font-headline text-xs font-bold text-slate-600"
+                        />
                       </div>
                       <div>
                         <h4 className="font-headline text-lg text-slate-900 uppercase leading-tight">

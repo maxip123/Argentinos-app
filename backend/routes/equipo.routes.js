@@ -10,18 +10,24 @@ const {
   actualizarJugadorPlantel,
   desasignarJugador,
   transferirJugador,
+  obtenerLogo,
+  subirLogo,
 } = require('../controllers/equipo.controller');
 const { verificarToken, verificarRol } = require('../middlewares/auth.middleware');
 const { validar } = require('../middlewares/validar.middleware');
-const { validarCrearEquipo, validarIdParam } = require('../utils/validators');
+const { validarCrearEquipo, validarIdParam, validarLogoUrl, validarSubirLogo } = require('../utils/validators');
 
 const router = Router();
 
 // Equipos generales
 router.get('/',       obtenerTodos);
 router.get('/:id',    validarIdParam, validar, obtenerPorId);
-router.post('/',      verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearEquipo, validar, crear);
-router.put('/:id',    verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, actualizar);
+router.post('/',      verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearEquipo, validarLogoUrl, validar, crear);
+router.put('/:id',    verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validarLogoUrl, validar, actualizar);
+
+// Logo subido (la lectura es pública: es el escudo que se ve en el sitio)
+router.get('/logos/:id', validarIdParam, validar, obtenerLogo);
+router.put('/:id/logo', verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarSubirLogo, validar, subirLogo);
 router.delete('/:id', verificarToken, verificarRol('Superadmin', 'Administrador'),           validarIdParam, validar, eliminar);
 
 // Gestión de Plantel (Jugadores por Equipo)
