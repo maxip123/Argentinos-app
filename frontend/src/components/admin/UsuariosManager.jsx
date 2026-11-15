@@ -46,12 +46,11 @@ function RoleBadge({ rol }) {
   );
 }
 
-export default function UsuariosManager({ divisiones = [] }) {
+export default function UsuariosManager() {
   const { usuario: usuarioActual } = useAuthStore();
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
-  const [filtroRol, setFiltroRol] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('activos'); // 'activos' | 'inactivos' | 'todos'
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
@@ -237,7 +236,6 @@ export default function UsuariosManager({ divisiones = [] }) {
   const usuariosFiltrados = usuarios.filter(u => {
     if (filtroEstado === 'activos' && !u.activo) return false;
     if (filtroEstado === 'inactivos' && u.activo) return false;
-    if (filtroRol && u.rol !== filtroRol) return false;
     if (busqueda) {
       const q = busqueda.toLowerCase();
       const matchNombre = u.nombre_completo?.toLowerCase().includes(q);
@@ -249,7 +247,7 @@ export default function UsuariosManager({ divisiones = [] }) {
 
   const totalSuperadmins = usuarios.filter(u => u.rol === 'Superadmin' && u.activo).length;
   const totalAdmins = usuarios.filter(u => u.rol !== 'Superadmin' && u.activo).length;
-  const paginacion = usePaginacion(usuariosFiltrados, 15, `${busqueda}|${filtroRol}|${filtroEstado}`);
+  const paginacion = usePaginacion(usuariosFiltrados, 15, `${busqueda}|${filtroEstado}`);
   const totalInactivos = usuarios.filter(u => !u.activo).length;
 
   return (
@@ -323,17 +321,6 @@ export default function UsuariosManager({ divisiones = [] }) {
               className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
             />
           </div>
-
-          <select
-            value={filtroRol}
-            onChange={e => setFiltroRol(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
-          >
-            <option value="">Todos los roles</option>
-            {ROLES_SISTEMA.map(r => (
-              <option key={r.valor} value={r.valor}>{r.label}</option>
-            ))}
-          </select>
 
           <select
             value={filtroEstado}
@@ -617,47 +604,20 @@ export default function UsuariosManager({ divisiones = [] }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Rol en Sistema *</label>
-                  <select
-                    value={nuevoUsuario.rol}
-                    onChange={e => setNuevoUsuario({ ...nuevoUsuario, rol: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                  >
-                    {ROLES_SISTEMA.map(r => (
-                      <option key={r.valor} value={r.valor}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Teléfono</label>
-                  <input
-                    type="tel"
-                    placeholder="ej. 381 456 7890"
-                    value={nuevoUsuario.telefono}
-                    onChange={e => setNuevoUsuario({ ...nuevoUsuario, telefono: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">División Asignada (Opcional)</label>
-                <select
-                  value={nuevoUsuario.id_division_asignada}
-                  onChange={e => setNuevoUsuario({ ...nuevoUsuario, id_division_asignada: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none"
-                >
-                  <option value="">Acceso a Todas las Divisiones (Sin restricción)</option>
-                  {divisiones.map(d => (
-                    <option key={d.id_division} value={d.id_division}>
-                      {d.nombre_division} ({d.temporada})
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  placeholder="ej. 381 456 7890"
+                  value={nuevoUsuario.telefono}
+                  onChange={e => setNuevoUsuario({ ...nuevoUsuario, telefono: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                />
               </div>
+
+              <p className="text-[11px] text-slate-500 font-body">
+                La cuenta se crea como Administrador General: puede gestionar todo el sistema salvo los usuarios.
+              </p>
 
               <div className="flex gap-2 pt-2 shrink-0 border-t border-slate-100">
                 <button
@@ -708,45 +668,14 @@ export default function UsuariosManager({ divisiones = [] }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Rol</label>
-                  <select
-                    value={usuarioEditando.rol}
-                    onChange={e => setUsuarioEditando({ ...usuarioEditando, rol: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
-                  >
-                    {ROLES_SISTEMA.map(r => (
-                      <option key={r.valor} value={r.valor}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Teléfono</label>
-                  <input
-                    type="tel"
-                    value={usuarioEditando.telefono || ''}
-                    onChange={e => setUsuarioEditando({ ...usuarioEditando, telefono: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">División Asignada</label>
-                <select
-                  value={usuarioEditando.id_division_asignada || ''}
-                  onChange={e => setUsuarioEditando({ ...usuarioEditando, id_division_asignada: e.target.value || null })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none"
-                >
-                  <option value="">Acceso a Todas las Divisiones (Sin restricción)</option>
-                  {divisiones.map(d => (
-                    <option key={d.id_division} value={d.id_division}>
-                      {d.nombre_division} ({d.temporada})
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  value={usuarioEditando.telefono || ''}
+                  onChange={e => setUsuarioEditando({ ...usuarioEditando, telefono: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                />
               </div>
 
               <div className="pt-2">

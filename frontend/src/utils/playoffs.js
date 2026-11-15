@@ -54,5 +54,7 @@ export const campeonDeLlaves = (llaves) => {
   return {
     nombre: esLocal ? final.equipo_local_nombre : final.equipo_visitante_nombre,
     esClub: esLocal ? final.local_es_argentinos : final.visitante_es_argentinos,
+    logo: esLocal ? final.logo_local : final.logo_visitante,
+    nombreCorto: esLocal ? final.nombre_corto_local : final.nombre_corto_visitante,
   };
 };

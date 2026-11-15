@@ -307,8 +307,8 @@ const finalizarYArchivarTorneo = async (req, res) => {
       const { rows: partidosResultados } = await client.query(
         `SELECT p.id_partido, p.jornada_numero, p.nombre_partido, p.fecha_partido,
                 p.goles_local, p.goles_visitante, p.estado_partido,
-                el.nombre_equipo AS local_nombre, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_club,
-                ev.nombre_equipo AS visitante_nombre, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_club,
+                el.nombre_equipo AS local_nombre, el.nombre_corto AS nombre_corto_local, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_club,
+                ev.nombre_equipo AS visitante_nombre, ev.nombre_corto AS nombre_corto_visitante, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_club,
                 s.nombre_sede
          FROM public.partido p
          INNER JOIN public.equipo el ON el.id_equipo = p.id_equipo_local
@@ -322,8 +322,8 @@ const finalizarYArchivarTorneo = async (req, res) => {
       // 4. Llaves de Playoff
       const { rows: playoffs } = await client.query(
         `SELECT lp.*,
-                el.nombre_equipo AS local_nombre, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_argentinos,
-                ev.nombre_equipo AS visitante_nombre, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_argentinos,
+                el.nombre_equipo AS local_nombre, el.nombre_corto AS nombre_corto_local, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_argentinos,
+                ev.nombre_equipo AS visitante_nombre, ev.nombre_corto AS nombre_corto_visitante, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_argentinos,
                 eg.nombre_equipo AS ganador_nombre
          FROM public.llave_playoff lp
          LEFT JOIN public.equipo el ON el.id_equipo = lp.id_equipo_local

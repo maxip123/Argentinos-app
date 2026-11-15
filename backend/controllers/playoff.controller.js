@@ -12,8 +12,8 @@ const obtenerPorDivision = async (req, res) => {
     const { id_division } = req.params;
     const { rows } = await query(
       `SELECT lp.*,
-              el.nombre_equipo AS equipo_local_nombre,  el.logo_url AS logo_local,  el.es_argentinos_del_norte AS local_es_argentinos,
-              ev.nombre_equipo AS equipo_visitante_nombre, ev.logo_url AS logo_visitante, ev.es_argentinos_del_norte AS visitante_es_argentinos,
+              el.nombre_equipo AS equipo_local_nombre,  el.nombre_corto AS nombre_corto_local,  el.logo_url AS logo_local,  el.es_argentinos_del_norte AS local_es_argentinos,
+              ev.nombre_equipo AS equipo_visitante_nombre, ev.nombre_corto AS nombre_corto_visitante, ev.logo_url AS logo_visitante, ev.es_argentinos_del_norte AS visitante_es_argentinos,
               eg.nombre_equipo AS equipo_ganador_nombre
        FROM public.llave_playoff lp
        LEFT JOIN public.equipo el ON el.id_equipo = lp.id_equipo_local

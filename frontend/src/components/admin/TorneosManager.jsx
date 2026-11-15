@@ -17,6 +17,9 @@ import {
   FaCheckCircle,
   FaPlay,
 } from 'react-icons/fa';
+import Interruptor from '../ui/Interruptor';
+
+const CLAVE_MOSTRAR_TERMINADOS = 'admin.torneos.mostrarTerminados';
 
 export default function TorneosManager({ divisiones = [], onActualizar, onSeleccionarTorneo }) {
   const [torneoPlayoff, setTorneoPlayoff] = useState(null);
@@ -28,7 +31,29 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
   const [cargandoEquiposDiv, setCargandoEquiposDiv] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-  const paginacion = usePaginacion(divisiones, 10);
+  // Los torneos terminados se ocultan salvo que se active el interruptor (se recuerda en este navegador)
+  const [mostrarTerminados, setMostrarTerminadosState] = useState(() => {
+    try {
+      return localStorage.getItem(CLAVE_MOSTRAR_TERMINADOS) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setMostrarTerminados = (valor) => {
+    setMostrarTerminadosState(valor);
+    try {
+      localStorage.setItem(CLAVE_MOSTRAR_TERMINADOS, valor ? '1' : '0');
+    } catch {
+      // Sin almacenamiento disponible: el filtro vale solo para esta visita
+    }
+  };
+  const cantidadTerminados = divisiones.filter((d) => d.terminado).length;
+  const torneosListados = mostrarTerminados ? divisiones : divisiones.filter((d) => !d.terminado);
+  const paginacion = usePaginacion(torneosListados, 10, mostrarTerminados ? 'todos' : 'en-curso');
+  const mensajeListaVacia =
+    divisiones.length === 0
+      ? 'No hay torneos registrados.'
+      : `No hay torneos en curso. Activá "Mostrar terminados" para ver ${cantidadTerminados === 1 ? 'el terminado' : `los ${cantidadTerminados} terminados`}.`;
 
   // Modal de confirmación UI (reemplazo de window.confirm)
   const [modalConfirmacion, setModalConfirmacion] = useState({
@@ -574,12 +599,24 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
         </div>
       )}
 
+      {/* Filtro de torneos terminados */}
+      {cantidadTerminados > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {!mostrarTerminados && (
+            <span className="text-xs text-slate-500 font-body">
+              {cantidadTerminados === 1 ? '1 torneo terminado oculto' : `${cantidadTerminados} torneos terminados ocultos`}
+            </span>
+          )}
+          <Interruptor activo={mostrarTerminados} onChange={setMostrarTerminados} etiqueta="Mostrar terminados" />
+        </div>
+      )}
+
       {/* Lista de Torneos */}
       <div id={paginacion.idLista} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm scroll-mt-24">
         {/* Vista Móvil: Cards */}
         <div className="block md:hidden divide-y divide-slate-100">
-          {divisiones.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 font-title text-xs">No hay torneos registrados.</div>
+          {torneosListados.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 font-title text-xs">{mensajeListaVacia}</div>
           ) : (
             paginacion.visibles.map((div) => {
               const esFinalizado = div.terminado;
@@ -791,8 +828,8 @@ export default function TorneosManager({ divisiones = [], onActualizar, onSelecc
               })}
             </tbody>
           </table>
-          {divisiones.length === 0 && (
-            <div className="p-12 text-center text-slate-400 font-title text-sm">No hay torneos registrados.</div>
+          {torneosListados.length === 0 && (
+            <div className="p-12 text-center text-slate-400 font-title text-sm">{mensajeListaVacia}</div>
           )}
         </div>
 

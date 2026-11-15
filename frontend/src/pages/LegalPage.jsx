@@ -5,7 +5,7 @@ import { FaFileContract, FaUserShield } from 'react-icons/fa';
 const CLUB = 'Club Atlético Argentinos del Norte';
 const DOMICILIO = 'Av. Benjamín Aráoz 650, San Miguel de Tucumán, Tucumán, Argentina';
 const EMAIL = 'contacto@argentinosdelnorte.com';
-const ACTUALIZACION = '31 de octubre de 2026';
+const ACTUALIZACION = '15 de noviembre de 2026';
 
 function Seccion({ titulo, children }) {
   return (
@@ -97,6 +97,7 @@ function Privacidad() {
         <Lista items={[
           'Proveedores que nos prestan el servicio: Supabase (base de datos) y Vercel (alojamiento del sitio).',
           'Google, que al cargar el sitio recibe la dirección IP del visitante para servir las tipografías y el mapa de la sede.',
+          'Los sitios que alojan los logos de equipos cargados como enlace: el navegador del visitante descarga la imagen desde ese sitio, que recibe su dirección IP. No le indicamos desde qué página del sitio se la pide.',
           'Las autoridades de la liga, cuando la organización de la competencia lo requiera.',
           'Autoridades públicas, cuando una norma o una orden judicial lo exija.',
         ]} />
@@ -210,8 +211,8 @@ function Terminos() {
 
       <Seccion titulo="7. Enlaces y servicios de terceros">
         <p>
-          El sitio incluye enlaces y mapas de Google Maps. Esos servicios se rigen por sus propias condiciones y el club
-          no controla su contenido.
+          El sitio incluye enlaces, mapas de Google Maps y logos de equipos alojados en sitios de terceros. Esos
+          servicios se rigen por sus propias condiciones y el club no controla su contenido.
         </p>
       </Seccion>
 

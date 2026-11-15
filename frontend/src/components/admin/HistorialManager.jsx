@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 import ConfirmModal from '../ui/ConfirmModal';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
@@ -271,9 +272,14 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 <span className="text-xs font-mono font-bold text-amber-800">1° Puesto</span>
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white border border-amber-200 flex items-center justify-center p-2 shadow-xs shrink-0">
-                  {torneoSeleccionado.campeon_definitivo?.es_argentinos_del_norte ? (
-                    <ClubShield className="w-8 h-9" />
+                <div className="w-12 h-12 rounded-xl bg-white border border-amber-200 flex items-center justify-center p-1.5 shadow-xs shrink-0 overflow-hidden">
+                  {torneoSeleccionado.campeon_definitivo ? (
+                    <EscudoEquipo
+                      logoUrl={torneoSeleccionado.campeon_definitivo.logo_url}
+                      esClub={torneoSeleccionado.campeon_definitivo.es_argentinos_del_norte}
+                      nombre={torneoSeleccionado.campeon_definitivo.nombre_equipo}
+                      textoClassName="font-headline text-xs font-bold text-slate-600"
+                    />
                   ) : (
                     <FaFutbol className="text-slate-400 text-xl" />
                   )}
@@ -433,13 +439,16 @@ export default function HistorialManager({ onActualizarTorneos }) {
                             </td>
                             <td className="p-3.5">
                               <div className="flex items-center gap-2.5">
-                                {esClub ? (
-                                  <ClubShield className="w-5 h-6 shrink-0" />
-                                ) : (
-                                  <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">
-                                    {c.nombre_equipo?.[0]}
-                                  </div>
-                                )}
+                                <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                  <EscudoEquipo
+                                    logoUrl={c.logo_url}
+                                    esClub={esClub}
+                                    nombre={c.nombre_equipo}
+                                    nombreCorto={c.nombre_corto}
+                                    letras={1}
+                                    textoClassName="text-[10px] text-slate-500 font-bold leading-none"
+                                  />
+                                </div>
                                 <span className="font-bold text-slate-900 text-sm">{c.nombre_equipo}</span>
                                 {esClub && (
                                   <span className="bg-[#991b1b] text-white text-[9px] px-1.5 py-0.2 rounded-full font-headline uppercase">

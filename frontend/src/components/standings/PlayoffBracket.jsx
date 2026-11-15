@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FaTrophy, FaProjectDiagram } from 'react-icons/fa';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 import {
   ETIQUETA_COPA,
   agruparPorFase,
@@ -177,13 +177,16 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 pr-2">
-                              {llave.local_es_argentinos ? (
-                                <ClubShield className="w-5 h-5 shrink-0" />
-                              ) : (
-                                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] shrink-0 font-bold">
-                                  {llave.equipo_local_nombre?.[0] || 'L'}
-                                </div>
-                              )}
+                              <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                <EscudoEquipo
+                                  logoUrl={llave.logo_local}
+                                  esClub={llave.local_es_argentinos}
+                                  nombre={llave.equipo_local_nombre || 'Por Definir'}
+                                  nombreCorto={llave.nombre_corto_local}
+                                  letras={1}
+                                  textoClassName="text-[10px] font-bold text-slate-500 leading-none"
+                                />
+                              </div>
                               <span className="text-xs truncate font-title">
                                 {llave.equipo_local_nombre || 'Por Definir'}
                               </span>
@@ -213,13 +216,16 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 pr-2">
-                              {llave.visitante_es_argentinos ? (
-                                <ClubShield className="w-5 h-5 shrink-0" />
-                              ) : (
-                                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] shrink-0 font-bold">
-                                  {llave.equipo_visitante_nombre?.[0] || 'V'}
-                                </div>
-                              )}
+                              <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                <EscudoEquipo
+                                  logoUrl={llave.logo_visitante}
+                                  esClub={llave.visitante_es_argentinos}
+                                  nombre={llave.equipo_visitante_nombre || 'Por Definir'}
+                                  nombreCorto={llave.nombre_corto_visitante}
+                                  letras={1}
+                                  textoClassName="text-[10px] font-bold text-slate-500 leading-none"
+                                />
+                              </div>
                               <span className="text-xs truncate font-title">
                                 {llave.equipo_visitante_nombre || 'Por Definir'}
                               </span>
@@ -256,7 +262,19 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                 {hayCopas ? `CAMPEÓN ${ETIQUETA_COPA[copaActiva]}` : 'CAMPEÓN DEL TORNEO'}
               </span>
               <h4 className="font-headline text-lg text-slate-900 uppercase tracking-wide mt-1 flex items-center justify-center gap-1.5">
-                {campeonEsClub && <ClubShield className="w-5 h-5 shrink-0" />}
+                {/* Junto al nombre solo va un escudo real: las iniciales repetirían el nombre */}
+                {campeon && (campeon.logo || campeonEsClub) && (
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden shrink-0">
+                    <EscudoEquipo
+                      logoUrl={campeon.logo}
+                      esClub={campeonEsClub}
+                      nombre={campeonNombre}
+                      nombreCorto={campeon.nombreCorto}
+                      letras={1}
+                      textoClassName="text-[10px] font-bold text-slate-500 leading-none"
+                    />
+                  </span>
+                )}
                 <span>{campeonNombre || 'Por Definir'}</span>
               </h4>
               <span className="text-[11px] text-slate-500 font-title block mt-1">

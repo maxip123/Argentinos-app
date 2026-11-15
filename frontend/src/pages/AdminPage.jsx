@@ -51,6 +51,8 @@ function EstadoPartido({ estado, className = '' }) {
 export default function AdminPage() {
   const navigate = useNavigate();
   const { usuario, estaAutenticado } = useAuthStore();
+  // La gestión de usuarios es exclusiva del Superadmin (el backend también lo exige)
+  const esSuperadmin = usuario?.rol === 'Superadmin';
   const autenticado = estaAutenticado();
 
   // Módulo activo: 'menu' | 'torneos' | 'equipos' | 'jugadores' | 'partidos' | 'clasificacion' | 'cuotas' | 'sedes' | 'historial' | 'usuarios'
@@ -710,7 +712,8 @@ export default function AdminPage() {
               </p>
             </article>
 
-            {/* Tarjeta 10: Usuarios y Accesos */}
+            {/* Tarjeta 10: Usuarios y Accesos (solo Superadmin) */}
+            {esSuperadmin && (
             <article
               onClick={() => setModuloActivo('usuarios')}
               className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md hover:border-[#151f89] transition-all duration-200 cursor-pointer group flex flex-col items-center text-center gap-3"
@@ -722,9 +725,10 @@ export default function AdminPage() {
                 Usuarios y Accesos
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Gestión de administradores y planilleros, asignación de roles, altas, bajas y reseteo de claves
+                Altas, bajas y reseteo de claves de los administradores del sistema
               </p>
             </article>
+            )}
           </section>
         )}
 
@@ -818,16 +822,18 @@ export default function AdminPage() {
             >
               Historial
             </button>
-            <button
-              onClick={() => setModuloActivo('usuarios')}
-              className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
-                moduloActivo === 'usuarios'
-                  ? 'bg-[#151f89] text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-              }`}
-            >
-              Usuarios
-            </button>
+            {esSuperadmin && (
+              <button
+                onClick={() => setModuloActivo('usuarios')}
+                className={`px-3.5 py-1.5 rounded-xl font-title font-bold text-xs uppercase shrink-0 transition-colors ${
+                  moduloActivo === 'usuarios'
+                    ? 'bg-[#151f89] text-white shadow-xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+              >
+                Usuarios
+              </button>
+            )}
           </nav>
         )}
 
@@ -1694,8 +1700,8 @@ export default function AdminPage() {
         )}
 
         {/* VISTA 8: GESTIÓN DE USUARIOS */}
-        {moduloActivo === 'usuarios' && (
-          <UsuariosManager divisiones={divisiones} />
+        {moduloActivo === 'usuarios' && esSuperadmin && (
+          <UsuariosManager />
         )}
 
         {/* Modal de confirmación UI (reemplazo de window.confirm) */}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
-import ClubShield from '../ui/ClubShield';
+import EscudoEquipo from '../ui/EscudoEquipo';
 import { FaEdit, FaTimes, FaExclamationCircle, FaUndo } from 'react-icons/fa';
 
 // Columnas que se pueden corregir a mano. PJ y DG se calculan a partir de ellas.
@@ -24,18 +24,15 @@ const descripcionAjuste = (fila) => {
   return `${fila.motivo_ajuste || 'Sin motivo'}${autoria ? ` (${autoria})` : ''}`;
 };
 
-function EscudoEquipo({ fila }) {
+function EscudoFila({ fila }) {
   return (
     <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 border border-slate-200 p-0.5">
-      {fila.es_argentinos_del_norte ? (
-        <ClubShield className="w-full h-full object-contain" />
-      ) : fila.logo_url ? (
-        <img src={fila.logo_url} alt="" className="w-full h-full object-contain" />
-      ) : (
-        <span className="font-headline text-[10px] font-bold text-slate-600">
-          {(fila.nombre_corto || fila.nombre_equipo || 'EQ').substring(0, 3).toUpperCase()}
-        </span>
-      )}
+      <EscudoEquipo
+        logoUrl={fila.logo_url}
+        esClub={fila.es_argentinos_del_norte}
+        nombre={fila.nombre_equipo}
+        nombreCorto={fila.nombre_corto}
+      />
     </div>
   );
 }
@@ -291,7 +288,7 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
                       <td className="py-3 px-3 text-center font-title font-bold text-slate-500">{i + 1}</td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <EscudoEquipo fila={fila} />
+                          <EscudoFila fila={fila} />
                           <div className="min-w-0">
                             <span className={`block font-title font-semibold leading-tight ${fila.es_argentinos_del_norte ? 'text-[#151f89]' : 'text-slate-900'}`}>
                               {fila.nombre_equipo}
