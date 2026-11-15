@@ -20,8 +20,8 @@ router.post('/login', validarLogin, validar, login);
 // POST /api/auth/registro — Solo Superadmin puede crear usuarios
 router.post('/registro', verificarToken, verificarRol('Superadmin'), validarRegistro, validar, registro);
 
-// GET /api/auth/usuarios — Listar todos los usuarios (Superadmin y Administrador)
-router.get('/usuarios', verificarToken, verificarRol('Superadmin', 'Administrador'), obtenerUsuarios);
+// GET /api/auth/usuarios — Listar todos los usuarios (solo Superadmin: la gestión de usuarios es exclusiva)
+router.get('/usuarios', verificarToken, verificarRol('Superadmin'), obtenerUsuarios);
 
 // PUT /api/auth/usuarios/:id — Editar o resetear contraseña (Superadmin)
 router.put('/usuarios/:id', verificarToken, verificarRol('Superadmin'), actualizarUsuario);

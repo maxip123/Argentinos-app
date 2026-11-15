@@ -21,7 +21,7 @@ router.get('/:id_division', obtenerPorDivision);
 
 // Match result updates and single match removal
 router.put('/:id', verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, actualizarResultado);
-router.delete('/:id', verificarToken, verificarRol('Superadmin'), validarIdParam, validar, eliminar);
+router.delete('/:id', verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, eliminar);
 
 module.exports = router;
 

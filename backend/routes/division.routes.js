@@ -27,7 +27,7 @@ router.post('/',                       verificarToken, verificarRol('Superadmin'
 router.post('/finalizar-y-archivar/:id',verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, finalizarYArchivarTorneo);
 router.post('/iniciar-nueva-edicion/:id',verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, iniciarNuevaEdicion);
 router.put('/:id',                     verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, actualizar);
-router.delete('/historial/:id',        verificarToken, verificarRol('Superadmin'),                  validarIdParam, validar, eliminarHistorialTorneo);
-router.delete('/:id',                  verificarToken, verificarRol('Superadmin'),                  validarIdParam, validar, eliminar);
+router.delete('/historial/:id',        verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, eliminarHistorialTorneo);
+router.delete('/:id',                  verificarToken, verificarRol('Superadmin', 'Administrador'), validarIdParam, validar, eliminar);
 
 module.exports = router;
