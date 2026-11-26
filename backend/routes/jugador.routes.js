@@ -10,7 +10,7 @@ const {
 } = require('../controllers/jugador.controller');
 const { verificarToken, verificarRol, autenticarOpcional } = require('../middlewares/auth.middleware');
 const { validar } = require('../middlewares/validar.middleware');
-const { validarCrearJugador, validarIdParam } = require('../utils/validators');
+const { validarCrearJugador, validarActualizarJugador, validarIdParam } = require('../utils/validators');
 
 const router = Router();
 
@@ -22,7 +22,7 @@ router.get('/:id',       validarIdParam, validar, autenticarOpcional, obtenerPor
 
 // Mutaciones — Autenticadas
 router.post('/',     verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado', 'DT'), validarCrearJugador, validar, crear);
-router.put('/:id',   verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado', 'DT'), validarIdParam, validar, actualizar);
+router.put('/:id',   verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado', 'DT'), validarActualizarJugador, validar, actualizar);
 router.delete('/:id',verificarToken, verificarRol('Superadmin', 'Administrador'),                   validarIdParam, validar, eliminar);
 
 module.exports = router;

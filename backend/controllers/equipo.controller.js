@@ -1,6 +1,7 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
 const { decodificarImagen, rutaLogo } = require('../utils/logos');
+const { sqlDeudaJugador, sqlEstadoCuota } = require('../utils/deudas');
 
 // GET /api/equipos — Todos los equipos activos (opcionalmente filtrar por division)
 const obtenerTodos = async (req, res) => {
@@ -222,15 +223,9 @@ const obtenerPlantel = async (req, res) => {
               j.dni,
               j.foto_url,
               j.telefono,
-              j.fecha_ultimo_pago,
-              j.fecha_vencimiento,
               j.es_inactivo,
-              CASE
-                WHEN j.es_inactivo THEN 'Inactivo'
-                WHEN j.fecha_vencimiento IS NULL THEN 'Sin cuota'
-                WHEN j.fecha_vencimiento >= CURRENT_DATE THEN 'Al dia'
-                ELSE 'Pendiente'
-              END AS estado_cuota
+              ${sqlEstadoCuota('j')} AS estado_cuota,
+              ${sqlDeudaJugador('j')}
        FROM public.equipo_jugador ej
        INNER JOIN public.jugador j ON j.id_jugador = ej.id_jugador
        WHERE ej.id_equipo = $1 AND ej.activo = TRUE AND j.activo = TRUE

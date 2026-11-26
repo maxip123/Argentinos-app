@@ -1,5 +1,17 @@
 const { query } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { HOY_AR, exprDeuda, sqlDeudaJugador, sqlEstadoCuota } = require('../utils/deudas');
+
+// Domicilio y obra social (dato de salud) solo los ven y editan estos roles
+const ROLES_DATOS_SENSIBLES = ['Superadmin', 'Administrador'];
+const verDatosSensibles = (usuario) => ROLES_DATOS_SENSIBLES.includes(usuario?.rol);
+const ocultarSensibles = (jugador, usuario) => {
+  if (!jugador || verDatosSensibles(usuario)) return jugador;
+  const { domicilio: _d, obra_social: _o, ...resto } = jugador;
+  return resto;
+};
+// undefined si no vino en el body (no se toca); null si vino vacío (se borra)
+const textoOpcional = (v) => (v === undefined ? undefined : String(v ?? '').trim() || null);
 
 // GET /api/jugadores — Padrón de jugadores. Filtros: ?id_equipo= ?id_division= ?solo_club= ?q=
 const obtenerTodos = async (req, res) => {
@@ -13,13 +25,10 @@ const obtenerTodos = async (req, res) => {
              j.telefono,
              j.email,
              j.es_inactivo,
-             j.fecha_ultimo_pago,
-             j.fecha_vencimiento,
-             CASE
-               WHEN j.es_inactivo = TRUE THEN 'Inactivo'
-               WHEN j.fecha_vencimiento IS NOT NULL AND j.fecha_vencimiento >= CURRENT_DATE THEN 'Al dia'
-               ELSE 'Pendiente'
-             END AS estado_cuota,
+             j.fecha_baja,
+             ${verDatosSensibles(req.usuario) ? 'j.domicilio, j.obra_social,' : ''}
+             ${sqlEstadoCuota('j')} AS estado_cuota,
+             ${sqlDeudaJugador('j')},
              j.activo,
              j.created_at,` : '';
 
@@ -83,9 +92,9 @@ const obtenerTodos = async (req, res) => {
 
     if (esAutenticado && estado_cuota) {
       if (estado_cuota === 'pendiente') {
-        sql += ` AND j.es_inactivo = FALSE AND (j.fecha_vencimiento IS NULL OR j.fecha_vencimiento < CURRENT_DATE)`;
+        sql += ` AND j.es_inactivo = FALSE AND ${exprDeuda('j', true)} > 0`;
       } else if (estado_cuota === 'al_dia') {
-        sql += ` AND j.es_inactivo = FALSE AND j.fecha_vencimiento >= CURRENT_DATE`;
+        sql += ` AND j.es_inactivo = FALSE AND ${exprDeuda('j', true)} = 0`;
       } else if (estado_cuota === 'inactivo') {
         sql += ` AND j.es_inactivo = TRUE`;
       } else if (estado_cuota === 'activos') {
@@ -146,7 +155,7 @@ const obtenerPorId = async (req, res) => {
       [id]
     );
     if (rows.length === 0) return respuestaError(res, 'Jugador no encontrado.', 404);
-    return respuestaExito(res, rows[0], 'Jugador obtenido correctamente.');
+    return respuestaExito(res, ocultarSensibles(rows[0], req.usuario), 'Jugador obtenido correctamente.');
   } catch (error) {
     console.error('[jugador.controller] obtenerPorId error:', error);
     return respuestaError(res, 'Error al obtener el jugador.', 500, error.message);
@@ -240,6 +249,7 @@ const crear = async (req, res) => {
       numero_camiseta,
       posicion,
     } = req.body;
+    const sensibles = verDatosSensibles(req.usuario);
 
     if (!nombre || !apellido || !dni) {
       return respuestaError(res, 'Nombre, apellido y DNI son obligatorios.', 400);
@@ -272,8 +282,9 @@ const crear = async (req, res) => {
     // Insertar en el padrón
     const { rows: jugRows } = await query(
       `INSERT INTO public.jugador
-         (nombre, apellido, dni, fecha_nacimiento, telefono, email, foto_url, id_equipo, id_division, es_jugador_club)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
+         (nombre, apellido, dni, fecha_nacimiento, telefono, email, foto_url, id_equipo, id_division,
+          domicilio, obra_social, es_jugador_club)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE)
        RETURNING *`,
       [
         nombre.trim(),
@@ -285,10 +296,12 @@ const crear = async (req, res) => {
         foto_url || null,
         id_equipo || null,
         id_division || null,
+        sensibles ? textoOpcional(req.body.domicilio) ?? null : null,
+        sensibles ? textoOpcional(req.body.obra_social) ?? null : null,
       ]
     );
 
-    const nuevoJugador = jugRows[0];
+    const nuevoJugador = ocultarSensibles(jugRows[0], req.usuario);
 
     // Si se especificó equipo, asignarlo automáticamente a equipo_jugador
     if (id_equipo) {
@@ -312,6 +325,10 @@ const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, apellido, dni, fecha_nacimiento, telefono, email, foto_url, es_inactivo } = req.body;
+    // Sin permiso, domicilio y obra social se ignoran (no se pisan)
+    const sensibles = verDatosSensibles(req.usuario);
+    const domicilio = sensibles ? textoOpcional(req.body.domicilio) : undefined;
+    const obraSocial = sensibles ? textoOpcional(req.body.obra_social) : undefined;
 
     if (dni?.trim()) {
       const { rows: existente } = await query(
@@ -338,6 +355,16 @@ const actualizar = async (req, res) => {
            email            = CASE WHEN $12::boolean THEN $6 ELSE email END,
            foto_url         = COALESCE($7, foto_url),
            es_inactivo      = COALESCE($8, es_inactivo),
+           -- Baja: al pasar a inactivo se toma la fecha indicada o la de hoy; al reactivar se borra.
+           -- Las expresiones del SET ven los valores anteriores de la fila.
+           fecha_baja       = CASE
+                                WHEN NOT COALESCE($8, es_inactivo) THEN NULL
+                                WHEN $13::date IS NOT NULL THEN $13::date
+                                WHEN es_inactivo THEN COALESCE(fecha_baja, ${HOY_AR})
+                                ELSE ${HOY_AR}
+                              END,
+           domicilio        = CASE WHEN $14::boolean THEN $15 ELSE domicilio END,
+           obra_social      = CASE WHEN $16::boolean THEN $17 ELSE obra_social END,
            updated_at       = NOW()
        WHERE id_jugador = $9 AND activo = TRUE
        RETURNING *`,
@@ -354,11 +381,16 @@ const actualizar = async (req, res) => {
         fecha_nacimiento !== undefined,
         telefono !== undefined,
         email !== undefined,
+        req.body.fecha_baja || null,
+        domicilio !== undefined,
+        domicilio ?? null,
+        obraSocial !== undefined,
+        obraSocial ?? null,
       ]
     );
 
     if (rows.length === 0) return respuestaError(res, 'Jugador no encontrado.', 404);
-    return respuestaExito(res, rows[0], 'Ficha del jugador actualizada correctamente.');
+    return respuestaExito(res, ocultarSensibles(rows[0], req.usuario), 'Ficha del jugador actualizada correctamente.');
   } catch (error) {
     console.error('[jugador.controller] actualizar error:', error);
     return respuestaError(res, 'Error al actualizar el jugador.', 500, error.message);

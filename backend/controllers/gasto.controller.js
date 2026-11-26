@@ -1,6 +1,19 @@
 const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
-const { CATEGORIA_CUOTA, calcularVencimiento } = require('../utils/cobrosCuota');
+const { anularPago } = require('./cobro.controller');
+const { exprDeuda } = require('../utils/deudas');
+
+// Categoría de los cobros de cuota del modelo anterior (movimientos viejos de la demo)
+const CATEGORIA_CUOTA_ANTERIOR = 'Cuota Socio';
+
+// Los cobros a jugadores entran a la caja solo desde Cobros, vinculados a su pago: una categoría con el nombre de
+// un concepto (o la de cuotas anterior) no se carga ni se edita a mano.
+const esCategoriaDeCobro = async (categoria) => {
+  if (!categoria) return false;
+  if (categoria === CATEGORIA_CUOTA_ANTERIOR) return true;
+  const { rows } = await query(`SELECT 1 FROM public.concepto_cobro WHERE lower(nombre) = lower($1)`, [categoria]);
+  return rows.length > 0;
+};
 
 // GET /api/gastos — Movimientos de tesorería (Entradas y Gastos del club).
 // Filtros opcionales: ?tipo=INGRESO|EGRESO ?categoria= ?desde= ?hasta= ?q= ?limit= ?offset= ?anulados=true
@@ -52,84 +65,65 @@ const obtenerTodos = async (req, res) => {
   }
 };
 
-// GET /api/gastos/resumen — Resumen integral: Cuotas + Entradas vs Gastos
+// GET /api/gastos/resumen — Ingresos vs egresos del mes, con desglose por categoría y la deuda de los jugadores.
+// Todos los cobros a jugadores ya están en la caja (un INGRESO por pago, con id_pago), así que no se suman aparte.
 const obtenerResumen = async (req, res) => {
   try {
     const { mes, anio } = req.query;
-    const mesTodal = mes ? parseInt(mes) : new Date().getMonth() + 1;
-    const anioActual = anio ? parseInt(anio) : new Date().getFullYear();
+    const mesSel = mes ? parseInt(mes) : new Date().getMonth() + 1;
+    const anioSel = anio ? parseInt(anio) : new Date().getFullYear();
+    const delMes = `activo = TRUE AND EXTRACT(MONTH FROM fecha_gasto) = $1 AND EXTRACT(YEAR FROM fecha_gasto) = $2`;
 
-    // 1. Total cobrado de cuotas de jugadores en el período
-    const { rows: cuotasRows } = await query(
-      `SELECT COALESCE(SUM(monto_abonado), 0) AS total_cuotas,
-              COUNT(*) FILTER (WHERE estado_pago = 'Pagado') AS cuotas_pagadas,
-              COUNT(*) FILTER (WHERE estado_pago IN ('Pendiente', 'Vencido')) AS cuotas_pendientes
-       FROM public.cuota_jugador
-       WHERE activo = TRUE
-         AND periodo_mes = $1
-         AND periodo_anio = $2`,
-      [mesTodal, anioActual]
-    );
+    const [{ rows: [totales] }, { rows: categoriasRows }, { rows: [deudas] }] = await Promise.all([
+      query(
+        `SELECT COALESCE(SUM(monto) FILTER (WHERE tipo = 'INGRESO'), 0) AS total_ingresos,
+                COUNT(*) FILTER (WHERE tipo = 'INGRESO') AS cantidad_ingresos,
+                COALESCE(SUM(monto) FILTER (WHERE tipo = 'INGRESO' AND id_pago IS NOT NULL), 0) AS total_cobros,
+                COUNT(*) FILTER (WHERE tipo = 'INGRESO' AND id_pago IS NOT NULL) AS cantidad_cobros,
+                COALESCE(SUM(monto) FILTER (WHERE tipo = 'EGRESO'), 0) AS total_gastos,
+                COUNT(*) FILTER (WHERE tipo = 'EGRESO') AS cantidad_gastos
+         FROM public.gasto_club WHERE ${delMes}`,
+        [mesSel, anioSel]
+      ),
+      query(
+        `SELECT tipo, categoria, COALESCE(SUM(monto), 0) AS subtotal, COUNT(*) AS cantidad
+         FROM public.gasto_club WHERE ${delMes}
+         GROUP BY tipo, categoria ORDER BY subtotal DESC`,
+        [mesSel, anioSel]
+      ),
+      // Deuda de hoy (no del mes elegido): lo que los jugadores deben en este momento
+      query(
+        `SELECT COALESCE(SUM(d.total), 0) AS pendiente, COALESCE(SUM(d.vencida), 0) AS vencida,
+                COUNT(*) FILTER (WHERE d.vencida > 0) AS jugadores_con_deuda_vencida
+         FROM (SELECT ${exprDeuda('j')} AS total, ${exprDeuda('j', true)} AS vencida
+               FROM public.jugador j WHERE j.activo) d`
+      ),
+    ]);
 
-    // 2. Total de Entradas / Ingresos adicionales del club (entradas a partidos, sponsors, buffet, indumentaria, etc.)
-    // Los cobros de cuotas también entran a la caja como 'Cuota Socio', pero ya se suman en el punto 1.
-    const { rows: entradasRows } = await query(
-      `SELECT COALESCE(SUM(monto), 0) AS total_entradas,
-              COUNT(*) AS cantidad_entradas
-       FROM public.gasto_club
-       WHERE activo = TRUE
-         AND tipo = 'INGRESO'
-         AND categoria IS DISTINCT FROM $3
-         AND EXTRACT(MONTH FROM fecha_gasto) = $1
-         AND EXTRACT(YEAR  FROM fecha_gasto) = $2`,
-      [mesTodal, anioActual, CATEGORIA_CUOTA]
-    );
-
-    // 3. Total de Gastos / Egresos del club
-    const { rows: egresosRows } = await query(
-      `SELECT COALESCE(SUM(monto), 0) AS total_gastos,
-              COUNT(*) AS cantidad_gastos
-       FROM public.gasto_club
-       WHERE activo = TRUE
-         AND tipo = 'EGRESO'
-         AND EXTRACT(MONTH FROM fecha_gasto) = $1
-         AND EXTRACT(YEAR  FROM fecha_gasto) = $2`,
-      [mesTodal, anioActual]
-    );
-
-    // 4. Desglose por categorías en el mes
-    const { rows: categoriasRows } = await query(
-      `SELECT tipo, categoria, COALESCE(SUM(monto), 0) AS subtotal, COUNT(*) as cantidad
-       FROM public.gasto_club
-       WHERE activo = TRUE
-         AND EXTRACT(MONTH FROM fecha_gasto) = $1
-         AND EXTRACT(YEAR  FROM fecha_gasto) = $2
-       GROUP BY tipo, categoria
-       ORDER BY subtotal DESC`,
-      [mesTodal, anioActual]
-    );
-
-    const totalCuotas   = parseFloat(cuotasRows[0].total_cuotas || 0);
-    const totalEntradas = parseFloat(entradasRows[0].total_entradas || 0);
-    const totalIngresos = totalCuotas + totalEntradas;
-    const totalGastos   = parseFloat(egresosRows[0].total_gastos || 0);
+    const totalIngresos = parseFloat(totales.total_ingresos);
+    const totalCobros = parseFloat(totales.total_cobros);
+    const totalGastos = parseFloat(totales.total_gastos);
 
     return respuestaExito(res, {
-      periodo: { mes: mesTodal, anio: anioActual },
+      periodo: { mes: mesSel, anio: anioSel },
       ingresos: {
-        total_cuotas: totalCuotas,
-        cuotas_pagadas: parseInt(cuotasRows[0].cuotas_pagadas || 0),
-        cuotas_pendientes: parseInt(cuotasRows[0].cuotas_pendientes || 0),
-        total_entradas: totalEntradas,
-        cantidad_entradas: parseInt(entradasRows[0].cantidad_entradas || 0),
         total_ingresos: totalIngresos,
+        cantidad_ingresos: parseInt(totales.cantidad_ingresos),
+        total_cobros: totalCobros,
+        cantidad_cobros: parseInt(totales.cantidad_cobros),
+        total_otros: totalIngresos - totalCobros,
       },
       egresos: {
         total_gastos: totalGastos,
-        cantidad_gastos: parseInt(egresosRows[0].cantidad_gastos || 0),
+        cantidad_gastos: parseInt(totales.cantidad_gastos),
       },
       balance: totalIngresos - totalGastos,
       categorias: categoriasRows,
+      deudas: {
+        pendiente: parseFloat(deudas.pendiente),
+        vencida: parseFloat(deudas.vencida),
+        jugadores_con_deuda_vencida: parseInt(deudas.jugadores_con_deuda_vencida),
+      },
     }, 'Resumen financiero obtenido correctamente.');
   } catch (error) {
     console.error('[gasto.controller] obtenerResumen error:', error);
@@ -144,8 +138,8 @@ const crear = async (req, res) => {
     if (!concepto || !monto) {
       return respuestaError(res, 'Concepto y monto son requeridos.', 400);
     }
-    if (categoria === CATEGORIA_CUOTA) {
-      return respuestaError(res, 'Las cuotas se registran desde el cobro al socio, no como movimiento manual.', 400);
+    if (await esCategoriaDeCobro(categoria)) {
+      return respuestaError(res, 'Los cobros a jugadores se registran desde Cobros, no como movimiento manual.', 400);
     }
 
     const tipoNormalizado = (tipo && tipo.toUpperCase() === 'INGRESO') ? 'INGRESO' : 'EGRESO';
@@ -180,12 +174,13 @@ const actualizar = async (req, res) => {
     const { concepto, monto, fecha_gasto, categoria, tipo, metodo_pago, comprobante_url } = req.body;
 
     const { rows: actuales } = await query(
-      `SELECT categoria FROM public.gasto_club WHERE id_gasto = $1 AND activo = TRUE`,
+      `SELECT categoria, id_pago, id_cuota FROM public.gasto_club WHERE id_gasto = $1 AND activo = TRUE`,
       [id]
     );
     if (actuales.length === 0) return respuestaError(res, 'Movimiento no encontrado.', 404);
-    if (actuales[0].categoria === CATEGORIA_CUOTA || categoria === CATEGORIA_CUOTA) {
-      return respuestaError(res, 'Un cobro de cuota no se edita: anulalo y registrá el cobro correcto.', 409);
+    const actual = actuales[0];
+    if (actual.id_pago || actual.id_cuota || (await esCategoriaDeCobro(actual.categoria)) || (await esCategoriaDeCobro(categoria))) {
+      return respuestaError(res, 'Un cobro a un jugador no se edita: anulalo y registrá el cobro correcto desde Cobros.', 409);
     }
 
     const tipoNormalizado = tipo ? (tipo.toUpperCase() === 'INGRESO' ? 'INGRESO' : 'EGRESO') : null;
@@ -221,62 +216,8 @@ const actualizar = async (req, res) => {
   }
 };
 
-// Revierte en la cuota y en la ficha del socio el cobro que generó este movimiento
-const revertirCobroCuota = async (client, movimiento) => {
-  const { rows: cuotas } = await client.query(
-    `SELECT * FROM public.cuota_jugador WHERE id_cuota = $1 FOR UPDATE`,
-    [movimiento.id_cuota]
-  );
-  const cuota = cuotas[0];
-
-  // Una cuota puede tener varios cobros en el mismo período
-  const { rows: restantes } = await client.query(
-    `SELECT fecha_gasto, metodo_pago FROM public.gasto_club
-     WHERE id_cuota = $1 AND activo = TRUE AND id_gasto <> $2
-     ORDER BY fecha_gasto DESC, id_gasto DESC`,
-    [movimiento.id_cuota, movimiento.id_gasto]
-  );
-
-  if (restantes.length > 0) {
-    await client.query(
-      `UPDATE public.cuota_jugador
-       SET monto_abonado     = GREATEST(monto_abonado - $1, 0),
-           monto_esperado    = GREATEST(monto_esperado - $1, 0),
-           fecha_pago        = $2,
-           fecha_vencimiento = $3,
-           metodo_pago       = $4,
-           updated_at        = NOW()
-       WHERE id_cuota = $5`,
-      [movimiento.monto, restantes[0].fecha_gasto, calcularVencimiento(restantes[0].fecha_gasto), restantes[0].metodo_pago, cuota.id_cuota]
-    );
-  } else {
-    await client.query(
-      `UPDATE public.cuota_jugador
-       SET activo = FALSE, monto_abonado = 0, monto_esperado = 0,
-           fecha_pago = NULL, estado_pago = 'Pendiente', updated_at = NOW()
-       WHERE id_cuota = $1`,
-      [cuota.id_cuota]
-    );
-  }
-
-  // La ficha vuelve al último pago que sigue siendo válido
-  const { rows: pagos } = await client.query(
-    `SELECT fecha_pago, fecha_vencimiento FROM public.cuota_jugador
-     WHERE id_jugador = $1 AND activo = TRUE AND fecha_pago IS NOT NULL
-       AND estado_pago IN ('Pagado', 'Exonerado/Becado')
-     ORDER BY fecha_pago DESC LIMIT 1`,
-    [cuota.id_jugador]
-  );
-  await client.query(
-    `UPDATE public.jugador
-     SET fecha_ultimo_pago = $1, fecha_vencimiento = $2, updated_at = NOW()
-     WHERE id_jugador = $3`,
-    [pagos[0]?.fecha_pago ?? null, pagos[0]?.fecha_vencimiento ?? null, cuota.id_jugador]
-  );
-};
-
 // POST /api/gastos/:id/anular — Da de baja un movimiento dejando registro de quién, cuándo y por qué.
-// Si es un cobro de cuota, también revierte la cuota y el vencimiento del socio.
+// Si es el cobro de una deuda, anula también el pago: la deuda del jugador vuelve a tener saldo.
 const anular = async (req, res) => {
   try {
     const { id } = req.params;
@@ -289,11 +230,12 @@ const anular = async (req, res) => {
         [id]
       );
       if (rows.length === 0) return { codigo: 404 };
-
       const movimiento = rows[0];
-      if (movimiento.categoria === CATEGORIA_CUOTA) {
-        if (!movimiento.id_cuota) return { codigo: 409 };
-        await revertirCobroCuota(client, movimiento);
+
+      if (movimiento.id_pago) {
+        // anularPago da de baja el pago y este mismo movimiento, con el mismo motivo
+        await anularPago(client, movimiento.id_pago, motivo, req.usuario.id);
+        return { codigo: 200, esCobro: true };
       }
 
       await client.query(
@@ -302,19 +244,15 @@ const anular = async (req, res) => {
          WHERE id_gasto = $3`,
         [motivo, req.usuario.id, id]
       );
-      return { codigo: 200, esCuota: movimiento.categoria === CATEGORIA_CUOTA };
+      return { codigo: 200, esCobro: false };
     });
 
     if (resultado.codigo === 404) return respuestaError(res, 'Movimiento no encontrado.', 404);
-    if (resultado.codigo === 409) {
-      return respuestaError(res, 'Este cobro no está vinculado a una cuota, así que no se puede revertir automáticamente.', 409);
-    }
-
     return respuestaExito(
       res,
       null,
-      resultado.esCuota
-        ? 'Cobro anulado. La cuota y el vencimiento del socio se revirtieron.'
+      resultado.esCobro
+        ? 'Cobro anulado. La deuda del jugador vuelve a tener saldo.'
         : 'Movimiento anulado correctamente.'
     );
   } catch (error) {

@@ -7,7 +7,7 @@
 **El sistema de gestión del club de futsal de la Liga AFA Tucumán.**
 
 Fixture, tablas, playoffs y goleadores para la hinchada.
-Padrón, planteles, cuotas y caja para la dirigencia.
+Padrón, planteles, cobros y caja para la dirigencia.
 
 [![CI](https://github.com/maxip123/Argentinos-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/maxip123/Argentinos-app/actions/workflows/ci.yml)
 ![React](https://img.shields.io/badge/React-19-151f89?logo=react&logoColor=white)
@@ -42,7 +42,7 @@ Padrón, planteles, cuotas y caja para la dirigencia.
 | **Playoffs** | Armar y jugar las llaves eliminatorias, con un cuadro único o con Copa Oro y Copa Plata. |
 | **Equipos** | Gestionar los equipos del club y los rivales, con planteles y cuerpo técnico. |
 | **Jugadores** | Padrón completo. Un mismo jugador puede estar en varios equipos del club a la vez. |
-| **Finanzas** | Estado de cuotas por jugador, cobros y libro de caja con ingresos y egresos. |
+| **Finanzas** | Deudas por concepto (cuota, inscripción, seguro y otros) con cobros parciales, canjes, planilla por equipo y libro de caja con ingresos y egresos. |
 | **Historial** | Consultar y administrar las ediciones archivadas. |
 | **Usuarios** | Cuentas y permisos para cada rol del club. |
 
@@ -188,7 +188,7 @@ El frontend queda en <http://localhost:5173> y la API en <http://localhost:4000/
 
 ### Datos de demo (opcional)
 
-Para ver el sistema como si ya estuviera en uso, este script carga una temporada completa: 5 divisiones, 59 jugadores, torneos archivados, torneos en juego, cuotas y más de 500 movimientos de caja. Al terminar verifica que goles, tablas, cuotas y caja cierren entre sí.
+Para ver el sistema como si ya estuviera en uso, este script carga una temporada completa: 5 divisiones, 59 jugadores, torneos archivados, torneos en juego, deudas y pagos por concepto y más de 500 movimientos de caja. Al terminar verifica que goles, tablas, pagos y caja cierren entre sí.
 
 > [!CAUTION]
 > `--reset` **borra todos los datos de la base** apuntada por `DATABASE_URL`, y solo conserva el usuario administrador. No lo corras contra una base con datos reales.
@@ -228,7 +228,7 @@ Todas las rutas cuelgan de `/api` y responden con el mismo formato:
 | Playoffs | `/api/playoff` | Llaves eliminatorias |
 | Cuerpo técnico | `/api/cuerpo-tecnico` | Staff de cada equipo |
 | Sedes | `/api/sedes` | Canchas y predios |
-| Cuotas | `/api/cuotas` | Estado de cuotas y cobros (requiere sesión) |
+| Cobros | `/api/cobros` | Conceptos, deudas, pagos y estado de cuenta (requiere sesión) |
 | Caja | `/api/gastos` | Libro de caja y resumen mensual (requiere sesión) |
 
 ### Roles

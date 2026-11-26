@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { query } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { minutosDeBloqueo, registrarFalla, limpiarFallas } = require('../utils/intentosLogin');
 
 /**
  * POST /api/auth/login
@@ -10,25 +11,35 @@ const { respuestaExito, respuestaError } = require('../utils/respuesta');
  */
 const login = async (req, res) => {
   try {
-    const { email, contrasena } = req.body;
+    const { contrasena } = req.body;
+    const email = req.body.email.toLowerCase().trim();
+    const ip = String(req.ip || req.socket?.remoteAddress || 'desconocida').slice(0, 64);
+
+    // Demasiados intentos fallidos recientes: no se revisa la contraseña
+    const minutos = await minutosDeBloqueo(email, ip);
+    if (minutos > 0) {
+      res.set('Retry-After', String(minutos * 60));
+      return respuestaError(
+        res,
+        `Demasiados intentos fallidos. Probá de nuevo en ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
+        429
+      );
+    }
 
     // Buscar usuario por email
     const { rows } = await query(
       `SELECT * FROM public.perfil_usuario WHERE email = $1 AND activo = TRUE LIMIT 1`,
-      [email.toLowerCase().trim()]
+      [email]
     );
 
-    if (rows.length === 0) {
-      return respuestaError(res, 'Credenciales incorrectas.', 401);
-    }
-
     const usuario = rows[0];
-
-    // Verificar contraseña
-    const contrasenaValida = await bcrypt.compare(contrasena, usuario.contrasena_hash);
+    // Verificar contraseña (un email inexistente cuenta como falla igual que una contraseña mal)
+    const contrasenaValida = usuario ? await bcrypt.compare(contrasena, usuario.contrasena_hash) : false;
     if (!contrasenaValida) {
+      await registrarFalla(email, ip);
       return respuestaError(res, 'Credenciales incorrectas.', 401);
     }
+    await limpiarFallas(email, ip);
 
     // Generar token JWT
     const payload = {

@@ -12,7 +12,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { getPool, withTransaction } = require('../config/db');
 const { finalizarYArchivarTorneo, iniciarNuevaEdicion } = require('../controllers/division.controller');
-const { SQL_VINCULAR_COBROS } = require('../utils/cobrosCuota');
+const { sqlEstadoCuota } = require('../utils/deudas');
 
 const EMAIL_ADMIN = process.env.ADMIN_EMAIL;
 
@@ -499,6 +499,7 @@ async function limpiar(client) {
   const orden = [
     ['partido_estadistica_jugador', 'id_estadistica'], ['sancion_jugador', 'id_sancion'], ['llave_playoff', 'id_llave'],
     ['clasificacion', 'id_clasificacion'], ['historial_torneo', 'id_historial'], ['gasto_club', 'id_gasto'],
+    ['pago_cargo', 'id_pago'], ['cargo_jugador', 'id_cargo'],
     ['cuota_jugador', 'id_cuota'], ['equipo_jugador', 'id_equipo_jugador'], ['equipo_cuerpo_tecnico', 'id_equipo_cuerpo_tecnico'],
     ['cuerpo_tecnico', 'id_cuerpo_tecnico'], ['partido', 'id_partido'], ['jugador', 'id_jugador'], ['equipo', 'id_equipo'],
     ['division', 'id_division'], ['sede', 'id_sede'],
@@ -603,69 +604,93 @@ async function cargarApertura(client) {
   await jugarPlayoffs(client, 'FEMENINO', fem.posiciones, { campeonARG: false });
 }
 
-// ─── Fase C: Clausura en curso, cuotas y caja ───────────────────────────────
+// ─── Fase C: Clausura en curso, cobros y caja ───────────────────────────────
 const CUOTA = (divKey, mes) => (divKey === 'SUB17' ? (mes <= 6 ? 12000 : 14000) : (mes <= 6 ? 15000 : 18000));
+const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const metodoHabitual = () => pickPeso(['Transferencia', 'MercadoPago', 'Efectivo'], (m) => ({ Transferencia: 45, MercadoPago: 25, Efectivo: 30 })[m]);
 
-function generarCuotas() {
+// Deudas por concepto (cuota mensual, inscripción por semestre, seguro anual) y sus pagos, según el perfil de
+// cada jugador. Los becados tienen la cuota marcada "no corresponde"; uno paga la inscripción con un canje.
+function generarCobros(idConcepto) {
   const activos = jugadores.filter((j) => !j.es_inactivo);
   const becados = new Set(planteles.SUB17.slice(10, 12).map((p) => p.jugador));
-  const cuotas = [];
-  const fichas = [];
+  const cargos = [];
+  const pagos = []; // { cargo: índice en cargos, monto, fecha, metodo, observaciones }
+  const deuda = (j, concepto, extra) => {
+    cargos.push({
+      id_jugador: j.id, id_concepto: idConcepto[concepto], id_equipo: ids.equipo[j.principal],
+      periodo_mes: null, periodo_anio: null, descripcion: null, monto: 0, fecha_vencimiento: null,
+      no_corresponde: false, motivo_no_corresponde: null, fecha_marcado: null, ...extra,
+    });
+    return cargos.length - 1;
+  };
+  const pagar = (cargo, monto, fecha, metodo = metodoHabitual(), observaciones = null) => {
+    if (fecha <= AHORA) pagos.push({ cargo, monto, fecha, metodo, observaciones });
+  };
+  let canjeHecho = false;
+
   for (const j of activos) {
     const divKey = equipoPorKey[j.principal].divKey;
     const r = rand();
     const perfil = becados.has(j) ? 'becado' : r < 0.58 ? 'puntual' : r < 0.78 ? 'tarde' : r < 0.92 ? 'atrasado' : 'moroso';
     const impagos = perfil === 'atrasado' ? randInt(1, 2) : perfil === 'moroso' ? randInt(3, 4) : 0;
     const mesParcial = ['atrasado', 'moroso'].includes(perfil) ? randInt(3, Math.max(3, MES_ACTUAL - impagos - 1)) : null;
-    let ultimoPago = null;
+    const diaDePago = () => (perfil === 'tarde' ? randInt(11, 27) : randInt(1, 10));
 
-    for (let mes = 3; mes <= MES_ACTUAL; mes++) {
-      const esperado = CUOTA(divKey, mes);
-      const base = {
-        id_jugador: j.id, id_division: ids.division[divKey], periodo_mes: mes, periodo_anio: Y,
-        monto_esperado: esperado,
-      };
-      if (perfil === 'becado') {
-        cuotas.push({ ...base, monto_abonado: 0, fecha_vencimiento: isoFecha(civil(Y, mes, 10)), fecha_pago: null, estado_pago: 'Exonerado/Becado', metodo_pago: null, observaciones: 'Beca deportiva juveniles' });
-        continue;
-      }
-      const dia = perfil === 'puntual' ? randInt(1, 10) : perfil === 'tarde' ? randInt(11, 27) : randInt(3, 15);
-      const fechaPago = conHora(civil(Y, mes, dia), randInt(9, 21), pick([0, 15, 30, 45]));
-      const debe = mes > MES_ACTUAL - impagos || fechaPago > AHORA;
-      if (debe) {
-        const venc = civil(Y, mes, 10);
-        cuotas.push({ ...base, monto_abonado: 0, fecha_vencimiento: isoFecha(venc), fecha_pago: null, estado_pago: venc < HOY ? 'Vencido' : 'Pendiente', metodo_pago: null, observaciones: null });
-        continue;
-      }
-      const parcial = mes === mesParcial;
-      const abonado = parcial ? esperado / 2 : esperado;
-      cuotas.push({
-        ...base, monto_abonado: abonado, fecha_vencimiento: isoFecha(fechaPago.getTime() - 3 * 3600000 + 31 * DIA),
-        fecha_pago: fechaPago, estado_pago: parcial ? 'Parcial' : 'Pagado',
-        metodo_pago: pickPeso(['Transferencia', 'MercadoPago', 'Efectivo'], (m) => ({ Transferencia: 45, MercadoPago: 25, Efectivo: 30 })[m]),
-        observaciones: parcial ? 'Abonó la mitad, completa el mes próximo' : null,
-      });
-      ultimoPago = fechaPago;
+    // Inscripción 1er semestre y seguro anual (vencen en marzo)
+    const insc1 = deuda(j, 'Inscripción', { descripcion: '1er semestre', monto: 20000, fecha_vencimiento: isoFecha(civil(Y, 3, 10)) });
+    if (perfil === 'becado' && !canjeHecho) {
+      pagar(insc1, 20000, conHora(civil(Y, 3, 7), 18), 'Canje', 'Colabora en el buffet los sábados');
+      canjeHecho = true;
+    } else if (perfil === 'moroso') {
+      pagar(insc1, 10000, conHora(civil(Y, 4, 15), 19));
+    } else {
+      pagar(insc1, 20000, conHora(civil(Y, perfil === 'atrasado' ? 4 : 3, diaDePago()), randInt(9, 21)));
     }
-    fichas.push({
-      id: j.id,
-      ultimo: ultimoPago ? ultimoPago.toISOString() : null,
-      venc: perfil === 'becado' ? `${Y}-12-31` : ultimoPago ? isoFecha(ultimoPago.getTime() - 3 * 3600000 + 31 * DIA) : null,
-    });
+    const seguro = deuda(j, 'Seguro', { descripcion: 'Anual', monto: 30000, fecha_vencimiento: isoFecha(civil(Y, 3, 31)) });
+    if (perfil !== 'moroso') pagar(seguro, 30000, conHora(civil(Y, 3, Math.min(28, diaDePago() + 5)), randInt(9, 21)));
+
+    // Inscripción 2do semestre (vence en agosto)
+    if (MES_ACTUAL >= 8) {
+      const insc2 = deuda(j, 'Inscripción', { descripcion: '2do semestre', monto: 20000, fecha_vencimiento: isoFecha(civil(Y, 8, 10)) });
+      if (perfil === 'atrasado') pagar(insc2, 10000, conHora(civil(Y, 8, 20), 19));
+      else if (perfil !== 'moroso') pagar(insc2, 20000, conHora(civil(Y, 8, diaDePago()), randInt(9, 21)));
+    }
+
+    // Cuota mensual de marzo al mes actual
+    for (let mes = 3; mes <= MES_ACTUAL; mes++) {
+      const monto = CUOTA(divKey, mes);
+      const base = { periodo_mes: mes, periodo_anio: Y, monto, fecha_vencimiento: isoFecha(civil(Y, mes, 10)) };
+      if (perfil === 'becado') {
+        deuda(j, 'Cuota mensual', { ...base, no_corresponde: true, motivo_no_corresponde: 'Beca deportiva juveniles', fecha_marcado: conHora(civil(Y, mes, 1), 10) });
+        continue;
+      }
+      const cuota = deuda(j, 'Cuota mensual', base);
+      if (mes > MES_ACTUAL - impagos) continue;
+      const fecha = conHora(civil(Y, mes, perfil === 'puntual' ? randInt(1, 10) : perfil === 'tarde' ? randInt(11, 27) : randInt(3, 15)), randInt(9, 21), pick([0, 15, 30, 45]));
+      pagar(cuota, mes === mesParcial ? monto / 2 : monto, fecha, metodoHabitual(), mes === mesParcial ? 'Abonó la mitad, completa el mes próximo' : null);
+    }
   }
-  return { cuotas, fichas };
+  return { cargos, pagos };
 }
 
-function generarCaja(cuotas) {
-  const mov = [];
+// Un movimiento de caja por cada pago que no es canje, con el mismo texto que arma el panel al cobrar
+function cajaDeCobros(cargos, pagos, idsPago, nombreConcepto) {
   const nombreJug = new Map(jugadores.map((j) => [j.id, `${j.apellido} ${j.nombre}`]));
-  for (const c of cuotas.filter((x) => x.monto_abonado > 0)) {
-    mov.push({
-      concepto: `Cuota - ${nombreJug.get(c.id_jugador)} - ${MESES[c.periodo_mes - 1]} ${c.periodo_anio}`,
-      monto: c.monto_abonado, fecha_gasto: c.fecha_pago, categoria: 'Cuota Socio', tipo: 'INGRESO', metodo_pago: c.metodo_pago,
-    });
-  }
+  return pagos.flatMap((p, i) => {
+    if (p.metodo === 'Canje') return [];
+    const c = cargos[p.cargo];
+    const concepto = nombreConcepto[c.id_concepto];
+    const periodo = c.periodo_mes ? `${MESES_LARGOS[c.periodo_mes - 1]} ${c.periodo_anio}` : c.descripcion;
+    return [{
+      concepto: [concepto, nombreJug.get(c.id_jugador), periodo].filter(Boolean).join(' - '),
+      monto: p.monto, fecha_gasto: p.fecha, categoria: concepto, tipo: 'INGRESO', metodo_pago: p.metodo, id_pago: idsPago[i],
+    }];
+  });
+}
 
+function generarCaja() {
+  const mov = [];
   const ingreso = (concepto, monto, fecha, categoria, metodo = 'Transferencia') => mov.push({ concepto, monto: redondear(monto), fecha_gasto: fecha, categoria, tipo: 'INGRESO', metodo_pago: metodo });
   const egreso = (concepto, monto, fecha, categoria, metodo = 'Transferencia') => mov.push({ concepto, monto: redondear(monto), fecha_gasto: fecha, categoria, tipo: 'EGRESO', metodo_pago: metodo });
 
@@ -722,20 +747,20 @@ async function cargarClausura(client) {
   await jugarEdicion(client, 'RESERVA', opciones(3));
   await jugarEdicion(client, 'SUB17', opciones(4));
 
-  const { cuotas, fichas } = generarCuotas();
-  await insertar(client, 'cuota_jugador', cuotas);
-  const params = [];
-  const values = fichas.map((f) => {
-    params.push(f.id, f.ultimo, f.venc);
-    return `($${params.length - 2}::bigint, $${params.length - 1}::timestamptz, $${params.length}::date)`;
-  });
-  await client.query(
-    `UPDATE public.jugador j SET fecha_ultimo_pago = v.ultimo, fecha_vencimiento = v.venc
-     FROM (VALUES ${values.join(',')}) AS v(id, ultimo, venc) WHERE j.id_jugador = v.id`,
-    params
-  );
-  await insertar(client, 'gasto_club', generarCaja(cuotas));
-  await client.query(SQL_VINCULAR_COBROS);
+  const { rows: conceptos } = await client.query('SELECT id_concepto, nombre FROM public.concepto_cobro');
+  const idConcepto = Object.fromEntries(conceptos.map((c) => [c.nombre, c.id_concepto]));
+  const nombreConcepto = Object.fromEntries(conceptos.map((c) => [c.id_concepto, c.nombre]));
+  for (const nombre of ['Cuota mensual', 'Inscripción', 'Seguro']) {
+    if (!idConcepto[nombre]) throw new Error(`Falta el concepto "${nombre}": corré scripts/migrate_cobros_conceptos.js`);
+  }
+  const { cargos, pagos } = generarCobros(idConcepto);
+  const cargosIns = await insertar(client, 'cargo_jugador', cargos, 'id_cargo');
+  const pagosIns = await insertar(client, 'pago_cargo', pagos.map((p) => ({
+    id_cargo: cargosIns[p.cargo].id_cargo, monto: p.monto, fecha_pago: isoFecha(p.fecha.getTime() - 3 * 3600000),
+    metodo_pago: p.metodo, observaciones: p.observaciones,
+  })), 'id_pago');
+  await insertar(client, 'gasto_club', cajaDeCobros(cargos, pagos, pagosIns.map((p) => p.id_pago), nombreConcepto));
+  await insertar(client, 'gasto_club', generarCaja());
 
   const inicioClausura = (jugadas) => isoFecha(enCurso(jugadas)(1));
   const fechas = [
@@ -782,15 +807,21 @@ async function verificar() {
   if (tablaMal) problemas.push(`${tablaMal} filas de clasificación inconsistentes`);
 
   const [caja] = await q(`
-    SELECT (SELECT COALESCE(SUM(monto_abonado), 0) FROM public.cuota_jugador)::numeric AS cuotas,
-           (SELECT COALESCE(SUM(monto), 0) FROM public.gasto_club WHERE categoria = 'Cuota Socio')::numeric AS caja,
+    SELECT (SELECT COALESCE(SUM(monto), 0) FROM public.pago_cargo WHERE activo AND metodo_pago <> 'Canje')::numeric AS pagos,
+           (SELECT COALESCE(SUM(monto), 0) FROM public.gasto_club WHERE activo AND id_pago IS NOT NULL)::numeric AS caja,
            (SELECT COALESCE(SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE -monto END), 0) FROM public.gasto_club)::numeric AS saldo,
            (SELECT count(*) FROM public.gasto_club)::int AS movimientos`);
-  if (Number(caja.cuotas) !== Number(caja.caja)) problemas.push(`cuotas cobradas (${caja.cuotas}) != ingresos de caja por cuotas (${caja.caja})`);
+  if (Number(caja.pagos) !== Number(caja.caja)) problemas.push(`pagos cobrados (${caja.pagos}) != ingresos de caja por cobros (${caja.caja})`);
 
   const [{ total: cobrosSinVincular }] = await q(`
-    SELECT count(*)::int AS total FROM public.gasto_club WHERE categoria = 'Cuota Socio' AND id_cuota IS NULL`);
-  if (cobrosSinVincular) problemas.push(`${cobrosSinVincular} cobros de caja sin vincular a su cuota`);
+    SELECT count(*)::int AS total FROM public.gasto_club g
+    WHERE g.id_pago IS NULL AND g.categoria IN (SELECT nombre FROM public.concepto_cobro)`);
+  if (cobrosSinVincular) problemas.push(`${cobrosSinVincular} cobros de caja sin vincular a su pago`);
+
+  const [{ total: pagosDeMas }] = await q(`
+    SELECT count(*)::int AS total FROM public.cargo_jugador c
+    WHERE (SELECT COALESCE(SUM(p.monto), 0) FROM public.pago_cargo p WHERE p.id_cargo = c.id_cargo AND p.activo) > c.monto`);
+  if (pagosDeMas) problemas.push(`${pagosDeMas} deudas con pagos por encima del monto`);
 
   const historial = await q(`
     SELECT nombre_torneo, temporada, jsonb_array_length(tabla_posiciones) AS equipos,
@@ -815,15 +846,14 @@ async function verificar() {
            (SELECT count(*) FROM public.partido p WHERE p.id_division = d.id_division AND p.activo AND p.estado_partido = 0)::int AS programados
     FROM public.division d ORDER BY d.id_division`);
   const estados = await q(`
-    SELECT CASE WHEN es_inactivo THEN 'Inactivo' WHEN fecha_vencimiento IS NULL THEN 'Sin cuota'
-                WHEN fecha_vencimiento >= CURRENT_DATE THEN 'Al día' ELSE 'Pendiente' END AS estado, count(*)::int AS jugadores
-    FROM public.jugador GROUP BY 1 ORDER BY 1`);
+    SELECT ${sqlEstadoCuota('j')} AS estado, count(*)::int AS jugadores
+    FROM public.jugador j WHERE j.activo GROUP BY 1 ORDER BY 1`);
 
   console.log('\nDivisiones');
   console.table(divisiones);
   console.log('Historial');
   console.table(historial);
-  console.log('Estado de cuotas de los jugadores');
+  console.log('Estado de los jugadores (según deudas vencidas)');
   console.table(estados);
   console.log(`Caja: ${caja.movimientos} movimientos, saldo $${Number(caja.saldo).toLocaleString('es-AR')}`);
   return problemas;
@@ -856,7 +886,7 @@ async function main() {
   await archivar('PRIMERA', civil(Y, 5, 9), { nombre_division: 'Primera División - Clausura', temporada: Y });
   await archivar('FEMENINO', civil(Y, 4, 25), { nombre_division: 'Femenino Primera - Clausura', temporada: Y });
 
-  console.log('Fase C: Clausura en curso, cuotas y caja...');
+  console.log('Fase C: Clausura en curso, cobros y caja...');
   await withTransaction(cargarClausura);
 
   const problemas = await verificar();

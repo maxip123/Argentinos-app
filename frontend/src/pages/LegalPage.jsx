@@ -5,7 +5,7 @@ import { FaFileContract, FaUserShield } from 'react-icons/fa';
 const CLUB = 'Club Atlético Argentinos del Norte';
 const DOMICILIO = 'Av. Benjamín Aráoz 650, San Miguel de Tucumán, Tucumán, Argentina';
 const EMAIL = 'contacto@argentinosdelnorte.com';
-const ACTUALIZACION = '15 de noviembre de 2026';
+const ACTUALIZACION = '26 de noviembre de 2026';
 
 function Seccion({ titulo, children }) {
   return (
@@ -39,15 +39,17 @@ function Privacidad() {
       <Seccion titulo="2. Qué datos tratamos">
         <p><strong>Jugadores y socios:</strong></p>
         <Lista items={[
-          'Nombre, apellido, DNI, fecha de nacimiento, teléfono, correo electrónico y, si se carga, fotografía.',
+          'Nombre, apellido, DNI, fecha de nacimiento, teléfono, correo electrónico, domicilio y, si se carga, fotografía.',
+          'Obra social, si la persona decide informarla. Es un dato de salud: es optativa, se carga solo con consentimiento expreso y solo la ven los administradores del club.',
           'Equipos y divisiones en los que participa, número de camiseta y posición.',
           'Partidos jugados, goles y tarjetas.',
-          'Cuotas sociales: período, monto, fecha, método de pago y vencimiento.',
+          'Cobros del club (cuota, inscripción, seguro, indumentaria y otros conceptos): concepto, período, monto, vencimiento, pagos, método de pago, número de operación, quién recibió el pago y, si corresponde, el motivo de un canje o de una baja. También la fecha de baja del socio.',
         ]} />
         <p><strong>Cuerpo técnico:</strong> nombre, apellido, DNI, teléfono, correo electrónico y función.</p>
         <p>
           <strong>Usuarios del panel de administración:</strong> nombre, correo electrónico, teléfono, rol y división
-          asignada. Las contraseñas se guardan cifradas.
+          asignada. Las contraseñas se guardan cifradas. Por seguridad, de los intentos de inicio de sesión fallidos
+          guardamos el correo usado y la dirección IP durante 24 horas.
         </p>
         <p>
           <strong>Visitantes del sitio:</strong> no pedimos registro para ver la información pública. Los proveedores
@@ -59,7 +61,7 @@ function Privacidad() {
         <Lista items={[
           'Administrar el padrón de socios, los planteles y la participación en los torneos.',
           'Publicar fixture, resultados, tablas, goleadores, tarjetas e historial de torneos.',
-          'Gestionar y dejar registro de cuotas, pagos y movimientos de la caja del club.',
+          'Gestionar y dejar registro de lo que cada socio debe y paga, y de los movimientos de la caja del club.',
           'Dar acceso al panel de administración según el rol de cada usuario y proteger el sistema.',
         ]} />
         <p>
@@ -72,15 +74,15 @@ function Privacidad() {
         <p>
           Para registrar a un jugador o socio son obligatorios el nombre, el apellido y el DNI: sin ellos no podemos
           darlo de alta. El resto de los datos es optativo. Si un dato es inexacto, pueden producirse errores en el
-          padrón o en la gestión de cuotas.
+          padrón o en la gestión de cobros.
         </p>
       </Seccion>
 
       <Seccion titulo="5. Qué información es pública">
         <p>
           En el sitio pueden verse el nombre, el apellido, la fotografía si se cargó, el equipo y las estadísticas
-          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento y el estado
-          de cuotas no se publican: solo acceden usuarios autorizados del club.
+          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento, el domicilio, la
+          obra social, las deudas y los pagos no se publican: solo acceden usuarios autorizados del club.
         </p>
       </Seccion>
 
@@ -204,8 +206,8 @@ function Terminos() {
 
       <Seccion titulo="6. Pagos">
         <p>
-          El sitio no procesa pagos ni solicita datos de tarjetas. El panel solo registra los cobros de cuotas que el
-          club recibe por sus propios medios.
+          El sitio no procesa pagos ni solicita datos de tarjetas. El panel solo registra los cobros (cuota,
+          inscripción, seguro y otros conceptos) que el club recibe por sus propios medios.
         </p>
       </Seccion>
 

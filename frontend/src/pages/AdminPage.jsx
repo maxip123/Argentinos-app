@@ -67,7 +67,6 @@ export default function AdminPage() {
 
   // Estados específicos de módulos
   const [partidos, setPartidos] = useState([]);
-  const [cuotas, setCuotas] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [sedes, setSedes] = useState([]);
   const paginacionPartidos = usePaginacion(partidos, 15, divisionSel);
@@ -130,14 +129,6 @@ export default function AdminPage() {
   const [statsPartido, setStatsPartido] = useState({});
   const [cargandoStatsPartido, setCargandoStatsPartido] = useState(false);
 
-  // Formulario de pago de cuota
-  const [cuotaEditando, setCuotaEditando] = useState(null);
-  const [formCuota, setFormCuota] = useState({
-    monto_abonado: '',
-    estado_pago: 'Pagado',
-    metodo_pago: 'Transferencia',
-  });
-
   // Redirigir si no está autenticado
   useEffect(() => {
     if (!autenticado) {
@@ -178,15 +169,6 @@ export default function AdminPage() {
     }
   }, [divisionSel]);
 
-  const cargarCuotas = useCallback(async () => {
-    try {
-      const res = await api.get('/cuotas');
-      setCuotas(res.data.data || []);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-
   const cargarEquipos = useCallback(async () => {
     if (!divisionSel) return;
     try {
@@ -212,14 +194,12 @@ export default function AdminPage() {
       cargarPartidos();
       cargarEquipos();
       cargarSedes();
-    } else if (moduloActivo === 'cuotas') {
-      cargarCuotas();
     } else if (moduloActivo === 'equipos') {
       cargarEquipos();
     } else if (moduloActivo === 'sedes') {
       cargarSedes();
     }
-  }, [moduloActivo, cargarPartidos, cargarCuotas, cargarEquipos, cargarSedes]);
+  }, [moduloActivo, cargarPartidos, cargarEquipos, cargarSedes]);
 
   // Iniciar edición de resultado y cargar estadísticas si juega Argentinos del Norte
   const iniciarEdicionPartido = async (p) => {
@@ -508,27 +488,7 @@ export default function AdminPage() {
     });
   };
 
-  // Actualizar estado de cuota
-  const handleActualizarCuota = async (e) => {
-    e.preventDefault();
-    if (!cuotaEditando) return;
-    setCargandoAccion(true);
-    try {
-      await api.put(`/cuotas/${cuotaEditando.id_cuota}`, {
-        monto_abonado: Number(formCuota.monto_abonado),
-        estado_pago: formCuota.estado_pago,
-        metodo_pago: formCuota.metodo_pago,
-        fecha_pago: new Date().toISOString(),
-      });
-      mostrarMensaje('exito', 'Pago registrado exitosamente.');
-      setCuotaEditando(null);
-      cargarCuotas();
-    } catch (err) {
-      mostrarMensaje('error', 'Error al registrar cuota: ' + err.message);
-    } finally {
-      setCargandoAccion(false);
-    }
-  };
+
 
   if (!autenticado) return null;
 
@@ -675,7 +635,7 @@ export default function AdminPage() {
                 Finanzas y Tesorería
               </h2>
               <p className="text-xs text-slate-500 font-body">
-                Cuotas de socios, Entradas del club (partidos, buffet, sponsors), egresos y balance neto
+                Cobros y deudas de los jugadores por concepto, entradas del club, egresos y balance neto
               </p>
             </article>
 
@@ -1531,7 +1491,7 @@ export default function AdminPage() {
           />
         )}
 
-        {/* VISTA 4: FINANZAS Y CUOTAS — nuevo módulo */}
+        {/* VISTA 4: FINANZAS (cobros y deudas, caja y balance) */}
         {moduloActivo === 'cuotas' && (
           <FinanzasManager
             divisiones={divisiones}
