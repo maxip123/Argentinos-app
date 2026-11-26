@@ -42,6 +42,12 @@ const validarIdParam = [
 ];
 
 // ─── EQUIPO ───────────────────────────────────────────────────────────────────
+// Zona del equipo dentro del torneo: texto corto opcional; vacío = sin zona
+const validarZonaEquipo = [
+  body('zona').optional({ nullable: true }).isString().withMessage('La zona debe ser texto.')
+    .isLength({ max: 20 }).withMessage('La zona no puede superar 20 caracteres.'),
+];
+
 const validarCrearEquipo = [
   body('id_division').isInt({ min: 1 }).withMessage('El ID de la división es requerido.'),
   body('nombre_equipo').trim().notEmpty().withMessage('El nombre del equipo es requerido.').isLength({ max: 120 }).withMessage('Máximo 120 caracteres.'),
@@ -95,6 +101,15 @@ const validarActualizarJugador = [
 ];
 
 // ─── PARTIDO ──────────────────────────────────────────────────────────────────
+// Partido de un cruce del cuadro: llave, ida (1) o vuelta (2), y desempate si el cruce queda empatado
+const camposCruce = [
+  body('id_llave').optional({ nullable: true }).isInt({ min: 1 }).withMessage('El cruce no es válido.'),
+  body('numero_juego').optional({ nullable: true }).isIn([1, 2]).withMessage('El partido del cruce debe ser 1 (ida o único) o 2 (vuelta).'),
+  body('id_equipo_desempate').optional({ nullable: true }).isInt({ min: 1 }).withMessage('Quién pasa no es válido.'),
+  body('penales_local').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Los penales deben ser un número de 0 o más.'),
+  body('penales_visitante').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Los penales deben ser un número de 0 o más.'),
+];
+
 const validarCrearPartido = [
   body('id_division').isInt({ min: 1 }).withMessage('El ID de la división es requerido.'),
   body('id_sede').isInt({ min: 1 }).withMessage('El ID de la sede es requerido.'),
@@ -105,6 +120,17 @@ const validarCrearPartido = [
   body('goles_visitante').optional().isInt({ min: 0 }).withMessage('Los goles visitantes deben ser un número positivo.'),
   body('estado_partido').optional().isIn([0, 1, 2, 3, 4]).withMessage('Estado del partido inválido (0-4).'),
   body('afecta_clasificacion').optional().isBoolean().withMessage('"Afecta la tabla" debe ser verdadero o falso.').toBoolean(),
+  ...camposCruce,
+];
+
+const validarActualizarPartido = [
+  param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
+  body('goles_local').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Los goles locales deben ser un número positivo.'),
+  body('goles_visitante').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Los goles visitantes deben ser un número positivo.'),
+  body('estado_partido').optional({ nullable: true }).isIn([0, 1, 2, 3, 4]).withMessage('Estado del partido inválido (0-4).'),
+  body('id_llave').not().exists().withMessage('El cruce de un partido no se puede cambiar.'),
+  body('numero_juego').not().exists().withMessage('La ida o vuelta de un partido no se puede cambiar.'),
+  ...camposCruce.filter((_, i) => i >= 2),
 ];
 
 // ─── SEDE ─────────────────────────────────────────────────────────────────────
@@ -214,10 +240,12 @@ module.exports = {
   validarCrearDivision,
   validarIdParam,
   validarCrearEquipo,
+  validarZonaEquipo,
   validarLogoUrl,
   validarSubirLogo,
   validarCrearJugador,
   validarActualizarJugador,
   validarCrearPartido,
+  validarActualizarPartido,
   validarCrearSede,
 };

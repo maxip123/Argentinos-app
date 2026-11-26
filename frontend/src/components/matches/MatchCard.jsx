@@ -2,6 +2,7 @@ import React from 'react';
 import EscudoEquipo from '../ui/EscudoEquipo';
 import { FaShieldAlt } from 'react-icons/fa';
 import { formatFecha, formatHora } from '../../utils/fechas';
+import { esInterzonal } from '../../utils/zonas';
 
 export default function MatchCard({ partido }) {
   const {
@@ -45,6 +46,12 @@ export default function MatchCard({ partido }) {
           <span className="font-headline text-sm uppercase tracking-wider text-white">
             {nombre_partido || (jornada_numero ? `Fecha ${jornada_numero}` : 'Partido')}
           </span>
+
+          {esInterzonal(partido) && (
+            <span className="bg-white/15 border border-white/30 text-white px-2 py-0.5 rounded-full text-[10px] font-headline tracking-wider uppercase">
+              Interzonal
+            </span>
+          )}
 
           {esEnVivo && (
             <span className="inline-flex items-center gap-1.5 bg-[#E31B23] text-white px-2 py-0.5 rounded-full text-[10px] font-headline tracking-wider animate-live">

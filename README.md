@@ -39,7 +39,8 @@ Padrón, planteles, cobros y caja para la dirigencia.
 | Módulo | Qué permite |
 |---|---|
 | **Torneos** | Crear divisiones, cargar partidos y resultados, cerrar una edición y arrancar la siguiente. |
-| **Playoffs** | Armar y jugar las llaves eliminatorias, con un cuadro único o con Copa Oro y Copa Plata. |
+| **Playoffs** | Armar y jugar las llaves eliminatorias, con un cuadro único o con Copa Oro y Copa Plata. Cada ronda se juega a partido único o ida y vuelta, y cada partido del cruce es un partido real del fixture. |
+| **Zonas** | Torneos con una zona o varias: una tabla por zona, y los interzonales suman en la zona de cada equipo. |
 | **Equipos** | Gestionar los equipos del club y los rivales, con planteles y cuerpo técnico. |
 | **Jugadores** | Padrón completo. Un mismo jugador puede estar en varios equipos del club a la vez. |
 | **Finanzas** | Deudas por concepto (cuota, inscripción, seguro y otros) con cobros parciales, canjes, planilla por equipo y libro de caja con ingresos y egresos. |

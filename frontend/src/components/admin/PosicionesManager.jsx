@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
 import EscudoEquipo from '../ui/EscudoEquipo';
+import { agruparPorZona } from '../../utils/zonas';
 import { FaEdit, FaTimes, FaExclamationCircle, FaUndo } from 'react-icons/fa';
 
 // Columnas que se pueden corregir a mano. PJ y DG se calculan a partir de ellas.
@@ -280,8 +281,14 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
                   <th className="py-3 px-3 text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="font-body text-sm text-slate-800 divide-y divide-slate-100">
-                {filas.map((fila, i) => {
+              {agruparPorZona(filas).map((grupo) => (
+              <tbody key={grupo.titulo || 'tabla'} className="font-body text-sm text-slate-800 divide-y divide-slate-100">
+                {grupo.titulo && (
+              <tr className="bg-slate-100/80">
+                <td colSpan={11} className="py-2 px-3 font-headline uppercase tracking-wider text-xs text-[#151f89]">{grupo.titulo}</td>
+              </tr>
+            )}
+                {grupo.filas.map((fila, i) => {
                   const ajustada = tieneAjuste(fila);
                   return (
                     <tr key={fila.id_clasificacion} className={fila.es_argentinos_del_norte ? 'bg-blue-50/60' : 'hover:bg-slate-50/80'}>
@@ -322,6 +329,7 @@ export default function PosicionesManager({ divisiones, divisionSel, setDivision
                   );
                 })}
               </tbody>
+              ))}
             </table>
           </div>
         )}

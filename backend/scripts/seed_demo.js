@@ -13,6 +13,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { getPool, withTransaction } = require('../config/db');
 const { finalizarYArchivarTorneo, iniciarNuevaEdicion } = require('../controllers/division.controller');
 const { sqlEstadoCuota } = require('../utils/deudas');
+const { decidirCruce, recalcularLlave } = require('../utils/cruces');
 
 const EMAIL_ADMIN = process.env.ADMIN_EMAIL;
 
@@ -92,6 +93,7 @@ const rival = (key, nombre, corto, fuerza) => ({ key, nombre, corto, arg: false,
 const DIVISIONES = {
   PRIMERA: {
     nombre: 'Primera División - Clausura', categoria: 'Primera', genero: 'Masculino', temporada: Y - 1, hora: 19,
+    zonas: ['A', 'B'],
     equipos: [
       { key: 'AZUL', nombre: 'Argentinos del Norte Azul (A)', corto: 'ARG Azul', arg: true, fuerza: 1.0 },
       { key: 'BLANCO', nombre: 'Argentinos del Norte Blanco (B)', corto: 'ARG Blanco', arg: true, fuerza: 0.35 },
@@ -438,50 +440,97 @@ async function jugarEdicion(client, divKey, { edicion, fechaJornada, jugadas, fu
   return { posiciones, partidos: filas.length, estadisticas: stats.length };
 }
 
-function definirLlave(a, b, ganaARG) {
-  let ganador;
-  if (a.arg !== b.arg) ganador = (a.arg === ganaARG) ? a : b;
-  else ganador = rand() < 0.5 + (a.fuerza - b.fuerza) * 0.3 ? a : b;
-  const perdedor = ganador === a ? b : a;
-  const empate = rand() < 0.2;
-  const gGan = randInt(2, 6);
-  const gPer = empate ? gGan : randInt(0, gGan - 1);
-  const pGan = empate ? randInt(4, 5) : null;
-  const pPer = empate ? randInt(2, pGan - 1) : null;
-  const golesDe = (e) => (e === ganador ? gGan : gPer);
-  const penalesDe = (e) => (e === ganador ? pGan : pPer);
-  return {
-    ganador,
-    fila: {
-      id_equipo_local: a.id,
-      id_equipo_visitante: b.id,
-      goles_local: golesDe(a),
-      goles_visitante: golesDe(b),
-      penales_local: penalesDe(a),
-      penales_visitante: penalesDe(b),
-      estado_partido: 2,
-      id_equipo_ganador: ganador.id,
-    },
-  };
+// Ganador de un cruce: entre un equipo del club y un rival lo define ganaARG; entre rivales, la fuerza
+function elegirGanador(a, b, ganaARG) {
+  if (a.arg !== b.arg) return (a.arg === ganaARG) ? a : b;
+  return rand() < 0.5 + (a.fuerza - b.fuerza) * 0.3 ? a : b;
 }
 
-async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false, copa = 'Unica' }) {
-  const idDivision = ids.division[divKey];
-  const base = { id_division: idDivision, activo: true, copa };
-  if (soloFinal) {
-    const final = definirLlave(posiciones[0], posiciones[1], campeonARG);
-    await insertar(client, 'llave_playoff', [{ ...base, fase: 'Final', orden: 1, ...final.fila }]);
-    return final.ganador;
+/**
+ * Juega un cruce con partidos reales (partido.id_llave): partido único, o ida y vuelta
+ * (la ida de local el visitante del cruce). Si el cruce queda empatado, pasa `ganador` por penales.
+ * Carga las estadísticas del club y deja que recalcularLlave decida y avance al ganador.
+ */
+async function jugarCruce(client, { idLlave, idDivision, fase, formato, local, visita, ganaARG, fecha, edicion }) {
+  const ganador = elegirGanador(local, visita, ganaARG);
+  const perdedor = ganador === local ? visita : local;
+  const empate = rand() < 0.25;
+  const juegos = formato === 'ida_vuelta'
+    ? [{ n: 1, l: visita, v: local, nombre: `${fase} · Ida` }, { n: 2, l: local, v: visita, nombre: `${fase} · Vuelta` }]
+    : [{ n: 1, l: local, v: visita, nombre: fase }];
+  const goles = juegos.map(() => new Map([[local.id, randInt(0, 3)], [visita.id, randInt(0, 3)]]));
+  const total = (e) => goles.reduce((s, g) => s + g.get(e.id), 0);
+  const ultimo = goles[goles.length - 1];
+  // El último partido acomoda el global: lo gana `ganador`, o queda empatado si toca desempate
+  const dif = total(perdedor) - total(ganador);
+  if (empate) {
+    if (dif > 0) ultimo.set(ganador.id, ultimo.get(ganador.id) + dif);
+    else if (dif < 0) ultimo.set(perdedor.id, ultimo.get(perdedor.id) - dif);
+  } else if (dif >= 0) {
+    ultimo.set(ganador.id, ultimo.get(ganador.id) + dif + 1 + randInt(0, 1));
   }
-  const s1 = definirLlave(posiciones[0], posiciones[3], true);
-  const s2 = definirLlave(posiciones[1], posiciones[2], true);
-  const final = definirLlave(s1.ganador, s2.ganador, campeonARG);
-  const [{ id_llave }] = await insertar(client, 'llave_playoff', [{ ...base, fase: 'Final', orden: 1, ...final.fila }], 'id_llave');
-  await insertar(client, 'llave_playoff', [
-    { ...base, fase: 'Semifinal', orden: 1, ...s1.fila, id_llave_siguiente: id_llave, es_local_siguiente: true },
-    { ...base, fase: 'Semifinal', orden: 2, ...s2.fila, id_llave_siguiente: id_llave, es_local_siguiente: false },
-  ]);
-  return final.ganador;
+
+  for (const [i, j] of juegos.entries()) {
+    const decisivo = i === juegos.length - 1;
+    const penGan = randInt(4, 5);
+    const penPer = randInt(2, penGan - 1);
+    const [{ id_partido: idPartido }] = await insertar(client, 'partido', [{
+      id_division: idDivision,
+      id_sede: sedePara(j.l),
+      id_equipo_local: j.l.id,
+      id_equipo_visitante: j.v.id,
+      fecha_partido: new Date(fecha.getTime() + i * 7 * DIA),
+      nombre_partido: j.nombre,
+      goles_local: goles[i].get(j.l.id),
+      goles_visitante: goles[i].get(j.v.id),
+      estado_partido: 2,
+      afecta_clasificacion: false,
+      id_llave: idLlave,
+      numero_juego: j.n,
+      id_equipo_desempate: decisivo && empate ? ganador.id : null,
+      penales_local: decisivo && empate ? (j.l === ganador ? penGan : penPer) : null,
+      penales_visitante: decisivo && empate ? (j.v === ganador ? penGan : penPer) : null,
+      datos_adicionales: JSON.stringify({ arbitro: pick(ARBITROS), planillero: pick(PLANILLEROS) }),
+    }], 'id_partido');
+    for (const eq of [j.l, j.v].filter((e) => e.arg)) {
+      const r = generarEstadisticas(plantelEdicion(eq.key, edicion), goles[i].get(eq.id), idPartido, eq.id, 99, { archivada: true, jornadasJugadas: 99 });
+      await insertar(client, 'partido_estadistica_jugador', r.filas);
+      await insertar(client, 'sancion_jugador', r.sanciones);
+    }
+  }
+  await recalcularLlave(client, idLlave);
+  return ganador;
+}
+
+/**
+ * Cuadro de 4 (semis + final) o solo final. formatoSemis: 'unico' o 'ida_vuelta'.
+ * Los partidos arrancan una semana después del último partido del torneo.
+ */
+async function jugarPlayoffs(client, divKey, posiciones, { campeonARG, soloFinal = false, copa = 'Unica', formatoSemis = 'unico', edicion = 'actual' }) {
+  const idDivision = ids.division[divKey];
+  const { rows: [{ ultimo }] } = await client.query(
+    `SELECT max(fecha_partido) AS ultimo FROM public.partido WHERE id_division = $1 AND activo`, [idDivision]
+  );
+  const fecha = new Date(new Date(ultimo).getTime() + 7 * DIA);
+  const base = { id_division: idDivision, activo: true, copa };
+  const datos = { idDivision, edicion };
+
+  if (soloFinal) {
+    const [{ id_llave }] = await insertar(client, 'llave_playoff', [{
+      ...base, fase: 'Final', orden: 1, formato: 'unico', id_equipo_local: posiciones[0].id, id_equipo_visitante: posiciones[1].id,
+    }], 'id_llave');
+    return jugarCruce(client, { ...datos, idLlave: id_llave, fase: 'Final', formato: 'unico', local: posiciones[0], visita: posiciones[1], ganaARG: campeonARG, fecha });
+  }
+
+  const [{ id_llave: idFinal }] = await insertar(client, 'llave_playoff', [{ ...base, fase: 'Final', orden: 1, formato: 'unico' }], 'id_llave');
+  const semis = await insertar(client, 'llave_playoff', [
+    { ...base, fase: 'Semifinal', orden: 1, formato: formatoSemis, id_equipo_local: posiciones[0].id, id_equipo_visitante: posiciones[3].id, id_llave_siguiente: idFinal, es_local_siguiente: true },
+    { ...base, fase: 'Semifinal', orden: 2, formato: formatoSemis, id_equipo_local: posiciones[1].id, id_equipo_visitante: posiciones[2].id, id_llave_siguiente: idFinal, es_local_siguiente: false },
+  ], 'id_llave');
+  const g1 = await jugarCruce(client, { ...datos, idLlave: semis[0].id_llave, fase: 'Semifinal', formato: formatoSemis, local: posiciones[0], visita: posiciones[3], ganaARG: true, fecha });
+  const g2 = await jugarCruce(client, { ...datos, idLlave: semis[1].id_llave, fase: 'Semifinal', formato: formatoSemis, local: posiciones[1], visita: posiciones[2], ganaARG: true, fecha });
+  const fechaFinal = new Date(fecha.getTime() + (formatoSemis === 'ida_vuelta' ? 14 : 7) * DIA);
+  return jugarCruce(client, { ...datos, idLlave: idFinal, fase: 'Final', formato: 'unico', local: g1, visita: g2, ganaARG: campeonARG, fecha: fechaFinal });
 }
 
 const semanal = (inicio) => (j) => inicio + (j - 1) * 7 * DIA;
@@ -504,6 +553,8 @@ async function limpiar(client) {
     ['cuerpo_tecnico', 'id_cuerpo_tecnico'], ['partido', 'id_partido'], ['jugador', 'id_jugador'], ['equipo', 'id_equipo'],
     ['division', 'id_division'], ['sede', 'id_sede'],
   ];
+  // Los partidos de cruce apuntan a su llave: se desligan antes de borrar las llaves
+  await client.query(`UPDATE public.partido SET id_llave = NULL WHERE id_llave IS NOT NULL`);
   for (const [tabla] of orden) await client.query(`DELETE FROM public.${tabla}`);
   for (const [tabla, col] of orden) await client.query(`ALTER TABLE public.${tabla} ALTER COLUMN ${col} RESTART WITH 1`);
 }
@@ -522,8 +573,9 @@ async function cargarEstructura(client) {
       nombre_division: d.nombre, categoria: d.categoria, genero: d.genero, temporada: d.temporada,
     }], 'id_division');
     ids.division[key] = id_division;
-    const eqs = await insertar(client, 'equipo', d.equipos.map((e) => ({
+    const eqs = await insertar(client, 'equipo', d.equipos.map((e, i) => ({
       id_division, nombre_equipo: e.nombre, nombre_corto: e.corto, es_argentinos_del_norte: e.arg,
+      zona: d.zonas ? d.zonas[i % d.zonas.length] : null,
     })), 'id_equipo, nombre_equipo');
     for (const e of d.equipos) {
       ids.equipo[e.key] = eqs.find((x) => x.nombre_equipo === e.nombre).id_equipo;
@@ -596,7 +648,7 @@ async function cargarApertura(client) {
   const primera = await jugarEdicion(client, 'PRIMERA', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 7, registrarCaja: true,
   });
-  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(0, 4), { campeonARG: true, copa: 'Oro' });
+  await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(0, 4), { campeonARG: true, copa: 'Oro', formatoSemis: 'ida_vuelta' });
   await jugarPlayoffs(client, 'PRIMERA', primera.posiciones.slice(4, 8), { campeonARG: false, copa: 'Plata' });
   const fem = await jugarEdicion(client, 'FEMENINO', {
     edicion: 'actual', fechaJornada: semanal(civil(Y, 3, 14)), jugadas: 5, registrarCaja: true,
@@ -839,6 +891,31 @@ async function verificar() {
     WHERE l->>'fase' = 'Final' AND l->>'copa' = 'Oro'
       AND (l->>'id_equipo_ganador')::bigint IS DISTINCT FROM h.id_equipo_campeon`);
   if (campeonMal) problemas.push(`${campeonMal} ediciones cuyo campeón no es el de Copa Oro`);
+
+  // Cruces: el ganador guardado coincide con lo que dicen sus partidos
+  const cruces = await q(`
+    SELECT lp.*, COALESCE((SELECT json_agg(p) FROM public.partido p WHERE p.id_llave = lp.id_llave AND p.activo), '[]') AS partidos
+    FROM public.llave_playoff lp WHERE lp.activo`);
+  const crucesMal = cruces.filter((l) => {
+    const r = decidirCruce(l, l.partidos);
+    return Number(r.id_equipo_ganador || 0) !== Number(l.id_equipo_ganador || 0) || r.estado_partido !== l.estado_partido;
+  }).length;
+  if (crucesMal) problemas.push(`${crucesMal} cruces cuyo ganador no coincide con sus partidos`);
+
+  const [{ n: cruceEnTabla }] = await q(`
+    SELECT count(*)::int AS n FROM public.partido WHERE id_llave IS NOT NULL AND afecta_clasificacion`);
+  if (cruceEnTabla) problemas.push(`${cruceEnTabla} partidos de cruce que suman a la tabla`);
+
+  const [{ n: zonasMal }] = await q(`
+    SELECT count(*)::int AS n FROM (
+      SELECT c.id_division, SUM(c.puntos) AS total,
+             (SELECT SUM(t) FROM (SELECT SUM(c2.puntos) AS t FROM public.clasificacion c2
+                                  JOIN public.equipo e2 ON e2.id_equipo = c2.id_equipo AND e2.activo
+                                  WHERE c2.id_division = c.id_division AND c2.activo GROUP BY e2.zona) z) AS por_zona
+      FROM public.clasificacion c JOIN public.equipo e ON e.id_equipo = c.id_equipo AND e.activo
+      WHERE c.activo GROUP BY c.id_division) x
+    WHERE total <> por_zona`);
+  if (zonasMal) problemas.push(`${zonasMal} torneos cuyas tablas por zona no suman la tabla total`);
 
   const divisiones = await q(`
     SELECT d.nombre_division, d.temporada, d.terminado,

@@ -187,10 +187,10 @@ const clonarTorneo = async (req, res) => {
       for (const eq of equiposOrigen) {
         const { rows: nuevoEqRows } = await client.query(
           `INSERT INTO public.equipo
-             (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte)
-           VALUES ($1, $2, $3, $4, $5)
+             (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte, zona)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id_equipo`,
-          [nuevoId, eq.nombre_equipo, eq.nombre_corto, eq.logo_url, eq.es_argentinos_del_norte]
+          [nuevoId, eq.nombre_equipo, eq.nombre_corto, eq.logo_url, eq.es_argentinos_del_norte, eq.zona]
         );
         mapaEquipos.set(eq.id_equipo, nuevoEqRows[0].id_equipo);
       }
@@ -307,6 +307,8 @@ const finalizarYArchivarTorneo = async (req, res) => {
       const { rows: partidosResultados } = await client.query(
         `SELECT p.id_partido, p.jornada_numero, p.nombre_partido, p.fecha_partido,
                 p.goles_local, p.goles_visitante, p.estado_partido,
+                p.id_llave, p.numero_juego, p.penales_local, p.penales_visitante, p.id_equipo_desempate,
+                p.id_equipo_local, p.id_equipo_visitante, el.zona AS zona_local, ev.zona AS zona_visitante,
                 el.nombre_equipo AS local_nombre, el.nombre_corto AS nombre_corto_local, el.logo_url AS local_logo, el.es_argentinos_del_norte AS local_es_club,
                 ev.nombre_equipo AS visitante_nombre, ev.nombre_corto AS nombre_corto_visitante, ev.logo_url AS visitante_logo, ev.es_argentinos_del_norte AS visitante_es_club,
                 s.nombre_sede

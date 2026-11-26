@@ -64,10 +64,11 @@ const crear = async (req, res) => {
       if (division.length === 0) return null;
 
       const { rows } = await client.query(
-        `INSERT INTO public.equipo (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO public.equipo (id_division, nombre_equipo, nombre_corto, logo_url, es_argentinos_del_norte, zona)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [id_division, nombre_equipo.trim(), nombre_corto?.trim() || null, logo_url || null, es_argentinos_del_norte ?? false]
+        [id_division, nombre_equipo.trim(), nombre_corto?.trim() || null, logo_url || null, es_argentinos_del_norte ?? false,
+          String(req.body.zona ?? '').trim() || null]
       );
       // El equipo entra a la tabla de posiciones en cero, sin esperar a que se juegue un partido.
       await client.query(
@@ -97,16 +98,20 @@ const actualizar = async (req, res) => {
     // logo_url solo cambia si viene en el body; null = volver al escudo/iniciales por defecto.
     // Las imágenes subidas antes no se borran: las siguen usando los historiales archivados.
     const cambiaLogo = Object.prototype.hasOwnProperty.call(req.body, 'logo_url');
+    // La zona, igual: solo cambia si viene; vacía = sin zona
+    const cambiaZona = Object.prototype.hasOwnProperty.call(req.body, 'zona');
     const { rows } = await query(
       `UPDATE public.equipo
        SET nombre_equipo          = COALESCE($1, nombre_equipo),
            nombre_corto           = COALESCE($2, nombre_corto),
            logo_url               = CASE WHEN $6 THEN $3 ELSE logo_url END,
            es_argentinos_del_norte = COALESCE($4, es_argentinos_del_norte),
+           zona                   = CASE WHEN $7 THEN $8 ELSE zona END,
            updated_at             = NOW()
        WHERE id_equipo = $5 AND activo = TRUE
        RETURNING *`,
-      [nombre_equipo?.trim(), nombre_corto?.trim(), logo_url || null, es_argentinos_del_norte, id, cambiaLogo]
+      [nombre_equipo?.trim(), nombre_corto?.trim(), logo_url || null, es_argentinos_del_norte, id, cambiaLogo,
+        cambiaZona, String(req.body.zona ?? '').trim() || null]
     );
     if (rows.length === 0) return respuestaError(res, 'Equipo no encontrado.', 404);
     return respuestaExito(res, rows[0], 'Equipo actualizado correctamente.');

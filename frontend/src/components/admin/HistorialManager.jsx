@@ -6,6 +6,7 @@ import ConfirmModal from '../ui/ConfirmModal';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha } from '../../utils/fechas';
+import { agruparPorZona } from '../../utils/zonas';
 import { ETIQUETA_COPA, normalizarLlave } from '../../utils/playoffs';
 import {
   FaTrophy,
@@ -406,8 +407,14 @@ export default function HistorialManager({ onActualizarTorneos }) {
                         <th className="p-3.5 text-center font-bold">DIF</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 font-title text-xs">
-                      {tablaPosiciones.map((c, index) => {
+                    {agruparPorZona(tablaPosiciones).map((grupo) => (
+                    <tbody key={grupo.titulo || 'tabla'} className="divide-y divide-slate-100 font-title text-xs">
+                      {grupo.titulo && (
+              <tr className="bg-slate-100/80">
+                <td colSpan={10} className="p-2.5 font-headline uppercase tracking-wider text-[11px] text-slate-600">{grupo.titulo}</td>
+              </tr>
+            )}
+                      {grupo.filas.map((c, index) => {
                         const esPrimero = index === 0;
                         const esSegundo = index === 1;
                         const esTercero = index === 2;
@@ -473,6 +480,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
                         );
                       })}
                     </tbody>
+                    ))}
                   </table>
                 </div>
               )}

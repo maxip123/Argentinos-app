@@ -15,15 +15,15 @@ const {
 } = require('../controllers/equipo.controller');
 const { verificarToken, verificarRol } = require('../middlewares/auth.middleware');
 const { validar } = require('../middlewares/validar.middleware');
-const { validarCrearEquipo, validarIdParam, validarLogoUrl, validarSubirLogo } = require('../utils/validators');
+const { validarCrearEquipo, validarZonaEquipo, validarIdParam, validarLogoUrl, validarSubirLogo } = require('../utils/validators');
 
 const router = Router();
 
 // Equipos generales
 router.get('/',       obtenerTodos);
 router.get('/:id',    validarIdParam, validar, obtenerPorId);
-router.post('/',      verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearEquipo, validarLogoUrl, validar, crear);
-router.put('/:id',    verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validarLogoUrl, validar, actualizar);
+router.post('/',      verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearEquipo, validarZonaEquipo, validarLogoUrl, validar, crear);
+router.put('/:id',    verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validarZonaEquipo, validarLogoUrl, validar, actualizar);
 
 // Logo subido (la lectura es pública: es el escudo que se ve en el sitio)
 router.get('/logos/:id', validarIdParam, validar, obtenerLogo);

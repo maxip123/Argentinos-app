@@ -2,6 +2,30 @@ const { query, withTransaction } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
 
 const COPAS = ['Unica', 'Oro', 'Plata'];
+const FORMATOS = ['unico', 'ida_vuelta'];
+
+// Da de baja los partidos de las llaves indicadas y resincroniza lo que dependía de ellos
+async function bajaPartidosDeLlaves(client, idsLlave) {
+  if (idsLlave.length === 0) return;
+  const { rows: partidos } = await client.query(
+    `UPDATE public.partido SET activo = FALSE, updated_at = NOW()
+     WHERE id_llave = ANY($1::bigint[]) AND activo
+     RETURNING id_partido, id_division`,
+    [idsLlave]
+  );
+  if (partidos.length === 0) return;
+  const { rows: jugadores } = await client.query(
+    `SELECT DISTINCT id_jugador FROM public.partido_estadistica_jugador WHERE id_partido = ANY($1::bigint[])`,
+    [partidos.map((p) => p.id_partido)]
+  );
+  for (const j of jugadores) {
+    await client.query(`SELECT public.sincronizar_estadisticas_jugador($1)`, [j.id_jugador]);
+  }
+  // Los partidos de cruce no suman a la tabla, pero se recalcula por las dudas
+  for (const idDivision of new Set(partidos.map((p) => p.id_division))) {
+    await client.query(`SELECT public.recalcular_clasificacion_division($1)`, [idDivision]);
+  }
+}
 
 /**
  * GET /api/playoff/:id_division
@@ -14,7 +38,20 @@ const obtenerPorDivision = async (req, res) => {
       `SELECT lp.*,
               el.nombre_equipo AS equipo_local_nombre,  el.nombre_corto AS nombre_corto_local,  el.logo_url AS logo_local,  el.es_argentinos_del_norte AS local_es_argentinos,
               ev.nombre_equipo AS equipo_visitante_nombre, ev.nombre_corto AS nombre_corto_visitante, ev.logo_url AS logo_visitante, ev.es_argentinos_del_norte AS visitante_es_argentinos,
-              eg.nombre_equipo AS equipo_ganador_nombre
+              eg.nombre_equipo AS equipo_ganador_nombre,
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                         'id_partido', p.id_partido, 'numero_juego', p.numero_juego, 'fecha_partido', p.fecha_partido,
+                         'nombre_sede', s.nombre_sede, 'id_equipo_local', p.id_equipo_local,
+                         'id_equipo_visitante', p.id_equipo_visitante, 'goles_local', p.goles_local,
+                         'goles_visitante', p.goles_visitante, 'penales_local', p.penales_local,
+                         'penales_visitante', p.penales_visitante, 'id_equipo_desempate', p.id_equipo_desempate,
+                         'estado_partido', p.estado_partido)
+                       ORDER BY p.numero_juego)
+                FROM public.partido p
+                JOIN public.sede s ON s.id_sede = p.id_sede
+                WHERE p.id_llave = lp.id_llave AND p.activo
+              ), '[]'::json) AS partidos
        FROM public.llave_playoff lp
        LEFT JOIN public.equipo el ON el.id_equipo = lp.id_equipo_local
        LEFT JOIN public.equipo ev ON ev.id_equipo = lp.id_equipo_visitante
@@ -39,6 +76,11 @@ const obtenerPorDivision = async (req, res) => {
 const generarBracket = async (req, res) => {
   try {
     const { id_division, cantidad_equipos, copa = 'Unica' } = req.body;
+    // Formato de cada ronda: { 'Cuartos de Final': 'ida_vuelta', ... }; lo que no viene es partido único
+    const formatos = req.body.formatos && typeof req.body.formatos === 'object' ? req.body.formatos : {};
+    if (Object.values(formatos).some((f) => !FORMATOS.includes(f))) {
+      return respuestaError(res, 'El formato de cada ronda debe ser partido único o ida y vuelta.', 422);
+    }
 
     if (!id_division) {
       return respuestaError(res, 'El ID de la división es obligatorio.', 422);
@@ -124,10 +166,10 @@ const generarBracket = async (req, res) => {
     await withTransaction(async (client) => {
       for (const l of llavesFinales) {
         const { rows } = await client.query(
-          `INSERT INTO public.llave_playoff (id_division, fase, orden, es_local_siguiente, copa)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO public.llave_playoff (id_division, fase, orden, es_local_siguiente, copa, formato)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id_llave`,
-          [l.id_division, l.fase, l.orden, l.es_local_siguiente, copa]
+          [l.id_division, l.fase, l.orden, l.es_local_siguiente, copa, formatos[l.fase] || 'unico']
         );
         mapaIds.set(l.virtual_id, rows[0].id_llave);
       }
@@ -161,121 +203,57 @@ const generarBracket = async (req, res) => {
 
 /**
  * PUT /api/playoff/:id
- * Actualiza los datos, equipos y resultado de una llave.
- * Si se marca como terminado (estado_partido = 2), avanza automáticamente al ganador a la siguiente ronda.
+ * Edita los equipos o el formato de un cruce. El resultado ya no se carga acá: sale de sus partidos
+ * (ver utils/cruces.js). Equipos y formato solo se pueden cambiar mientras el cruce no tenga partidos.
  */
 const actualizarResultado = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      id_equipo_local,
-      id_equipo_visitante,
-      goles_local,
-      goles_visitante,
-      penales_local,
-      penales_visitante,
-      estado_partido,
-      id_equipo_ganador,
-    } = req.body;
-
-    // 1. Obtener la llave actual para preservar campos no enviados
-    const { rows: existente } = await query(
-      `SELECT * FROM public.llave_playoff WHERE id_llave = $1 AND activo = TRUE`,
-      [id]
-    );
-
-    if (existente.length === 0) {
-      return respuestaError(res, 'Llave de playoff no encontrada.', 404);
+    const { id_equipo_local, id_equipo_visitante, formato } = req.body;
+    if (formato !== undefined && !FORMATOS.includes(formato)) {
+      return respuestaError(res, 'El formato debe ser partido único o ida y vuelta.', 422);
     }
 
-    const actual = existente[0];
-
-    const nuevoLocal = id_equipo_local !== undefined ? (id_equipo_local ? parseInt(id_equipo_local) : null) : actual.id_equipo_local;
-    const nuevoVisitante = id_equipo_visitante !== undefined ? (id_equipo_visitante ? parseInt(id_equipo_visitante) : null) : actual.id_equipo_visitante;
-    const nuevosGolesLocal = goles_local !== undefined ? (goles_local === '' || goles_local === null ? null : parseInt(goles_local)) : actual.goles_local;
-    const nuevosGolesVisitante = goles_visitante !== undefined ? (goles_visitante === '' || goles_visitante === null ? null : parseInt(goles_visitante)) : actual.goles_visitante;
-    const nuevosPenalesLocal = penales_local !== undefined ? (penales_local === '' || penales_local === null ? null : parseInt(penales_local)) : actual.penales_local;
-    const nuevosPenalesVisitante = penales_visitante !== undefined ? (penales_visitante === '' || penales_visitante === null ? null : parseInt(penales_visitante)) : actual.penales_visitante;
-    const nuevoEstado = estado_partido !== undefined ? parseInt(estado_partido) : actual.estado_partido;
-    const ganadorElegido = id_equipo_ganador !== undefined ? (id_equipo_ganador ? parseInt(id_equipo_ganador) : null) : actual.id_equipo_ganador;
-
-    // El resultado define al ganador; la elección manual solo vale para desempatar por penales
-    const hayResultado = nuevosGolesLocal !== null && nuevosGolesVisitante !== null;
-    let nuevoGanador = ganadorElegido;
-    if (hayResultado && nuevosGolesLocal !== nuevosGolesVisitante) {
-      if (nuevoEstado === 2) {
-        nuevoGanador = nuevosGolesLocal > nuevosGolesVisitante ? nuevoLocal : nuevoVisitante;
-      } else {
-        nuevoGanador = null;
-      }
-    }
-
-    const { rows } = await query(
-      `UPDATE public.llave_playoff
-       SET id_equipo_local    = $1,
-           id_equipo_visitante= $2,
-           goles_local        = $3,
-           goles_visitante    = $4,
-           penales_local      = $5,
-           penales_visitante  = $6,
-           estado_partido     = $7,
-           id_equipo_ganador  = $8,
-           updated_at         = NOW()
-       WHERE id_llave = $9 AND activo = TRUE
-       RETURNING *`,
-      [
-        nuevoLocal,
-        nuevoVisitante,
-        nuevosGolesLocal,
-        nuevosGolesVisitante,
-        nuevosPenalesLocal,
-        nuevosPenalesVisitante,
-        nuevoEstado,
-        nuevoGanador,
-        id,
-      ]
-    );
-
-    const llave = rows[0];
-
-    // Si el partido está terminado (estado_partido = 2), calcular ganador y avanzar a la siguiente llave
-    if (llave.estado_partido === 2 && llave.id_llave_siguiente) {
-      const gl = llave.goles_local;
-      const gv = llave.goles_visitante;
-      let ganadorId = null;
-
-      if (gl !== null && gv !== null) {
-        if (gl > gv) {
-          ganadorId = llave.id_equipo_local;
-        } else if (gv > gl) {
-          ganadorId = llave.id_equipo_visitante;
-        } else {
-          // Empate: ganador por penales
-          ganadorId = llave.id_equipo_ganador;
-        }
-      }
-
-      if (ganadorId) {
-        const campoSiguiente = llave.es_local_siguiente ? 'id_equipo_local' : 'id_equipo_visitante';
-        await query(
-          `UPDATE public.llave_playoff
-           SET ${campoSiguiente} = $1, updated_at = NOW()
-           WHERE id_llave = $2 AND activo = TRUE`,
-          [ganadorId, llave.id_llave_siguiente]
-        );
-      }
-    } else if (actual.estado_partido === 2 && nuevoEstado !== 2 && llave.id_llave_siguiente) {
-      // Si se desmarcó de terminado, limpiar el cupo avanzado si la llave siguiente aún no se jugó
-      const campoSiguiente = llave.es_local_siguiente ? 'id_equipo_local' : 'id_equipo_visitante';
-      await query(
-        `UPDATE public.llave_playoff
-         SET ${campoSiguiente} = NULL, updated_at = NOW()
-         WHERE id_llave = $1 AND activo = TRUE AND estado_partido = 0`,
-        [llave.id_llave_siguiente]
+    const resultado = await withTransaction(async (client) => {
+      const { rows: [actual] } = await client.query(
+        `SELECT * FROM public.llave_playoff WHERE id_llave = $1 AND activo = TRUE FOR UPDATE`, [id]
       );
-    }
+      if (!actual) return { codigo: 404 };
 
-    return respuestaExito(res, llave, 'Llave actualizada correctamente.');
+      const aId = (v, previo) => (v === undefined ? (previo ? Number(previo) : null) : (v ? parseInt(v, 10) : null));
+      const nuevoLocal = aId(id_equipo_local, actual.id_equipo_local);
+      const nuevoVisitante = aId(id_equipo_visitante, actual.id_equipo_visitante);
+      const nuevoFormato = formato ?? actual.formato;
+      const cambia = nuevoLocal !== (actual.id_equipo_local ? Number(actual.id_equipo_local) : null)
+        || nuevoVisitante !== (actual.id_equipo_visitante ? Number(actual.id_equipo_visitante) : null)
+        || nuevoFormato !== actual.formato;
+      if (!cambia) return { codigo: 200, llave: actual };
+
+      if (nuevoLocal && nuevoLocal === nuevoVisitante) return { codigo: 400, mensaje: 'Un equipo no puede jugar contra sí mismo.' };
+      const { rows: [{ partidos }] } = await client.query(
+        `SELECT count(*)::int AS partidos FROM public.partido WHERE id_llave = $1 AND activo`, [id]
+      );
+      if (partidos > 0) {
+        return { codigo: 400, mensaje: 'El cruce ya tiene partidos cargados: para cambiar los equipos o el formato, primero eliminá esos partidos.' };
+      }
+      for (const idEquipo of [nuevoLocal, nuevoVisitante].filter(Boolean)) {
+        const { rows } = await client.query(
+          `SELECT 1 FROM public.equipo WHERE id_equipo = $1 AND id_division = $2 AND activo`, [idEquipo, actual.id_division]
+        );
+        if (rows.length === 0) return { codigo: 400, mensaje: 'Los equipos del cruce tienen que ser de este torneo.' };
+      }
+      const { rows: [llave] } = await client.query(
+        `UPDATE public.llave_playoff
+         SET id_equipo_local = $1, id_equipo_visitante = $2, formato = $3, updated_at = NOW()
+         WHERE id_llave = $4 RETURNING *`,
+        [nuevoLocal, nuevoVisitante, nuevoFormato, id]
+      );
+      return { codigo: 200, llave };
+    });
+
+    if (resultado.codigo === 404) return respuestaError(res, 'Llave de playoff no encontrada.', 404);
+    if (resultado.codigo === 400) return respuestaError(res, resultado.mensaje, 400);
+    return respuestaExito(res, resultado.llave, 'Llave actualizada correctamente.');
   } catch (error) {
     console.error('[playoff.controller] actualizarResultado error:', error);
     return respuestaError(res, 'Error al actualizar la llave.', 500, error.message);
@@ -296,11 +274,16 @@ const reiniciarBracket = async (req, res) => {
       return respuestaError(res, 'La copa debe ser Unica, Oro o Plata.', 422);
     }
 
-    await query(
-      `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW()
-       WHERE id_division = $1 AND activo = TRUE AND ($2::varchar IS NULL OR copa = $2)`,
-      [id_division, copa ?? null]
-    );
+    await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW()
+         WHERE id_division = $1 AND activo = TRUE AND ($2::varchar IS NULL OR copa = $2)
+         RETURNING id_llave`,
+        [id_division, copa ?? null]
+      );
+      // Los partidos de esos cruces también se dan de baja
+      await bajaPartidosDeLlaves(client, rows.map((r) => r.id_llave));
+    });
     return respuestaExito(res, null, 'Cuadro de playoff reiniciado correctamente.');
   } catch (error) {
     console.error('[playoff.controller] reiniciarBracket error:', error);
@@ -314,10 +297,14 @@ const reiniciarBracket = async (req, res) => {
  */
 const eliminar = async (req, res) => {
   try {
-    const { rows } = await query(
-      `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_llave = $1 AND activo = TRUE RETURNING id_llave`,
-      [req.params.id]
-    );
+    const rows = await withTransaction(async (client) => {
+      const { rows: bajas } = await client.query(
+        `UPDATE public.llave_playoff SET activo = FALSE, updated_at = NOW() WHERE id_llave = $1 AND activo = TRUE RETURNING id_llave`,
+        [req.params.id]
+      );
+      await bajaPartidosDeLlaves(client, bajas.map((r) => r.id_llave));
+      return bajas;
+    });
     if (rows.length === 0) return respuestaError(res, 'Llave no encontrada.', 404);
     return respuestaExito(res, null, 'Llave eliminada correctamente.');
   } catch (error) {

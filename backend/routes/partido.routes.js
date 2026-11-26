@@ -11,7 +11,7 @@ const {
 } = require('../controllers/partido.controller');
 const { verificarToken, verificarRol } = require('../middlewares/auth.middleware');
 const { validar } = require('../middlewares/validar.middleware');
-const { validarCrearPartido, validarIdParam } = require('../utils/validators');
+const { validarCrearPartido, validarActualizarPartido, validarIdParam } = require('../utils/validators');
 
 const router = Router();
 
@@ -24,7 +24,7 @@ router.get('/:id',               validarIdParam, validar, obtenerPorId);
 router.get('/:id/estadisticas',  verificarToken, validarIdParam, validar, obtenerEstadisticasPartido);
 router.post('/',                 verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarCrearPartido, validar, crear);
 router.post('/:id/estadisticas', verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, guardarEstadisticasPartido);
-router.put('/:id',               verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, actualizar);
+router.put('/:id',               verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarActualizarPartido, validar, actualizar);
 router.delete('/:id',            verificarToken, verificarRol('Superadmin', 'Administrador', 'Delegado'), validarIdParam, validar, eliminar);
 
 module.exports = router;

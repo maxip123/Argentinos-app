@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import EscudoEquipo from '../ui/EscudoEquipo';
+import { agruparPorZona, zonasExistentes } from '../../utils/zonas';
 import { resumenDeudaJugador } from '../../utils/cobros';
 import SelectorLogo from './SelectorLogo';
 import { valorLogoInicial, errorLogo, camposLogo } from '../../utils/logos';
@@ -533,7 +534,10 @@ function ModalAsignarStaff({ idEquipo, nombreEquipo, onClose, onSuccess }) {
 export default function EquiposManager({ divisiones = [], divisionInicialId = '' }) {
   const [divisionSel, setDivisionSel] = useState(divisionInicialId || (divisiones[0]?.id_division || ''));
   const [equipos, setEquipos] = useState([]);
-  const paginacion = usePaginacion(equipos, 12, divisionSel);
+  // Con zonas, los equipos se listan agrupados por zona (A, B, ..., sin zona al final)
+  const equiposPorZona = agruparPorZona(equipos).flatMap((g) => g.filas);
+  const zonasDelTorneo = zonasExistentes(equipos);
+  const paginacion = usePaginacion(equiposPorZona, 12, divisionSel);
   const [cargando, setCargando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
@@ -547,6 +551,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     nombre_equipo: '',
     nombre_corto: '',
     es_argentinos_del_norte: false,
+    zona: '',
   });
 
   // Vista activa de un Equipo de Argentinos del Norte (Plantel y Cuerpo Técnico)
@@ -655,6 +660,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
         nombre_corto: nuevoEquipo.nombre_corto?.trim() || null,
         ...camposLogo(logoNuevo),
         es_argentinos_del_norte: Boolean(nuevoEquipo.es_argentinos_del_norte),
+        zona: nuevoEquipo.zona?.trim() || null,
       });
       const logoOk = await subirLogoSiHay(res.data.data.id_equipo, logoNuevo);
 
@@ -664,6 +670,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
         nombre_equipo: '',
         nombre_corto: '',
         es_argentinos_del_norte: false,
+        zona: '',
       });
       setLogoNuevo(valorLogoInicial(null));
       cargarEquipos();
@@ -679,6 +686,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
     nombre_equipo: '',
     nombre_corto: '',
     es_argentinos_del_norte: false,
+    zona: '',
   });
 
   const iniciarEdicionEquipo = (eq) => {
@@ -688,6 +696,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
       nombre_equipo: eq.nombre_equipo || '',
       nombre_corto: eq.nombre_corto || '',
       es_argentinos_del_norte: Boolean(eq.es_argentinos_del_norte),
+      zona: eq.zona || '',
     });
     setLogoEditar(valorLogoInicial(eq.logo_url));
   };
@@ -711,6 +720,7 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
         nombre_corto: formEditarEquipo.nombre_corto?.trim() || null,
         ...camposLogo(logoEditar),
         es_argentinos_del_norte: Boolean(formEditarEquipo.es_argentinos_del_norte),
+        zona: formEditarEquipo.zona?.trim() || null,
       });
       const logoOk = await subirLogoSiHay(equipoEditando.id_equipo, logoEditar);
 
@@ -1240,6 +1250,16 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body uppercase"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">Zona</label>
+                  <input
+                    type="text" maxLength={20} list="zonas-torneo"
+                    placeholder="A, B... (vacío = sin zona)"
+                    value={nuevoEquipo.zona}
+                    onChange={(e) => setNuevoEquipo({ ...nuevoEquipo, zona: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body"
+                  />
+                </div>
                 <div className="flex items-center pt-2 sm:col-span-3">
                   <label className="flex items-center gap-2 cursor-pointer select-none bg-red-50/50 border border-red-200 px-4 py-2.5 rounded-xl w-full">
                     <input
@@ -1314,6 +1334,16 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body uppercase focus:outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">Zona</label>
+                  <input
+                    type="text" maxLength={20} list="zonas-torneo"
+                    placeholder="A, B... (vacío = sin zona)"
+                    value={formEditarEquipo.zona}
+                    onChange={(e) => setFormEditarEquipo({ ...formEditarEquipo, zona: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-body focus:outline-none"
+                  />
+                </div>
                 <div className="flex items-center pt-2 sm:col-span-3">
                   <label className="flex items-center gap-2 cursor-pointer select-none bg-red-50/50 border border-red-200 px-4 py-2.5 rounded-xl w-full">
                     <input
@@ -1354,6 +1384,11 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
             </div>
           )}
 
+          {/* Sugerencias para el campo Zona: las zonas ya usadas en el torneo */}
+          <datalist id="zonas-torneo">
+            {zonasDelTorneo.map((z) => <option key={z} value={z} />)}
+          </datalist>
+
           {/* Grid de Equipos */}
           <div id={paginacion.idLista} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 scroll-mt-24">
             {paginacion.visibles.map((eq) => {
@@ -1384,6 +1419,11 @@ export default function EquiposManager({ divisiones = [], divisionInicialId = ''
                           {eq.nombre_corto && (
                             <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                               {eq.nombre_corto}
+                            </span>
+                          )}
+                          {eq.zona && (
+                            <span className="bg-blue-50 text-[#151f89] border border-blue-200 text-[10px] px-2 py-0.5 rounded font-title font-bold uppercase">
+                              Zona {eq.zona}
                             </span>
                           )}
                           {esClub ? (

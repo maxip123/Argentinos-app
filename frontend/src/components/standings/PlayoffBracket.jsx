@@ -8,9 +8,11 @@ import {
   copasDe,
   ganadorDeLlave,
   normalizarLlave,
+  resumenCruce,
 } from '../../utils/playoffs';
 
-export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando = false }) {
+// partidos: en el historial, los partidos del snapshot (con id_llave) para mostrar el detalle de cada cruce
+export default function PlayoffBracket({ llaves: llavesRecibidas = [], partidos: partidosHistorial = null, cargando = false }) {
   const [copaElegida, setCopaElegida] = useState(null);
 
   if (cargando) {
@@ -42,7 +44,12 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
     );
   }
 
-  const todasLasLlaves = llavesRecibidas.map(normalizarLlave);
+  const todasLasLlaves = llavesRecibidas.map((l) => {
+    const llave = normalizarLlave(l);
+    if (Array.isArray(llave.partidos) || !Array.isArray(partidosHistorial)) return llave;
+    const propios = partidosHistorial.filter((p) => p.id_llave && Number(p.id_llave) === Number(llave.id_llave));
+    return propios.length ? { ...llave, partidos: propios } : llave;
+  });
   const copas = copasDe(todasLasLlaves);
   const copaActiva = copas.includes(copaElegida) ? copaElegida : copas[0];
   const hayCopas = copaActiva !== 'Unica';
@@ -144,6 +151,13 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                     {llavesDeFase.map((llave) => {
                       const ganadorId = ganadorDeLlave(llave);
                       const penales = esPorPenales(llave);
+                      const resumen = resumenCruce(llave);
+                      const jugados = resumen.partidos.filter((p) => p.jugado);
+                      // Detalle de ida y vuelta, y desempate si lo hubo
+                      const detalle = [
+                        ...(llave.formato === 'ida_vuelta' ? jugados.map((p) => `${p.etiqueta} ${p.local}-${p.visitante}`) : []),
+                        resumen.desempate,
+                      ].filter(Boolean).join(' · ');
                       const localGano =
                         ganadorId !== null &&
                         ganadorId === Number(llave.id_equipo_local);
@@ -161,8 +175,10 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                             <span>Partido {llave.orden}</span>
                             {llave.estado_partido === 2 ? (
                               <span className="text-emerald-700 font-bold">
-                                {penales ? 'Penales' : 'Finalizado'}
+                                {penales ? 'Desempate' : 'Finalizado'}
                               </span>
+                            ) : llave.estado_partido === 1 ? (
+                              <span className="text-amber-700 font-bold">En juego</span>
                             ) : (
                               <span className="text-slate-400">Por Jugar</span>
                             )}
@@ -203,7 +219,7 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                                   : 'bg-slate-100 text-slate-600'
                               }`}
                             >
-                              {llave.estado_partido === 2 ? llave.goles_local : '-'}
+                              {resumen.global ? resumen.global.local : '-'}
                             </span>
                           </div>
 
@@ -242,9 +258,15 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], cargando 
                                   : 'bg-slate-100 text-slate-600'
                               }`}
                             >
-                              {llave.estado_partido === 2 ? llave.goles_visitante : '-'}
+                              {resumen.global ? resumen.global.visitante : '-'}
                             </span>
                           </div>
+
+                          {detalle && (
+                            <div className="px-3 py-1.5 border-t border-slate-100 bg-slate-50 text-[10px] font-title text-slate-600">
+                              {detalle}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

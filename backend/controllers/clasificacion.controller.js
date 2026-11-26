@@ -28,7 +28,7 @@ const obtenerPorDivision = async (req, res) => {
 const obtenerDetallePorDivision = async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT c.*, e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte,
+      `SELECT c.*, e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte, e.zona,
               pu.nombre_completo AS ajustado_por_nombre
        FROM public.clasificacion c
        INNER JOIN public.equipo e ON e.id_equipo = c.id_equipo AND e.activo = TRUE

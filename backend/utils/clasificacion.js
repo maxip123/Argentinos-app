@@ -4,7 +4,7 @@ const SQL_TABLA_PUBLICA = `
   SELECT c.id_clasificacion, c.id_division, c.id_equipo,
          c.puntos, c.partidos_jugados, c.partidos_ganados, c.partidos_empatados, c.partidos_perdidos,
          c.goles_a_favor, c.goles_en_contra, c.diferencia_gol,
-         e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte
+         e.nombre_equipo, e.nombre_corto, e.logo_url, e.es_argentinos_del_norte, e.zona
   FROM public.clasificacion c
   INNER JOIN public.equipo e ON e.id_equipo = c.id_equipo AND e.activo = TRUE
   WHERE c.id_division = $1 AND c.activo = TRUE

@@ -266,7 +266,7 @@ function DetalleHistorial({ id }) {
             {tabActiva === 'posiciones' && <StandingsTable clasificacion={h.tabla_posiciones} cargando={false} />}
             {tabActiva === 'goleadores' && <ScorersTable goleadores={h.goleadores_club} cargando={false} soloClub />}
             {tabActiva === 'tarjetas' && <CardsTable tarjetas={h.tarjetas_club} cargando={false} soloClub />}
-            {tabActiva === 'playoff' && <PlayoffBracket llaves={h.playoffs} cargando={false} />}
+            {tabActiva === 'playoff' && <PlayoffBracket llaves={h.playoffs} partidos={h.partidos} cargando={false} />}
             {tabActiva === 'partidos' && <FixtureList partidos={h.partidos} cargando={false} />}
           </main>
         </>

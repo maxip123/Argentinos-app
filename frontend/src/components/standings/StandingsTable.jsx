@@ -1,5 +1,6 @@
 import React from 'react';
 import EscudoEquipo from '../ui/EscudoEquipo';
+import { agruparPorZona } from '../../utils/zonas';
 
 export default function StandingsTable({ clasificacion = [], cargando = false }) {
   if (cargando) {
@@ -44,8 +45,15 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
               <th className="py-3.5 px-4 text-center font-headline text-[#151f89] text-base" title="Puntos">PTS</th>
             </tr>
           </thead>
-          <tbody className="font-body text-sm text-slate-800 divide-y divide-slate-100">
-            {clasificacion.map((fila, index) => {
+          {agruparPorZona(clasificacion).map((grupo) => (
+          <tbody key={grupo.titulo || 'tabla'} className="font-body text-sm text-slate-800 divide-y divide-slate-100">
+            {grupo.titulo && (
+              <tr className="bg-slate-100/80">
+                <td colSpan={10} className="py-2 px-4 font-headline uppercase tracking-wider text-xs text-[#151f89]">{grupo.titulo}</td>
+              </tr>
+            )}
+            {grupo.filas.map((fila, index) => {
+              // Con zonas, la posición se cuenta dentro de cada zona
               const pos = index + 1;
               const esClub = fila.es_argentinos_del_norte;
               const difGol = fila.diferencia_gol;
@@ -139,6 +147,7 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
               );
             })}
           </tbody>
+          ))}
         </table>
       </div>
 

@@ -14,6 +14,9 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import Paginacion from '../components/ui/Paginacion';
 import usePaginacion from '../hooks/usePaginacion';
 import { aInputFechaHora, desdeInputFechaHora } from '../utils/fechas';
+import { esInterzonal } from '../utils/zonas';
+import { necesitaDesempateFront, desempateInicial } from '../utils/playoffs';
+import DesempateCruce from '../components/admin/DesempateCruce';
 import {
   FaTrophy,
   FaCalendarAlt,
@@ -120,6 +123,8 @@ export default function AdminPage() {
 
   // Formulario de resultado de partido
   const [partidoEditando, setPartidoEditando] = useState(null);
+  // Desempate del partido que define un cruce del cuadro (quién pasa y penales opcionales)
+  const [desempate, setDesempate] = useState(desempateInicial(null));
   const [formResultado, setFormResultado] = useState({
     goles_local: 0,
     goles_visitante: 0,
@@ -204,6 +209,7 @@ export default function AdminPage() {
   // Iniciar edición de resultado y cargar estadísticas si juega Argentinos del Norte
   const iniciarEdicionPartido = async (p) => {
     setPartidoEditando(p);
+    setDesempate(desempateInicial(p));
     setFormResultado({
       goles_local: p.goles_local || 0,
       goles_visitante: p.goles_visitante || 0,
@@ -269,6 +275,14 @@ export default function AdminPage() {
   const handleGuardarResultado = async (e) => {
     e.preventDefault();
     if (!partidoEditando) return;
+    // Partido que define un cruce empatado: hay que elegir quién pasa antes de finalizarlo
+    const hayQueDesempatar = Number(formResultado.estado_partido) === 2
+      && necesitaDesempateFront(partidoEditando, formResultado.goles_local, formResultado.goles_visitante);
+    if (hayQueDesempatar && !desempate.id_equipo_desempate) {
+      mostrarMensaje('error', 'El cruce está empatado: elegí quién pasa.');
+      return;
+    }
+    const numeroONull = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
     setCargandoAccion(true);
     try {
       // 1. Guardar resultado global
@@ -276,6 +290,11 @@ export default function AdminPage() {
         goles_local: Number(formResultado.goles_local),
         goles_visitante: Number(formResultado.goles_visitante),
         estado_partido: Number(formResultado.estado_partido),
+        ...(partidoEditando.id_llave && {
+          id_equipo_desempate: hayQueDesempatar ? Number(desempate.id_equipo_desempate) : null,
+          penales_local: hayQueDesempatar ? numeroONull(desempate.penales_local) : null,
+          penales_visitante: hayQueDesempatar ? numeroONull(desempate.penales_visitante) : null,
+        }),
       });
 
       // 2. Si juega Argentinos del Norte, guardar estadísticas individuales
@@ -1047,6 +1066,18 @@ export default function AdminPage() {
                     </div>
                   </div>
 
+                  {Number(formResultado.estado_partido) === 2 && (
+                    <div className="mt-3">
+                      <DesempateCruce
+                        partido={partidoEditando}
+                        golesLocal={formResultado.goles_local}
+                        golesVisitante={formResultado.goles_visitante}
+                        valor={desempate}
+                        onChange={setDesempate}
+                      />
+                    </div>
+                  )}
+
                   {/* Sección Estadísticas Exclusivas Argentinos del Norte */}
                   {(partidoEditando.local_es_argentinos || partidoEditando.visitante_es_argentinos) && (
                     <div className="mt-4 pt-4 border-t border-[#151f89]/20 space-y-3">
@@ -1372,6 +1403,9 @@ export default function AdminPage() {
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-500 font-mono">
                           {p.nombre_partido || `Fecha ${p.jornada_numero}`}
+                          {esInterzonal(p) && (
+                            <span className="ml-1.5 align-middle bg-blue-50 text-[#151f89] border border-blue-200 text-[9px] px-1.5 py-0.5 rounded font-title font-bold uppercase">Interzonal</span>
+                          )}
                         </span>
                         <EstadoPartido estado={p.estado_partido} className="text-[10px] px-2 py-0.5 rounded-full" />
                       </div>
@@ -1433,6 +1467,9 @@ export default function AdminPage() {
                       <tr key={p.id_partido} className="hover:bg-slate-50/80">
                         <td className="p-3.5 font-bold text-slate-500">
                           {p.nombre_partido || `Fecha ${p.jornada_numero}`}
+                          {esInterzonal(p) && (
+                            <span className="ml-1.5 align-middle bg-blue-50 text-[#151f89] border border-blue-200 text-[9px] px-1.5 py-0.5 rounded font-title font-bold uppercase">Interzonal</span>
+                          )}
                         </td>
                         <td className="p-3.5 font-bold text-slate-900">{p.equipo_local}</td>
                         <td className="p-3.5 text-center font-headline text-base text-slate-900">

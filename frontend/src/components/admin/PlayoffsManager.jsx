@@ -7,7 +7,11 @@ import {
   campeonDeLlaves,
   copasDe,
   ganadorDeLlave,
+  FORMATOS_CRUCE,
+  resumenCruce,
+  nombrePartidoCruce,
 } from '../../utils/playoffs';
+import { formatFecha, desdeInputFechaHora } from '../../utils/fechas';
 import {
   FaTrophy,
   FaProjectDiagram,
@@ -22,7 +26,6 @@ import {
   FaEdit,
   FaEye,
   FaArrowLeft,
-  FaFutbol,
 } from 'react-icons/fa';
 
 export default function PlayoffsManager({
@@ -45,6 +48,9 @@ export default function PlayoffsManager({
   const [vistaActiva, setVistaActiva] = useState('editor'); // 'editor' | 'diagrama'
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   const [modalReiniciar, setModalReiniciar] = useState(false);
+  const [formatos, setFormatos] = useState({}); // { 'Semifinal': 'ida_vuelta', ... } al generar
+  const [sedes, setSedes] = useState([]);
+  const [programando, setProgramando] = useState(null); // { llave, numeroJuego }
   const [reiniciando, setReiniciando] = useState(false);
 
   // Sincronizar división seleccionada
@@ -66,12 +72,14 @@ export default function PlayoffsManager({
     if (!divisionSel) return;
     if (mostrarSpinner) setCargando(true);
     try {
-      const [resLlaves, resEquipos] = await Promise.all([
+      const [resLlaves, resEquipos, resSedes] = await Promise.all([
         api.get(`/playoff/${divisionSel}`),
         api.get(`/equipos?id_division=${divisionSel}`),
+        api.get('/sedes'),
       ]);
       setTodasLasLlaves(resLlaves.data.data || []);
       setEquipos(resEquipos.data.data || []);
+      setSedes(resSedes.data.data || []);
     } catch (err) {
       console.error(err);
       mostrarAviso('error', 'Error al cargar los datos del cuadro de playoff.');
@@ -100,6 +108,7 @@ export default function PlayoffsManager({
           id_division: Number(divisionSel),
           cantidad_equipos: parseInt(cantidad, 10),
           copa,
+          formatos,
         });
       }
       mostrarAviso('exito', cuadros.length > 1 ? '¡Copa Oro y Copa Plata generadas con éxito!' : '¡Cuadro de playoff generado con éxito!');
@@ -137,68 +146,19 @@ export default function PlayoffsManager({
     }
   };
 
-  // Actualizar un campo individual de una llave
-  const actualizarCampo = async (idLlave, campo, valor) => {
-    setGuardandoId(idLlave);
-    try {
-      await api.put(`/playoff/${idLlave}`, { [campo]: valor });
-      await cargarDatos(false);
-    } catch (err) {
-      console.error(err);
-      mostrarAviso('error', 'Error al actualizar el partido.');
-    } finally {
-      setGuardandoId(null);
-    }
-  };
-
-  // Guardar datos completos de una llave
+  // Guardar equipos y formato de un cruce (el resultado sale de sus partidos)
   const handleGuardarLlaveCompleta = async (llaveEditada) => {
     setGuardandoId(llaveEditada.id_llave);
     try {
       await api.put(`/playoff/${llaveEditada.id_llave}`, {
         id_equipo_local: llaveEditada.id_equipo_local || null,
         id_equipo_visitante: llaveEditada.id_equipo_visitante || null,
-        goles_local: llaveEditada.goles_local !== '' ? llaveEditada.goles_local : null,
-        goles_visitante: llaveEditada.goles_visitante !== '' ? llaveEditada.goles_visitante : null,
-        penales_local: llaveEditada.penales_local !== '' ? llaveEditada.penales_local : null,
-        penales_visitante: llaveEditada.penales_visitante !== '' ? llaveEditada.penales_visitante : null,
-        estado_partido: llaveEditada.estado_partido,
-        id_equipo_ganador: llaveEditada.id_equipo_ganador || null,
+        formato: llaveEditada.formato,
       });
-      mostrarAviso('exito', 'Partido actualizado y llaves enlazadas.');
+      mostrarAviso('exito', 'Cruce actualizado.');
       await cargarDatos(false);
     } catch (err) {
       mostrarAviso('error', err.response?.data?.mensaje || 'Error al guardar los cambios.');
-    } finally {
-      setGuardandoId(null);
-    }
-  };
-
-  // Alternar estado de partido terminado
-  const handleToggleTerminado = async (llave, checked) => {
-    if (checked) {
-      const gl = parseInt(llave.goles_local, 10);
-      const gv = parseInt(llave.goles_visitante, 10);
-      const hayEmpate = !isNaN(gl) && !isNaN(gv) && gl === gv;
-
-      if (hayEmpate && !llave.id_equipo_ganador) {
-        mostrarAviso(
-          'error',
-          'El partido está empatado. Por favor, definí el ganador por penales antes de marcarlo como Terminado.'
-        );
-        return;
-      }
-    }
-
-    setGuardandoId(llave.id_llave);
-    try {
-      await api.put(`/playoff/${llave.id_llave}`, {
-        estado_partido: checked ? 2 : 0,
-      });
-      await cargarDatos(false);
-    } catch (err) {
-      console.error(err);
-      mostrarAviso('error', 'Error al cambiar estado.');
     } finally {
       setGuardandoId(null);
     }
@@ -426,6 +386,25 @@ export default function PlayoffsManager({
             />
           )}
 
+          {/* Formato de cada ronda: partido único o ida y vuelta */}
+          <div className="text-left space-y-2">
+            <p className="font-headline text-xs uppercase tracking-wider text-slate-500">Formato de cada ronda</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {fasesParaCantidad(Math.max(cantidadEquipos, dosCopas ? cantidadSegundaCopa : 0)).map((fase) => (
+                <label key={fase} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="font-title text-xs font-bold text-slate-700">{fase}</span>
+                  <select
+                    value={formatos[fase] || 'unico'}
+                    onChange={(e) => setFormatos((prev) => ({ ...prev, [fase]: e.target.value }))}
+                    className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-title focus:outline-none focus:border-[#151f89]"
+                  >
+                    {FORMATOS_CRUCE.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="pt-4 border-t border-slate-100">
             <button
               onClick={handleGenerarBracket}
@@ -502,7 +481,7 @@ export default function PlayoffsManager({
                 {fasesOrdenadas.length} Fases
               </span>
               <span className="font-headline text-xs uppercase tracking-wider bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg">
-                {partidosFinalizados} / {totalPartidos} Partidos Finalizados
+                {partidosFinalizados} / {totalPartidos} Cruces definidos
               </span>
               {campeonNombre && (
                 <span className="font-headline text-xs uppercase tracking-wider bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5">
@@ -577,7 +556,7 @@ export default function PlayoffsManager({
                           equipos={equipos}
                           estaGuardando={guardandoId === llave.id_llave}
                           onGuardar={handleGuardarLlaveCompleta}
-                          onToggleTerminado={handleToggleTerminado}
+                          onProgramar={(llaveSel, numeroJuego) => setProgramando({ llave: llaveSel, numeroJuego })}
                         />
                       ))}
                     </div>
@@ -601,6 +580,20 @@ export default function PlayoffsManager({
         </div>
       )}
 
+      {programando && (
+        <ProgramarPartidoCruceModal
+          llave={programando.llave}
+          numeroJuego={programando.numeroJuego}
+          sedes={sedes}
+          onClose={() => setProgramando(null)}
+          onCreado={async (texto) => {
+            setProgramando(null);
+            mostrarAviso('exito', texto);
+            await cargarDatos(false);
+          }}
+        />
+      )}
+
       {/* ─── Modal Confirmar Reinicio de Bracket ───────────────────────────── */}
       {modalReiniciar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
@@ -614,7 +607,7 @@ export default function PlayoffsManager({
                 ¿Reiniciar {hayCopas ? ETIQUETA_COPA[copaActiva] : 'Cuadro de Playoff'}?
               </h4>
               <p className="text-xs text-slate-500 font-body">
-                Esta acción eliminará todas las llaves, cruces y resultados cargados {hayCopas ? `de ${ETIQUETA_COPA[copaActiva]} ` : ''}para{' '}
+                Esta acción eliminará todas las llaves, cruces y sus partidos (con goles y tarjetas) {hayCopas ? `de ${ETIQUETA_COPA[copaActiva]} ` : ''}para{' '}
                 <strong>{divisionActual?.nombre_division}</strong>. Podrás volver a generar un nuevo cuadro inmediatamente.
               </p>
             </div>
@@ -643,6 +636,14 @@ export default function PlayoffsManager({
   );
 }
 
+// Rondas que tiene un cuadro de N equipos, de la primera a la final
+const FASES_DESDE = { 32: '16avos de Final', 16: 'Octavos de Final', 8: 'Cuartos de Final', 4: 'Semifinal', 2: 'Final' };
+function fasesParaCantidad(cantidad) {
+  const fases = [];
+  for (let n = cantidad; n >= 2; n /= 2) if (FASES_DESDE[n]) fases.push(FASES_DESDE[n]);
+  return fases;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE: SELECTOR DE CANTIDAD DE EQUIPOS DE UNA COPA
 // ─────────────────────────────────────────────────────────────────────────────
@@ -664,43 +665,23 @@ function SelectorCantidad({ etiqueta, value, onChange }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTE: TARJETA DE PARTIDO DE PLAYOFF (EDITOR)
+// COMPONENTE: TARJETA DE UN CRUCE (EDITOR)
+// Los equipos y el formato se editan mientras el cruce no tenga partidos.
+// El resultado sale de sus partidos, que se programan desde acá y se cargan en Partidos.
 // ─────────────────────────────────────────────────────────────────────────────
-function LlavePartidoCard({
-  llave,
-  numeroPartido,
-  equipos,
-  estaGuardando,
-  onGuardar,
-  onToggleTerminado,
-}) {
-  // Estado local para edición rápida
-  const [form, setForm] = useState({
+function LlavePartidoCard({ llave, numeroPartido, equipos, estaGuardando, onGuardar, onProgramar }) {
+  const inicial = () => ({
     id_equipo_local: llave.id_equipo_local || '',
     id_equipo_visitante: llave.id_equipo_visitante || '',
-    goles_local: llave.goles_local !== null ? llave.goles_local : '',
-    goles_visitante: llave.goles_visitante !== null ? llave.goles_visitante : '',
-    penales_local: llave.penales_local !== null ? llave.penales_local : '',
-    penales_visitante: llave.penales_visitante !== null ? llave.penales_visitante : '',
-    id_equipo_ganador: llave.id_equipo_ganador || '',
-    estado_partido: llave.estado_partido ?? 0,
+    formato: llave.formato || 'unico',
   });
-
+  const [form, setForm] = useState(inicial);
   const [haCambiado, setHaCambiado] = useState(false);
 
-  // Sincronizar con props
   useEffect(() => {
-    setForm({
-      id_equipo_local: llave.id_equipo_local || '',
-      id_equipo_visitante: llave.id_equipo_visitante || '',
-      goles_local: llave.goles_local !== null ? llave.goles_local : '',
-      goles_visitante: llave.goles_visitante !== null ? llave.goles_visitante : '',
-      penales_local: llave.penales_local !== null ? llave.penales_local : '',
-      penales_visitante: llave.penales_visitante !== null ? llave.penales_visitante : '',
-      id_equipo_ganador: llave.id_equipo_ganador || '',
-      estado_partido: llave.estado_partido ?? 0,
-    });
+    setForm(inicial());
     setHaCambiado(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [llave]);
 
   const handleChange = (campo, valor) => {
@@ -708,250 +689,229 @@ function LlavePartidoCard({
     setHaCambiado(true);
   };
 
-  const glNum = form.goles_local !== '' ? parseInt(form.goles_local, 10) : null;
-  const gvNum = form.goles_visitante !== '' ? parseInt(form.goles_visitante, 10) : null;
-  const esEmpate = glNum !== null && gvNum !== null && glNum === gvNum;
+  const resumen = resumenCruce(llave);
+  const partidos = llave.partidos || [];
+  const bloqueado = partidos.length > 0;
+  const definido = llave.estado_partido === 2;
+  const ganadorId = definido && llave.id_equipo_ganador ? Number(llave.id_equipo_ganador) : null;
+  const tieneEquipos = llave.id_equipo_local && llave.id_equipo_visitante;
+  const juegos = partidos.map((p) => Number(p.numero_juego));
+  const faltante = !tieneEquipos
+    ? null
+    : llave.formato === 'ida_vuelta'
+      ? (!juegos.includes(1) ? 1 : !juegos.includes(2) ? 2 : null)
+      : (!juegos.includes(1) ? 1 : null);
+  const textoBoton = llave.formato === 'ida_vuelta'
+    ? (faltante === 1 ? 'Programar ida' : 'Programar vuelta')
+    : 'Programar partido';
 
-  const esTerminado = llave.estado_partido === 2;
-
-  // Determinar ganador
-  let ganadorId = null;
-  if (esTerminado && glNum !== null && gvNum !== null) {
-    if (glNum > gvNum) ganadorId = Number(llave.id_equipo_local);
-    else if (gvNum > glNum) ganadorId = Number(llave.id_equipo_visitante);
-    else if (llave.id_equipo_ganador) ganadorId = Number(llave.id_equipo_ganador);
-  }
-
-  const handleGuardarClick = () => {
-    onGuardar({
-      ...llave,
-      ...form,
-    });
+  const filaEquipo = (campo, etiqueta, golesGlobal) => {
+    const idEquipo = Number(llave[campo]);
+    return (
+      <div className={`flex items-center justify-between gap-2 p-1.5 rounded-lg ${ganadorId && ganadorId === idEquipo ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50'}`}>
+        <div className="flex-1 min-w-0">
+          <label className="block text-[10px] font-headline uppercase text-slate-400 mb-0.5">{etiqueta}</label>
+          <select
+            value={form[campo]}
+            disabled={bloqueado}
+            onChange={(e) => handleChange(campo, e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-title font-semibold text-slate-800 truncate focus:outline-none focus:border-[#151f89] disabled:bg-slate-100 disabled:text-slate-600"
+          >
+            <option value="">-- Seleccionar --</option>
+            {equipos.map((eq) => (
+              <option key={eq.id_equipo} value={eq.id_equipo}>
+                {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <span className="w-10 shrink-0 text-center font-headline text-base text-slate-900">
+          {golesGlobal ?? '-'}
+        </span>
+      </div>
+    );
   };
 
   return (
-    <div
-      className={`bg-white rounded-xl border-2 transition-all p-4 flex flex-col justify-between gap-3 shadow-xs ${
-        esTerminado
-          ? 'border-emerald-300 bg-emerald-50/15'
-          : 'border-slate-200 hover:border-slate-300'
-      }`}
-    >
-      {/* Header del Match */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="font-headline text-xs uppercase tracking-wider text-slate-500">
-            Partido {numeroPartido}
+    <div className={`bg-white rounded-xl border-2 transition-all p-4 flex flex-col justify-between gap-3 shadow-xs ${definido ? 'border-emerald-300 bg-emerald-50/15' : 'border-slate-200 hover:border-slate-300'}`}>
+      {/* Encabezado: número, formato y estado */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+        <span className="font-headline text-xs uppercase tracking-wider text-slate-500">Partido {numeroPartido}</span>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={form.formato}
+            disabled={bloqueado}
+            onChange={(e) => handleChange('formato', e.target.value)}
+            title={bloqueado ? 'El formato no se puede cambiar: el cruce ya tiene partidos' : 'Formato del cruce'}
+            className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-headline uppercase text-slate-700 focus:outline-none disabled:opacity-70"
+          >
+            {FORMATOS_CRUCE.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+          </select>
+          <span className={`text-[10px] font-headline uppercase px-2 py-0.5 rounded font-bold ${definido ? 'bg-emerald-100 text-emerald-800' : llave.estado_partido === 1 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+            {definido ? 'Definido' : llave.estado_partido === 1 ? 'En juego' : 'Pendiente'}
           </span>
-          {esTerminado ? (
-            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-headline uppercase px-2 py-0.5 rounded font-bold">
-              Finalizado
-            </span>
-          ) : (
-            <span className="bg-slate-100 text-slate-600 text-[10px] font-headline uppercase px-2 py-0.5 rounded font-bold">
-              Pendiente
-            </span>
-          )}
         </div>
-
-        {/* Switch Terminado */}
-        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={esTerminado}
-            onChange={(e) => onToggleTerminado(llave, e.target.checked)}
-            disabled={estaGuardando}
-            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-          />
-          <span className="font-title text-[11px] font-bold text-slate-700 uppercase">
-            Terminado
-          </span>
-        </label>
       </div>
 
-      {/* Cuerpo: Equipos y Goles */}
-      <div className="space-y-2.5">
-        {/* Fila Equipo Local */}
-        <div
-          className={`flex items-center justify-between gap-2 p-1.5 rounded-lg transition-colors ${
-            ganadorId && ganadorId === Number(llave.id_equipo_local)
-              ? 'bg-emerald-50 border border-emerald-200'
-              : 'bg-slate-50'
-          }`}
-        >
-          <div className="flex-1 min-w-0">
-            <label className="block text-[10px] font-headline uppercase text-slate-400 mb-0.5">
-              Equipo Local
-            </label>
-            <select
-              value={form.id_equipo_local}
-              onChange={(e) => handleChange('id_equipo_local', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-title font-semibold text-slate-800 truncate focus:outline-none focus:border-[#151f89]"
-            >
-              <option value="">-- Seleccionar --</option>
-              {equipos.map((eq) => (
-                <option key={eq.id_equipo} value={eq.id_equipo}>
-                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-14 shrink-0">
-            <label className="block text-[10px] font-headline uppercase text-slate-400 mb-0.5 text-center">
-              Goles
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={form.goles_local}
-              onChange={(e) => handleChange('goles_local', e.target.value)}
-              placeholder="-"
-              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-center font-headline text-base text-slate-900 focus:outline-none focus:border-[#151f89]"
-            />
-          </div>
-        </div>
-
-        {/* Fila Equipo Visitante */}
-        <div
-          className={`flex items-center justify-between gap-2 p-1.5 rounded-lg transition-colors ${
-            ganadorId && ganadorId === Number(llave.id_equipo_visitante)
-              ? 'bg-emerald-50 border border-emerald-200'
-              : 'bg-slate-50'
-          }`}
-        >
-          <div className="flex-1 min-w-0">
-            <label className="block text-[10px] font-headline uppercase text-slate-400 mb-0.5">
-              Equipo Visitante
-            </label>
-            <select
-              value={form.id_equipo_visitante}
-              onChange={(e) => handleChange('id_equipo_visitante', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-title font-semibold text-slate-800 truncate focus:outline-none focus:border-[#151f89]"
-            >
-              <option value="">-- Seleccionar --</option>
-              {equipos.map((eq) => (
-                <option key={eq.id_equipo} value={eq.id_equipo}>
-                  {eq.nombre_equipo} {eq.es_argentinos_del_norte ? '(Argentinos)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-14 shrink-0">
-            <label className="block text-[10px] font-headline uppercase text-slate-400 mb-0.5 text-center">
-              Goles
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={form.goles_visitante}
-              onChange={(e) => handleChange('goles_visitante', e.target.value)}
-              placeholder="-"
-              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-center font-headline text-base text-slate-900 focus:outline-none focus:border-[#151f89]"
-            />
-          </div>
-        </div>
-
-        {/* Selector de Penales si hay empate */}
-        {esEmpate && form.id_equipo_local && form.id_equipo_visitante && (
-          <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-lg space-y-2 mt-2">
-            <div className="flex items-center gap-1.5 text-amber-900 font-headline text-xs uppercase tracking-wider">
-              <FaFutbol className="text-xs" />
-              <span>Desempate por Penales</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[9px] font-title font-bold text-amber-800 uppercase mb-0.5 truncate">
-                  Penales Local
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.penales_local}
-                  onChange={(e) => handleChange('penales_local', e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-white border border-amber-300 rounded px-2 py-1 text-center font-headline text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-title font-bold text-amber-800 uppercase mb-0.5 truncate">
-                  Penales Vis.
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.penales_visitante}
-                  onChange={(e) => handleChange('penales_visitante', e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-white border border-amber-300 rounded px-2 py-1 text-center font-headline text-xs"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-title font-bold text-amber-900 uppercase mb-0.5">
-                Ganador que avanza de ronda:
-              </label>
-              <select
-                value={form.id_equipo_ganador}
-                onChange={(e) => handleChange('id_equipo_ganador', e.target.value)}
-                className="w-full bg-white border border-amber-400 rounded px-2 py-1 text-xs font-title font-bold text-amber-950 focus:outline-none"
-              >
-                <option value="">-- Seleccionar Ganador --</option>
-                {[
-                  {
-                    id: form.id_equipo_local,
-                    nombre: equipos.find((e) => Number(e.id_equipo) === Number(form.id_equipo_local))?.nombre_equipo,
-                  },
-                  {
-                    id: form.id_equipo_visitante,
-                    nombre: equipos.find((e) => Number(e.id_equipo) === Number(form.id_equipo_visitante))?.nombre_equipo,
-                  },
-                ].map(
-                  (opt) =>
-                    opt.nombre && (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.nombre}
-                      </option>
-                    )
-                )}
-              </select>
-            </div>
-          </div>
-        )}
+      {/* Equipos con el global del cruce */}
+      <div className="space-y-2">
+        {filaEquipo('id_equipo_local', 'Equipo local (mejor ubicado)', resumen.global?.local)}
+        {filaEquipo('id_equipo_visitante', 'Equipo visitante', resumen.global?.visitante)}
       </div>
 
-      {/* Footer: Botón Guardar / Indicador de avance */}
-      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-        <div className="text-[10px] text-slate-500 font-body truncate">
-          {llave.id_llave_siguiente ? (
-            <span className="flex items-center gap-1">
-              <FaChevronRight className="text-[8px] text-slate-400" />
-              <span>Avanza como {llave.es_local_siguiente ? 'Local' : 'Visitante'}</span>
-            </span>
-          ) : (
-            <span className="text-amber-600 font-semibold flex items-center gap-1">
-              <FaTrophy className="text-[9px]" />
-              <span>Partido Definitorio de Campeón</span>
-            </span>
+      {/* Partidos del cruce */}
+      {resumen.partidos.length > 0 && (
+        <ul className="space-y-1">
+          {resumen.partidos.map((p) => (
+            <li key={p.id_partido} className="flex items-center justify-between gap-2 text-[11px] bg-slate-50 rounded-lg px-2.5 py-1.5 font-title">
+              <span className="font-bold text-slate-600">{p.etiqueta || 'Partido'}</span>
+              <span className="text-slate-700 truncate">
+                {p.jugado ? `${p.local} - ${p.visitante}` : `${formatFecha(p.fecha_partido)} · ${p.nombre_sede || ''}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {resumen.desempate && (
+        <p className="text-[11px] font-title font-bold text-amber-800">{resumen.desempate}</p>
+      )}
+
+      {/* Acciones */}
+      <div className="pt-2 border-t border-slate-100 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] text-slate-500 font-body truncate">
+            {llave.id_llave_siguiente ? (
+              <span className="flex items-center gap-1">
+                <FaChevronRight className="text-[8px] text-slate-400" />
+                <span>Avanza como {llave.es_local_siguiente ? 'Local' : 'Visitante'}</span>
+              </span>
+            ) : (
+              <span className="text-amber-600 font-semibold flex items-center gap-1">
+                <FaTrophy className="text-[9px]" />
+                <span>Cruce definitorio del campeón</span>
+              </span>
+            )}
+          </div>
+          {haCambiado && (
+            <button
+              type="button"
+              onClick={() => onGuardar({ ...llave, ...form })}
+              disabled={estaGuardando}
+              className="inline-flex items-center gap-1.5 bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg font-headline uppercase text-[10px] tracking-wider transition-all shadow-xs"
+            >
+              <FaSave />
+              <span>{estaGuardando ? '...' : 'Guardar'}</span>
+            </button>
           )}
         </div>
-
-        {haCambiado && (
+        {faltante && !haCambiado && (
           <button
             type="button"
-            onClick={handleGuardarClick}
-            disabled={estaGuardando}
-            className="inline-flex items-center gap-1.5 bg-[#151f89] hover:bg-[#303a9f] text-white px-3 py-1.5 rounded-lg font-headline uppercase text-[10px] tracking-wider transition-all shadow-xs"
+            onClick={() => onProgramar(llave, faltante)}
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-black text-white px-3 py-2 rounded-lg font-headline uppercase text-[11px] tracking-wider transition-colors"
           >
-            <FaSave />
-            <span>{estaGuardando ? '...' : 'Guardar'}</span>
+            <FaCalendarCheck />
+            <span>{textoBoton}</span>
           </button>
         )}
+        {bloqueado && (
+          <p className="text-[10px] text-slate-500 font-body">El resultado se carga en Partidos.</p>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTE: PROGRAMAR UN PARTIDO DE UN CRUCE (ida, vuelta o partido único)
+// Localía propuesta: en la ida juega de local el visitante del cruce; en la vuelta
+// y en el partido único, el local del cruce (el mejor ubicado). Se puede invertir.
+// ─────────────────────────────────────────────────────────────────────────────
+function ProgramarPartidoCruceModal({ llave, numeroJuego, sedes, onClose, onCreado }) {
+  const deCruce = [
+    { id: Number(llave.id_equipo_local), nombre: llave.equipo_local_nombre },
+    { id: Number(llave.id_equipo_visitante), nombre: llave.equipo_visitante_nombre },
+  ];
+  const propuesta = llave.formato === 'ida_vuelta' && numeroJuego === 1 ? [deCruce[1], deCruce[0]] : deCruce;
+  const [orden, setOrden] = useState(propuesta);
+  const [idSede, setIdSede] = useState(sedes[0]?.id_sede ? String(sedes[0].id_sede) : '');
+  const [fecha, setFecha] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const nombre = nombrePartidoCruce(llave.fase, llave.formato, numeroJuego);
+
+  const guardar = async (e) => {
+    e.preventDefault();
+    if (!idSede || !fecha) return setError('Elegí la sede y la fecha y hora.');
+    setGuardando(true);
+    setError('');
+    try {
+      await api.post('/partidos', {
+        id_division: Number(llave.id_division),
+        id_sede: Number(idSede),
+        fecha_partido: desdeInputFechaHora(fecha),
+        id_equipo_local: orden[0].id,
+        id_equipo_visitante: orden[1].id,
+        id_llave: Number(llave.id_llave),
+        numero_juego: numeroJuego,
+        nombre_partido: nombre,
+      });
+      onCreado(`${nombre} programado. El resultado se carga en Partidos.`);
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'No se pudo programar el partido.');
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+      <form onSubmit={guardar} className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-xl border border-slate-200">
+        <div>
+          <span className="text-[10px] font-headline uppercase tracking-widest text-slate-500">Programar partido del cruce</span>
+          <h4 className="font-headline text-xl uppercase tracking-wide text-slate-900">{nombre}</h4>
+        </div>
+        {error && (
+          <div className="bg-red-50 text-red-700 text-xs p-2.5 rounded-lg border border-red-200 flex items-center gap-2">
+            <FaExclamationTriangle className="shrink-0" /> {error}
+          </div>
+        )}
+        <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+          <div className="flex-1 min-w-0 text-xs font-title">
+            <span className="block text-[10px] font-headline uppercase text-slate-400">Local</span>
+            <span className="block font-bold text-slate-900 truncate">{orden[0].nombre}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOrden([orden[1], orden[0]])}
+            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-[10px] font-headline uppercase text-slate-700"
+          >
+            Invertir localía
+          </button>
+          <div className="flex-1 min-w-0 text-xs font-title text-right">
+            <span className="block text-[10px] font-headline uppercase text-slate-400">Visitante</span>
+            <span className="block font-bold text-slate-900 truncate">{orden[1].nombre}</span>
+          </div>
+        </div>
+        <label className="block">
+          <span className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Sede *</span>
+          <select value={idSede} onChange={(e) => setIdSede(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
+            <option value="">-- Elegir sede --</option>
+            {sedes.map((s) => <option key={s.id_sede} value={s.id_sede}>{s.nombre_sede}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Fecha y hora *</span>
+          <input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none" />
+        </label>
+        <div className="flex gap-2 pt-1">
+          <button type="submit" disabled={guardando} className="flex-1 bg-[#151f89] hover:bg-[#303a9f] text-white py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors disabled:opacity-50">
+            {guardando ? 'Guardando...' : 'Programar'}
+          </button>
+          <button type="button" onClick={onClose} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-title font-bold text-xs uppercase transition-colors">
+            Cancelar
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
