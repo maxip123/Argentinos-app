@@ -64,6 +64,14 @@ const validarSubirLogo = [
 ];
 
 // ─── JUGADOR ──────────────────────────────────────────────────────────────────
+// Domicilio y obra social (opcionales; el controller los ignora si el rol no puede verlos)
+const camposPadron = [
+  body('domicilio').optional({ nullable: true }).isString().withMessage('El domicilio debe ser texto.')
+    .isLength({ max: 200 }).withMessage('El domicilio no puede superar 200 caracteres.'),
+  body('obra_social').optional({ nullable: true }).isString().withMessage('La obra social debe ser texto.')
+    .isLength({ max: 100 }).withMessage('La obra social no puede superar 100 caracteres.'),
+];
+
 const validarCrearJugador = [
   body('id_equipo').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('El ID del equipo debe ser válido.'),
   body('id_division').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('El ID de la división debe ser válido.'),
@@ -72,6 +80,18 @@ const validarCrearJugador = [
   body('dni').trim().notEmpty().withMessage('El DNI es requerido.').isLength({ max: 30 }).withMessage('El DNI no puede superar 30 caracteres.'),
   body('fecha_nacimiento').optional({ checkFalsy: true }).isDate().withMessage('La fecha de nacimiento debe ser válida (YYYY-MM-DD).'),
   body('email').optional({ checkFalsy: true }).isEmail().withMessage('El email debe ser una dirección válida.'),
+  ...camposPadron,
+];
+
+const validarActualizarJugador = [
+  param('id').isInt({ min: 1 }).withMessage('El ID debe ser un número entero positivo.'),
+  body('dni').optional({ nullable: true }).isString().isLength({ max: 30 }).withMessage('El DNI no puede superar 30 caracteres.'),
+  body('fecha_nacimiento').optional({ nullable: true, checkFalsy: true }).isDate().withMessage('La fecha de nacimiento debe ser válida (YYYY-MM-DD).'),
+  body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('El email debe ser una dirección válida.'),
+  body('es_inactivo').optional().isBoolean().withMessage('"Inactivo" debe ser verdadero o falso.').toBoolean(),
+  body('fecha_baja').optional({ nullable: true, checkFalsy: true }).isDate({ format: 'YYYY-MM-DD', strictMode: true })
+    .withMessage('La fecha de baja debe ser válida (AAAA-MM-DD).'),
+  ...camposPadron,
 ];
 
 // ─── PARTIDO ──────────────────────────────────────────────────────────────────
@@ -146,6 +166,10 @@ const validarRegistrarPago = [
   body('metodo_pago').isIn(['Efectivo', 'Transferencia', 'MercadoPago', 'Débito', 'Crédito', 'Otro', 'Canje']).withMessage('Método de pago inválido.'),
   body('fecha_pago').optional({ nullable: true, checkFalsy: true }).isDate({ format: 'YYYY-MM-DD', strictMode: true }).withMessage('La fecha de pago debe ser una fecha válida (AAAA-MM-DD).'),
   body('observaciones').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('Máximo 500 caracteres.'),
+  body('referencia').optional({ nullable: true }).isString().withMessage('La referencia debe ser texto.')
+    .isLength({ max: 100 }).withMessage('La referencia no puede superar 100 caracteres.'),
+  body('recibido_por').optional({ nullable: true }).isString().withMessage('"Recibido por" debe ser texto.')
+    .isLength({ max: 100 }).withMessage('"Recibido por" no puede superar 100 caracteres.'),
 ];
 
 const validarMotivo = [
@@ -193,6 +217,7 @@ module.exports = {
   validarLogoUrl,
   validarSubirLogo,
   validarCrearJugador,
+  validarActualizarJugador,
   validarCrearPartido,
   validarCrearSede,
 };

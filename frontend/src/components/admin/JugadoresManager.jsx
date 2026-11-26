@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import { resumenDeudaJugador } from '../../utils/cobros';
+import { fechaClub } from '../../utils/fechas';
+import { useAuthStore } from '../../stores/authStore';
 import ConfirmModal from '../ui/ConfirmModal';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
@@ -23,7 +25,44 @@ import {
   FaUserSlash,
 } from 'react-icons/fa';
 
+// 'YYYY-MM-DD' -> 'DD/MM/YYYY'
+const fechaCorta = (f) => (f ? String(f).slice(0, 10).split('-').reverse().join('/') : '');
+
+// Domicilio y obra social: solo Superadmin y Administrador (la obra social es un dato de salud)
+function CamposSensibles({ datos, onChange }) {
+  return (
+    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold block">
+        Datos reservados (solo administradores)
+      </span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Domicilio</label>
+          <input
+            type="text" maxLength={200}
+            value={datos.domicilio || ''}
+            onChange={e => onChange({ domicilio: e.target.value })}
+            placeholder="Calle, número, barrio"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none bg-white"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Obra social</label>
+          <input
+            type="text" maxLength={100}
+            value={datos.obra_social || ''}
+            onChange={e => onChange({ obra_social: e.target.value })}
+            placeholder="Ej: OSDE, PAMI, ninguna"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none bg-white"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function JugadoresManager({ divisiones = [] }) {
+  const puedeVerSensibles = useAuthStore(s => ['Superadmin', 'Administrador'].includes(s.usuario?.rol));
   const [jugadores, setJugadores] = useState([]);
   const [equiposClub, setEquiposClub] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -55,6 +94,8 @@ export default function JugadoresManager({ divisiones = [] }) {
     fecha_nacimiento: '',
     telefono: '',
     email: '',
+    domicilio: '',
+    obra_social: '',
     id_equipo_inicial: '',
   });
 
@@ -126,6 +167,10 @@ export default function JugadoresManager({ divisiones = [] }) {
         telefono: nuevoJugador.telefono?.trim() || null,
         email: nuevoJugador.email?.trim() || null,
         id_equipo: nuevoJugador.id_equipo_inicial ? Number(nuevoJugador.id_equipo_inicial) : null,
+        ...(puedeVerSensibles && {
+          domicilio: nuevoJugador.domicilio.trim() || null,
+          obra_social: nuevoJugador.obra_social.trim() || null,
+        }),
       });
 
       mostrarAviso('exito', `¡Jugador ${nuevoJugador.nombre} ${nuevoJugador.apellido} incorporado al Padrón del Club!`);
@@ -137,6 +182,8 @@ export default function JugadoresManager({ divisiones = [] }) {
         fecha_nacimiento: '',
         telefono: '',
         email: '',
+        domicilio: '',
+        obra_social: '',
         id_equipo_inicial: '',
       });
       cargarJugadores();
@@ -163,6 +210,10 @@ export default function JugadoresManager({ divisiones = [] }) {
       mostrarAviso('error', 'El formato del correo electrónico no es válido.');
       return;
     }
+    if (jugadorEditando.es_inactivo && jugadorEditando.fecha_baja && jugadorEditando.fecha_baja > fechaClub()) {
+      mostrarAviso('error', 'La fecha de baja no puede ser posterior a hoy.');
+      return;
+    }
     setCargando(true);
     try {
       await api.put(`/jugadores/${jugadorEditando.id_jugador}`, {
@@ -173,6 +224,11 @@ export default function JugadoresManager({ divisiones = [] }) {
         telefono: jugadorEditando.telefono?.trim() || null,
         email: jugadorEditando.email?.trim() || null,
         es_inactivo: jugadorEditando.es_inactivo,
+        ...(jugadorEditando.es_inactivo && { fecha_baja: jugadorEditando.fecha_baja || null }),
+        ...(puedeVerSensibles && {
+          domicilio: jugadorEditando.domicilio?.trim() || null,
+          obra_social: jugadorEditando.obra_social?.trim() || null,
+        }),
       });
 
       mostrarAviso('exito', 'Ficha del socio actualizada correctamente.');
@@ -414,7 +470,10 @@ export default function JugadoresManager({ divisiones = [] }) {
                       </div>
                       <div>
                         <span className="font-bold text-slate-900 text-sm block leading-tight">{j.apellido}, {j.nombre}</span>
-                        <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'}</span>
+                        <span className="text-[11px] text-slate-400 font-mono block">DNI: {j.dni || '—'}</span>
+                        {j.es_inactivo && j.fecha_baja && (
+                          <span className="text-[10px] font-bold text-red-600 uppercase font-mono">Baja desde {fechaCorta(j.fecha_baja)}</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -532,7 +591,9 @@ export default function JugadoresManager({ divisiones = [] }) {
                           <div>
                             <span className="font-bold text-slate-900 block text-sm">{j.apellido}, {j.nombre}</span>
                             {j.es_inactivo && (
-                              <span className="text-[10px] font-bold text-red-600 uppercase font-mono">Dado de Baja</span>
+                              <span className="text-[10px] font-bold text-red-600 uppercase font-mono">
+                                {j.fecha_baja ? `Baja desde ${fechaCorta(j.fecha_baja)}` : 'Dado de Baja'}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -710,6 +771,10 @@ export default function JugadoresManager({ divisiones = [] }) {
                 </div>
               </div>
 
+              {puedeVerSensibles && (
+                <CamposSensibles datos={nuevoJugador} onChange={c => setNuevoJugador({ ...nuevoJugador, ...c })} />
+              )}
+
               {/* Asignación inicial opcional */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                 <span className="text-[11px] font-headline uppercase text-slate-700 tracking-wider block">
@@ -829,6 +894,10 @@ export default function JugadoresManager({ divisiones = [] }) {
                 </div>
               </div>
 
+              {puedeVerSensibles && (
+                <CamposSensibles datos={jugadorEditando} onChange={c => setJugadorEditando({ ...jugadorEditando, ...c })} />
+              )}
+
               <div className="pt-2">
                 {(() => {
                   const v = resumenDeudaJugador(jugadorEditando);
@@ -859,11 +928,30 @@ export default function JugadoresManager({ divisiones = [] }) {
                   <input
                     type="checkbox"
                     checked={jugadorEditando.es_inactivo}
-                    onChange={e => setJugadorEditando({ ...jugadorEditando, es_inactivo: e.target.checked })}
+                    onChange={e => setJugadorEditando({
+                      ...jugadorEditando,
+                      es_inactivo: e.target.checked,
+                      fecha_baja: e.target.checked ? (jugadorEditando.fecha_baja || fechaClub()) : null,
+                    })}
                     className="rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-xs font-bold text-slate-700">Marcar socio como INACTIVO / BAJA</span>
                 </label>
+                {jugadorEditando.es_inactivo && (
+                  <div className="mt-2 px-3">
+                    <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Fecha de baja</label>
+                    <input
+                      type="date"
+                      max={fechaClub()}
+                      value={jugadorEditando.fecha_baja ? String(jugadorEditando.fecha_baja).slice(0, 10) : ''}
+                      onChange={e => setJugadorEditando({ ...jugadorEditando, fecha_baja: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none sm:max-w-[200px]"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      No se le cargan cuotas mensuales de meses posteriores a esta fecha.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100">

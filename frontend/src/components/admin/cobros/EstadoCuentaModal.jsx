@@ -17,7 +17,11 @@ function FormAccion({ accion, cargo, onCancelar, onHecho }) {
   const [metodo, setMetodo] = useState('Efectivo');
   const [fecha, setFecha] = useState(fechaClub());
   const [texto, setTexto] = useState('');
+  const [referencia, setReferencia] = useState('');
+  const [recibidoPor, setRecibidoPor] = useState('');
   const [cargando, setCargando] = useState(false);
+  // El n.º de operación solo tiene sentido si la plata no se entregó en mano
+  const pideReferencia = metodo !== 'Efectivo' && metodo !== 'Canje';
   const [error, setError] = useState('');
 
   const enviar = async (e) => {
@@ -30,6 +34,8 @@ function FormAccion({ accion, cargo, onCancelar, onHecho }) {
       if (metodo === 'Canje' && !texto.trim()) return setError('En un canje, indicá qué se recibió a cambio.');
       pedido = api.post(`/cobros/cargos/${cargo.id_cargo}/pagos`, {
         monto: valor, metodo_pago: metodo, fecha_pago: fecha, observaciones: texto.trim() || null,
+        referencia: pideReferencia ? referencia.trim() || null : null,
+        recibido_por: recibidoPor.trim() || null,
       });
     } else {
       if (!texto.trim()) return setError('Indicá el motivo.');
@@ -76,6 +82,22 @@ function FormAccion({ accion, cargo, onCancelar, onHecho }) {
           <label className="block col-span-2 sm:col-span-1">
             <span className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Fecha</span>
             <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={claseInput} />
+          </label>
+          {pideReferencia && (
+            <label className="block col-span-2 sm:col-span-1">
+              <span className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">N.º de operación</span>
+              <input
+                type="text" maxLength={100} value={referencia} onChange={(e) => setReferencia(e.target.value)}
+                placeholder="Comprobante" className={claseInput}
+              />
+            </label>
+          )}
+          <label className={`block col-span-2 ${pideReferencia ? 'sm:col-span-2' : 'sm:col-span-3'}`}>
+            <span className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Recibido por</span>
+            <input
+              type="text" maxLength={100} value={recibidoPor} onChange={(e) => setRecibidoPor(e.target.value)}
+              placeholder="Quién recibió la plata" className={claseInput}
+            />
           </label>
         </div>
       )}
@@ -210,6 +232,8 @@ export default function EstadoCuentaModal({ jugador, onClose, onCambio }) {
                       <li key={p.id_pago} className={`flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-50 rounded-lg px-2.5 py-1.5 ${p.activo ? '' : 'opacity-60'}`}>
                         <span className={p.activo ? 'text-slate-700' : 'text-slate-500 line-through'}>
                           {formatFecha(p.fecha_pago)} · {formatearMonto(p.monto)} · {p.metodo_pago}
+                          {p.referencia ? ` n.º ${p.referencia}` : ''}
+                          {p.recibido_por ? ` · recibió ${p.recibido_por}` : ''}
                           {p.observaciones ? ` · ${p.observaciones}` : ''}
                         </span>
                         {p.activo ? (

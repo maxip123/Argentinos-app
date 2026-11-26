@@ -100,8 +100,21 @@ const crearCargos = async (req, res) => {
 
     let jugadores;
     if (idJugador) {
-      const { rows } = await query(`SELECT id_jugador FROM public.jugador WHERE id_jugador = $1 AND activo`, [idJugador]);
+      const { rows } = await query(
+        `SELECT id_jugador, nombre, apellido, to_char(fecha_baja, 'DD/MM/YYYY') AS baja,
+                (fecha_baja IS NOT NULL AND $2::int IS NOT NULL AND fecha_baja < make_date($3::int, $2::int, 1)) AS baja_anterior
+         FROM public.jugador WHERE id_jugador = $1 AND activo`,
+        [idJugador, mes, anio]
+      );
       if (rows.length === 0) return respuestaError(res, 'Jugador no encontrado.', 404);
+      // Cuota mensual de un mes posterior a la baja: no corresponde cargarla
+      if (rows[0].baja_anterior) {
+        return respuestaError(
+          res,
+          `${rows[0].apellido} ${rows[0].nombre} está de baja desde el ${rows[0].baja}: no se le cargan cuotas de meses posteriores.`,
+          400
+        );
+      }
       jugadores = rows.map((r) => r.id_jugador);
     } else {
       // Solo jugadores activos y no marcados inactivos
@@ -185,6 +198,7 @@ const estadoCuenta = async (req, res) => {
                 SELECT json_agg(json_build_object(
                          'id_pago', p.id_pago, 'monto', p.monto, 'fecha_pago', p.fecha_pago,
                          'metodo_pago', p.metodo_pago, 'observaciones', p.observaciones, 'activo', p.activo,
+                         'referencia', p.referencia, 'recibido_por', p.recibido_por,
                          'motivo_anulacion', p.motivo_anulacion, 'registrado_por', pu.nombre_completo)
                        ORDER BY p.fecha_pago, p.id_pago)
                 FROM public.pago_cargo p
@@ -213,6 +227,8 @@ const registrarPago = async (req, res) => {
     const monto = Number(req.body.monto);
     const metodo = req.body.metodo_pago;
     const observaciones = String(req.body.observaciones ?? '').trim() || null;
+    const referencia = String(req.body.referencia ?? '').trim() || null;
+    const recibidoPor = String(req.body.recibido_por ?? '').trim() || null;
     if (metodo === 'Canje' && !observaciones) {
       return respuestaError(res, 'En un canje, indicá en observaciones qué se recibió a cambio.', 400);
     }
@@ -239,9 +255,10 @@ const registrarPago = async (req, res) => {
       if (centavos(monto) > saldo) return { codigo: 400, saldo: saldo / 100 };
 
       const { rows: [pago] } = await client.query(
-        `INSERT INTO public.pago_cargo (id_cargo, monto, fecha_pago, metodo_pago, observaciones, registrado_por)
-         VALUES ($1, $2, COALESCE($3::date, ${HOY_AR}), $4, $5, $6) RETURNING *`,
-        [id, monto, req.body.fecha_pago || null, metodo, observaciones, req.usuario.id]
+        `INSERT INTO public.pago_cargo
+           (id_cargo, monto, fecha_pago, metodo_pago, observaciones, referencia, recibido_por, registrado_por)
+         VALUES ($1, $2, COALESCE($3::date, ${HOY_AR}), $4, $5, $6, $7, $8) RETURNING *`,
+        [id, monto, req.body.fecha_pago || null, metodo, observaciones, referencia, recibidoPor, req.usuario.id]
       );
       if (metodo !== 'Canje') {
         const periodo = etiquetaPeriodo(cargo);

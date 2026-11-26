@@ -39,10 +39,11 @@ function Privacidad() {
       <Seccion titulo="2. Qué datos tratamos">
         <p><strong>Jugadores y socios:</strong></p>
         <Lista items={[
-          'Nombre, apellido, DNI, fecha de nacimiento, teléfono, correo electrónico y, si se carga, fotografía.',
+          'Nombre, apellido, DNI, fecha de nacimiento, teléfono, correo electrónico, domicilio y, si se carga, fotografía.',
+          'Obra social, si la persona decide informarla. Es un dato de salud: es optativa, se carga solo con consentimiento expreso y solo la ven los administradores del club.',
           'Equipos y divisiones en los que participa, número de camiseta y posición.',
           'Partidos jugados, goles y tarjetas.',
-          'Cobros del club (cuota, inscripción, seguro, indumentaria y otros conceptos): concepto, período, monto, vencimiento, pagos, método de pago y, si corresponde, el motivo de un canje o de una baja.',
+          'Cobros del club (cuota, inscripción, seguro, indumentaria y otros conceptos): concepto, período, monto, vencimiento, pagos, método de pago, número de operación, quién recibió el pago y, si corresponde, el motivo de un canje o de una baja. También la fecha de baja del socio.',
         ]} />
         <p><strong>Cuerpo técnico:</strong> nombre, apellido, DNI, teléfono, correo electrónico y función.</p>
         <p>
@@ -80,8 +81,8 @@ function Privacidad() {
       <Seccion titulo="5. Qué información es pública">
         <p>
           En el sitio pueden verse el nombre, el apellido, la fotografía si se cargó, el equipo y las estadísticas
-          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento, las deudas y
-          los pagos no se publican: solo acceden usuarios autorizados del club.
+          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento, el domicilio, la
+          obra social, las deudas y los pagos no se publican: solo acceden usuarios autorizados del club.
         </p>
       </Seccion>
 

@@ -13,14 +13,16 @@ Modelo para imprimir y firmar antes de cargar a una persona en el sistema. Debe 
 - Nombre y apellido: ______________________________
 - DNI: ______________ Fecha de nacimiento: ____/____/______
 - Teléfono: ______________ Correo electrónico: ______________________________
+- Domicilio: ______________________________
+- Obra social (optativo, ver punto 3): ______________________________
 
 ### Información
 
 1. **Responsable:** el club es responsable de la base de datos.
-2. **Datos y finalidad:** el club trata los datos de este formulario, la participación deportiva (equipos, partidos, goles y tarjetas) y los cobros (cuota, inscripción, seguro, indumentaria y otros conceptos, con sus pagos) para administrar el padrón, los planteles, los torneos y la tesorería.
-3. **Datos obligatorios:** el nombre, el apellido y el DNI son obligatorios para el alta. Sin ellos no es posible registrar a la persona. El resto es optativo.
+2. **Datos y finalidad:** el club trata los datos de este formulario, la participación deportiva (equipos, partidos, goles y tarjetas) y los cobros (cuota, inscripción, seguro, indumentaria y otros conceptos, con sus pagos, el número de operación y quién recibió cada pago) para administrar el padrón, los planteles, los torneos y la tesorería.
+3. **Datos obligatorios:** el nombre, el apellido y el DNI son obligatorios para el alta. Sin ellos no es posible registrar a la persona. El resto es optativo. La obra social es un dato de salud (dato sensible, Ley 25.326, arts. 2 y 7): nadie está obligado a informarla, se carga solo si se marca la casilla de abajo y solo la ven los administradores del club.
 4. **Destinatarios:** usuarios autorizados del club, las autoridades de la liga cuando la competencia lo requiera, las autoridades públicas cuando la ley lo exija, y los proveedores tecnológicos del club (Supabase y Vercel), que pueden almacenar los datos fuera de Argentina.
-5. **Publicación:** el DNI, el teléfono, el correo, la fecha de nacimiento, las deudas y los pagos no se publican. Lo que puede publicarse en el sitio se autoriza abajo.
+5. **Publicación:** el DNI, el teléfono, el correo, la fecha de nacimiento, el domicilio, la obra social, las deudas y los pagos no se publican. Lo que puede publicarse en el sitio se autoriza abajo.
 6. **Derechos:** el titular puede pedir el acceso, la rectificación, la actualización o la supresión de sus datos, y revocar este consentimiento, escribiendo al correo del club. El acceso es gratuito a intervalos no inferiores a seis meses, salvo interés legítimo (Ley 25.326, art. 14). La Agencia de Acceso a la Información Pública es el órgano de control de la Ley 25.326 y atiende denuncias y reclamos.
 
 Política completa: [dirección del sitio]/privacidad
@@ -32,8 +34,9 @@ Marcar con una X:
 - [ ] **Acepto** el tratamiento de los datos para las finalidades indicadas, incluida su transferencia a los proveedores mencionados.
 - [ ] **Autorizo** la publicación en el sitio de mi nombre, apellido, equipo y estadísticas deportivas.
 - [ ] **Autorizo** la publicación de mi imagen en el sitio del club.
+- [ ] **Consiento expresamente** que el club registre mi obra social, para gestionar el seguro y la atención ante una lesión.
 
-Las dos autorizaciones de publicación son optativas y no impiden participar en el club.
+Las dos autorizaciones de publicación y el registro de la obra social son optativos y no impiden participar en el club.
 
 Lugar y fecha: ______________________ Firma: ______________________ Aclaración: ______________________
 
