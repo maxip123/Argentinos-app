@@ -24,6 +24,9 @@ const PORT = process.env.PORT || 4000;
 
 // ─── Middlewares globales ─────────────────────────────────────────────────────
 
+// Detrás del proxy de Vercel: req.ip sale de X-Forwarded-For (lo usa el límite de intentos de login)
+app.set('trust proxy', 1);
+
 // Seguridad de cabeceras HTTP
 app.use(helmet());
 
@@ -59,11 +62,12 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    res.status(500).json({
+    // El detalle queda en los logs del servidor; la respuesta pública no lo muestra
+    console.error('[health] sin conexión a la base:', err);
+    res.status(503).json({
       ok: false,
       proyecto: 'Club Argentinos del Norte — API',
       db: 'desconectada',
-      error: err.message,
     });
   }
 });
@@ -115,9 +119,15 @@ app.use((req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[Global Error Handler]', err);
-  res.status(err.status || 500).json({
+  const status = err.status || err.statusCode || 500;
+  // Solo se muestra el mensaje de errores del cliente (JSON mal formado, cuerpo muy grande, ...);
+  // los errores internos responden un texto genérico.
+  let mensaje = status < 500 && err.expose !== false && err.message ? err.message : 'Error interno del servidor.';
+  if (err.type === 'entity.parse.failed') mensaje = 'El cuerpo de la solicitud no es un JSON válido.';
+  if (err.type === 'entity.too.large') mensaje = 'El cuerpo de la solicitud es demasiado grande.';
+  res.status(status).json({
     ok: false,
-    mensaje: err.message || 'Error interno del servidor.',
+    mensaje,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });

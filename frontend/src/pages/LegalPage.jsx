@@ -47,7 +47,8 @@ function Privacidad() {
         <p><strong>Cuerpo técnico:</strong> nombre, apellido, DNI, teléfono, correo electrónico y función.</p>
         <p>
           <strong>Usuarios del panel de administración:</strong> nombre, correo electrónico, teléfono, rol y división
-          asignada. Las contraseñas se guardan cifradas.
+          asignada. Las contraseñas se guardan cifradas. Por seguridad, de los intentos de inicio de sesión fallidos
+          guardamos el correo usado y la dirección IP durante 24 horas.
         </p>
         <p>
           <strong>Visitantes del sitio:</strong> no pedimos registro para ver la información pública. Los proveedores
