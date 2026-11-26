@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/axios';
+import { useAuthStore } from '../../stores/authStore';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha, fechaClub, mediodiaClub } from '../../utils/fechas';
@@ -365,6 +366,8 @@ function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSucce
 
 /* ─── Componente Principal FinanzasManager ───────────────────────────────────── */
 export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
+  // Anular pagos y movimientos es solo de Superadmin y Administrador (el backend responde 403 al resto)
+  const puedeAnular = useAuthStore((s) => ['Superadmin', 'Administrador'].includes(s.usuario?.rol));
   const [tab, setTab] = useState('cobros');
   const [jugadores, setJugadores] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
@@ -907,6 +910,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                               <FaEdit className="text-xs" />
                             </button>
                           )}
+                          {puedeAnular && (
                           <button
                             onClick={() => setMovimientoAnular(m)}
                             className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
@@ -914,6 +918,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                           >
                             <FaTrash className="text-xs" />
                           </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -994,6 +999,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                                     <FaEdit className="text-xs" />
                                   </button>
                                 )}
+                                {puedeAnular && (
                                 <button
                                   onClick={() => setMovimientoAnular(m)}
                                   className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
@@ -1001,6 +1007,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                                 >
                                   <FaTrash className="text-xs" />
                                 </button>
+                                )}
                               </div>
                             )}
                           </td>

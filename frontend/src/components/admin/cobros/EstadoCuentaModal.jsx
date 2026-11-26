@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../../api/axios';
+import { useAuthStore } from '../../../stores/authStore';
 import { FaTimes, FaExclamationCircle, FaPlus } from 'react-icons/fa';
 import { fechaClub, formatFecha } from '../../../utils/fechas';
 import {
@@ -127,6 +128,8 @@ function FormAccion({ accion, cargo, onCancelar, onHecho }) {
 
 // Estado de cuenta de un jugador: sus deudas con pagos, y desde acá se cobra, se marca "no corresponde" o se anula.
 export default function EstadoCuentaModal({ jugador, onClose, onCambio }) {
+  // Anular pagos y movimientos es solo de Superadmin y Administrador (el backend responde 403 al resto)
+  const puedeAnular = useAuthStore((s) => ['Superadmin', 'Administrador'].includes(s.usuario?.rol));
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
@@ -236,14 +239,14 @@ export default function EstadoCuentaModal({ jugador, onClose, onCambio }) {
                           {p.recibido_por ? ` · recibió ${p.recibido_por}` : ''}
                           {p.observaciones ? ` · ${p.observaciones}` : ''}
                         </span>
-                        {p.activo ? (
+                        {p.activo ? (puedeAnular && (
                           <button
                             onClick={() => setAccion({ tipo: 'anular', id_cargo: c.id_cargo, pago: p })}
                             className="text-red-700 hover:underline font-bold"
                           >
                             Anular
                           </button>
-                        ) : (
+                        )) : (
                           <span className="text-slate-500">Anulado: {p.motivo_anulacion}</span>
                         )}
                       </li>

@@ -5,7 +5,6 @@ const {
   crear,
   actualizar,
   eliminar,
-  clonarTorneo,
   finalizarYArchivarTorneo,
   iniciarNuevaEdicion,
   obtenerHistorialTorneos,

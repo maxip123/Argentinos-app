@@ -74,7 +74,9 @@ async function validarPartidoCruce(client, llave, partido, idPartidoExcluir = nu
       throw new ErrorPartido('Primero cargá el resultado de la ida.');
     }
     const r = decidirCruce(llave, [...otros, partido]);
-    if (r.error) throw new ErrorPartido(r.error);
+    // Solo el partido decisivo (único o vuelta) exige elegir quién pasa. Si se corrige la ida y el
+    // global queda empatado, se acepta: el cruce queda sin definir hasta elegirlo en la vuelta.
+    if (r.error && !(llave.formato === 'ida_vuelta' && juego === 1)) throw new ErrorPartido(r.error);
   }
   return otros;
 }
@@ -301,11 +303,20 @@ const actualizar = async (req, res) => {
         penalesVisitante,
       ]
     );
-    if (partidoActual.id_llave) await recalcularLlave(client, partidoActual.id_llave);
-    return { partidoActual, partidoActualizado: rows[0] };
+    let aviso = null;
+    if (partidoActual.id_llave) {
+      const llaveNueva = await recalcularLlave(client, partidoActual.id_llave);
+      const { rows: jugados } = await client.query(
+        `SELECT 1 FROM public.partido WHERE id_llave = $1 AND activo AND estado_partido = 2`, [partidoActual.id_llave]
+      );
+      if (llaveNueva.formato === 'ida_vuelta' && jugados.length === 2 && llaveNueva.estado_partido !== 2) {
+        aviso = 'Partido actualizado. El global quedó empatado: elegí quién pasa en el partido de vuelta.';
+      }
+    }
+    return { partidoActual, partidoActualizado: rows[0], aviso };
     });
 
-    const { partidoActual, partidoActualizado } = resultado;
+    const { partidoActual, partidoActualizado, aviso } = resultado;
 
     // Si el partido estaba finalizado o se finalizó, recalcular posiciones de la división
     if (partidoActual.estado_partido === 2 || partidoActualizado.estado_partido === 2) {
@@ -316,7 +327,7 @@ const actualizar = async (req, res) => {
       }
     }
 
-    return respuestaExito(res, partidoActualizado, 'Partido actualizado correctamente.');
+    return respuestaExito(res, partidoActualizado, aviso || 'Partido actualizado correctamente.');
   } catch (error) {
     return responderError(res, error, 'Error al actualizar el partido.', 'actualizar');
   }

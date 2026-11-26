@@ -7,7 +7,7 @@ import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha } from '../../utils/fechas';
 import { agruparPorZona } from '../../utils/zonas';
-import { ETIQUETA_COPA, normalizarLlave } from '../../utils/playoffs';
+import { ETIQUETA_COPA, normalizarLlave, resumenCruce } from '../../utils/playoffs';
 import {
   FaTrophy,
   FaMedal,
@@ -116,7 +116,12 @@ export default function HistorialManager({ onActualizarTorneos }) {
         equipo_local: p.equipo_local ?? p.local_nombre,
         equipo_visitante: p.equipo_visitante ?? p.visitante_nombre,
       })));
-      setLlavesPlayoff((torneoSeleccionado.playoffs || []).map(normalizarLlave));
+      // Cada cruce lleva sus partidos del snapshot (id_llave) para mostrar ida, vuelta y desempate
+      const partidosSnapshot = torneoSeleccionado.partidos || [];
+      setLlavesPlayoff((torneoSeleccionado.playoffs || []).map((l) => {
+        const propios = partidosSnapshot.filter((p) => p.id_llave && Number(p.id_llave) === Number(l.id_llave));
+        return normalizarLlave(propios.length ? { ...l, partidos: propios } : l);
+      }));
       setGoleadoresClub(torneoSeleccionado.goleadores_club || []);
       setTarjetasClub(torneoSeleccionado.tarjetas_club || []);
       setCargandoDetalle(false);
@@ -533,7 +538,13 @@ export default function HistorialManager({ onActualizarTorneos }) {
                 Cuadro Eliminatorio de la Edición
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {llavesPlayoff.map(llave => (
+                {llavesPlayoff.map(llave => {
+                  const resumen = resumenCruce(llave);
+                  const detalle = [
+                    ...(llave.formato === 'ida_vuelta' ? resumen.partidos.filter((p) => p.jugado).map((p) => `${p.etiqueta} ${p.local}-${p.visitante}`) : []),
+                    resumen.desempate,
+                  ].filter(Boolean).join(' · ');
+                  return (
                   <div key={llave.id_llave} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-headline uppercase text-slate-500 pb-1 border-b border-slate-200">
                       <span>
@@ -543,14 +554,18 @@ export default function HistorialManager({ onActualizarTorneos }) {
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-900 truncate">{llave.equipo_local_nombre || 'Por Definir'}</span>
-                      <strong className="font-headline text-sm">{llave.estado_partido === 2 ? llave.goles_local : '-'}</strong>
+                      <strong className="font-headline text-sm">{resumen.global ? resumen.global.local : '-'}</strong>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-900 truncate">{llave.equipo_visitante_nombre || 'Por Definir'}</span>
-                      <strong className="font-headline text-sm">{llave.estado_partido === 2 ? llave.goles_visitante : '-'}</strong>
+                      <strong className="font-headline text-sm">{resumen.global ? resumen.global.visitante : '-'}</strong>
                     </div>
+                    {detalle && (
+                      <p className="text-[10px] font-title text-slate-500 pt-1 border-t border-slate-200">{detalle}</p>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

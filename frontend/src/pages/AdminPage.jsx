@@ -286,7 +286,7 @@ export default function AdminPage() {
     setCargandoAccion(true);
     try {
       // 1. Guardar resultado global
-      await api.put(`/partidos/${partidoEditando.id_partido}`, {
+      const resResultado = await api.put(`/partidos/${partidoEditando.id_partido}`, {
         goles_local: Number(formResultado.goles_local),
         goles_visitante: Number(formResultado.goles_visitante),
         estado_partido: Number(formResultado.estado_partido),
@@ -312,7 +312,9 @@ export default function AdminPage() {
         });
       }
 
-      mostrarMensaje('exito', 'Resultado y estadísticas guardadas. La tabla de posiciones se recalculó automáticamente.');
+      // Si al corregir la ida el global quedó empatado, el backend avisa que falta elegir quién pasa en la vuelta
+      const avisoCruce = /global quedó empatado/.test(resResultado.data?.mensaje || '') ? resResultado.data.mensaje : null;
+      mostrarMensaje('exito', avisoCruce || 'Resultado y estadísticas guardadas. La tabla de posiciones se recalculó automáticamente.');
       setPartidoEditando(null);
       setPlantelPartido([]);
       setStatsPartido({});
@@ -373,7 +375,8 @@ export default function AdminPage() {
       id_equipo_visitante: p.id_equipo_visitante || '',
       id_sede: p.id_sede || '',
       fecha_partido: fechaVal,
-      jornada_numero: p.jornada_numero || 1,
+      // Los partidos de un cruce no tienen fecha de fixture: no se les inventa una
+      jornada_numero: p.jornada_numero || (p.id_llave ? '' : 1),
       nombre_partido: p.nombre_partido || '',
       estado_partido: p.estado_partido !== undefined ? p.estado_partido : 0,
       afecta_clasificacion: p.afecta_clasificacion !== undefined ? p.afecta_clasificacion : true,
@@ -397,7 +400,7 @@ export default function AdminPage() {
         id_equipo_local: Number(formEditarPartido.id_equipo_local),
         id_equipo_visitante: Number(formEditarPartido.id_equipo_visitante),
         id_sede: Number(formEditarPartido.id_sede),
-        jornada_numero: Number(formEditarPartido.jornada_numero),
+        jornada_numero: formEditarPartido.jornada_numero === '' ? undefined : Number(formEditarPartido.jornada_numero),
         estado_partido: Number(formEditarPartido.estado_partido),
         afecta_clasificacion: Boolean(formEditarPartido.afecta_clasificacion),
       });
@@ -1302,7 +1305,7 @@ export default function AdminPage() {
                       />
                     </div>
 
-                    <div>
+                    <div className={partidoEditandoDatos?.id_llave ? 'hidden' : ''}>
                       <label className="block text-xs font-title font-bold text-slate-700 uppercase mb-1">
                         Jornada / Fecha Nº
                       </label>
