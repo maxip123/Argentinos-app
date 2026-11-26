@@ -17,10 +17,10 @@ Modelo para imprimir y firmar antes de cargar a una persona en el sistema. Debe 
 ### Información
 
 1. **Responsable:** el club es responsable de la base de datos.
-2. **Datos y finalidad:** el club trata los datos de este formulario, la participación deportiva (equipos, partidos, goles y tarjetas) y las cuotas para administrar el padrón, los planteles, los torneos y la tesorería.
+2. **Datos y finalidad:** el club trata los datos de este formulario, la participación deportiva (equipos, partidos, goles y tarjetas) y los cobros (cuota, inscripción, seguro, indumentaria y otros conceptos, con sus pagos) para administrar el padrón, los planteles, los torneos y la tesorería.
 3. **Datos obligatorios:** el nombre, el apellido y el DNI son obligatorios para el alta. Sin ellos no es posible registrar a la persona. El resto es optativo.
 4. **Destinatarios:** usuarios autorizados del club, las autoridades de la liga cuando la competencia lo requiera, las autoridades públicas cuando la ley lo exija, y los proveedores tecnológicos del club (Supabase y Vercel), que pueden almacenar los datos fuera de Argentina.
-5. **Publicación:** el DNI, el teléfono, el correo, la fecha de nacimiento y las cuotas no se publican. Lo que puede publicarse en el sitio se autoriza abajo.
+5. **Publicación:** el DNI, el teléfono, el correo, la fecha de nacimiento, las deudas y los pagos no se publican. Lo que puede publicarse en el sitio se autoriza abajo.
 6. **Derechos:** el titular puede pedir el acceso, la rectificación, la actualización o la supresión de sus datos, y revocar este consentimiento, escribiendo al correo del club. El acceso es gratuito a intervalos no inferiores a seis meses, salvo interés legítimo (Ley 25.326, art. 14). La Agencia de Acceso a la Información Pública es el órgano de control de la Ley 25.326 y atiende denuncias y reclamos.
 
 Política completa: [dirección del sitio]/privacidad

@@ -3,6 +3,11 @@ import api from '../../api/axios';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha, fechaClub, mediodiaClub } from '../../utils/fechas';
+import EstadoCuentaModal from './cobros/EstadoCuentaModal';
+import CargarDeudaModal from './cobros/CargarDeudaModal';
+import ConceptosModal from './cobros/ConceptosModal';
+import PlanillaEquipo from './cobros/PlanillaEquipo';
+import { formatearMonto, nombreJugador } from '../../utils/cobros';
 import {
   FaMoneyBillWave,
   FaArrowDown,
@@ -54,14 +59,13 @@ const CATEGORIAS_GASTO = [
 ];
 
 const ESTADO_CONFIG = {
-  'Al dia':   { label: 'Al día',   color: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: FaCheckCircle },
-  'Pendiente':{ label: 'Pendiente', color: 'bg-amber-50 text-amber-700 border border-amber-200',     icon: FaClock },
-  'Inactivo': { label: 'Inactivo',  color: 'bg-slate-100 text-slate-500 border border-slate-200',    icon: FaUserSlash },
-  'Sin cuota':{ label: 'Sin cuota', color: 'bg-red-50 text-red-700 border border-red-200',          icon: FaExclamationCircle },
+  'Al dia':   { label: 'Al día',            color: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: FaCheckCircle },
+  'Pendiente':{ label: 'Con deuda vencida', color: 'bg-amber-50 text-amber-700 border border-amber-200',     icon: FaClock },
+  'Inactivo': { label: 'Inactivo',          color: 'bg-slate-100 text-slate-500 border border-slate-200',    icon: FaUserSlash },
 };
 
 function EstadoBadge({ estado }) {
-  const cfg = ESTADO_CONFIG[estado] || ESTADO_CONFIG['Sin cuota'];
+  const cfg = ESTADO_CONFIG[estado] || ESTADO_CONFIG['Al dia'];
   const Icon = cfg.icon;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${cfg.color}`}>
@@ -75,7 +79,6 @@ function formatMoney(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n || 0);
 }
 
-const CATEGORIA_CUOTA = 'Cuota Socio';
 const FILTRO_ANULADOS = 'ANULADOS';
 
 /* ─── Modal de Anulación de Movimiento ───────────────────────────────────────── */
@@ -83,7 +86,7 @@ function ModalAnularMovimiento({ movimiento, onClose, onSuccess }) {
   const [motivo, setMotivo] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
-  const esCobroCuota = movimiento.categoria === CATEGORIA_CUOTA;
+  const esCobroCuota = Boolean(movimiento.id_pago);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -107,7 +110,7 @@ function ModalAnularMovimiento({ movimiento, onClose, onSuccess }) {
           <div className="min-w-0">
             <span className="text-[10px] font-mono uppercase tracking-widest text-red-200 font-bold">Caja y Tesorería</span>
             <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">
-              {esCobroCuota ? 'Anular Cobro de Cuota' : 'Anular Movimiento'}
+              {esCobroCuota ? 'Anular Cobro' : 'Anular Movimiento'}
             </h3>
           </div>
           <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
@@ -133,7 +136,7 @@ function ModalAnularMovimiento({ movimiento, onClose, onSuccess }) {
             <FaExclamationCircle className="text-amber-700 mt-0.5 shrink-0" />
             <div>
               {esCobroCuota
-                ? 'Se quita el monto de la cuota y el vencimiento del socio vuelve al de su último pago válido. Si no le quedan pagos, pasa a figurar sin cuota.'
+                ? 'Se anula también el pago: la deuda del jugador vuelve a tener ese saldo pendiente.'
                 : 'El movimiento deja de contar en los balances, pero queda registrado como anulado.'}
             </div>
           </div>
@@ -179,255 +182,6 @@ function DetalleAnulacion({ movimiento }) {
       {movimiento.anulado_por_nombre ? ` por ${movimiento.anulado_por_nombre}` : ''}
       : {movimiento.motivo_anulacion || 'sin motivo registrado'}
     </p>
-  );
-}
-
-/* ─── Modal de Cobro Rápido de Cuota ─────────────────────────────────────────── */
-function ModalCobro({ jugador, divisiones, onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    monto: '',
-    metodo_pago: 'Efectivo',
-    fecha_pago: fechaClub(),
-    id_division: jugador?.id_division || '',
-    observaciones: '',
-  });
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.monto) { setError('Por favor ingresá el monto de la cuota.'); return; }
-    setCargando(true);
-    setError('');
-    try {
-      await api.post('/cuotas/pago-rapido', {
-        id_jugador: jugador.id_jugador,
-        id_division: form.id_division ? Number(form.id_division) : null,
-        monto: parseFloat(form.monto),
-        metodo_pago: form.metodo_pago,
-        fecha_pago: mediodiaClub(form.fecha_pago),
-        observaciones: form.observaciones || null,
-      });
-      onSuccess(`Pago de ${jugador.jugador_nombre} registrado exitosamente.`);
-      onClose();
-    } catch (err) {
-      setError(err.response?.data?.mensaje || 'Error al registrar el pago.');
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
-        <div className="bg-gradient-to-r from-[#991b1b] to-[#7f1d1d] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-red-200 font-bold">Tesorería de Cuotas</span>
-            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">Cobrar Cuota</h3>
-            <p className="text-xs text-red-100 font-medium mt-0.5 truncate max-w-[260px] sm:max-w-none">{jugador?.jugador_nombre}</p>
-          </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-            <FaTimes />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto">
-          {error && (
-            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
-              <FaExclamationCircle className="shrink-0" /> {error}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Monto ($) *</label>
-              <input
-                type="number" step="0.01" min="1" required
-                value={form.monto}
-                onChange={e => setForm({ ...form, monto: e.target.value })}
-                placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Fecha de Pago</label>
-              <input
-                type="date"
-                value={form.fecha_pago}
-                onChange={e => setForm({ ...form, fecha_pago: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30 focus:border-[#991b1b]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Método</label>
-              <select
-                value={form.metodo_pago}
-                onChange={e => setForm({ ...form, metodo_pago: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
-              >
-                <option>Efectivo</option>
-                <option>Transferencia</option>
-                <option>MercadoPago</option>
-                <option>Débito</option>
-                <option>Crédito</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-title font-bold text-slate-700 uppercase mb-1">Concepto u Observaciones</label>
-            <input
-              type="text"
-              value={form.observaciones}
-              onChange={e => setForm({ ...form, observaciones: e.target.value })}
-              placeholder="Ej: Cuota mensual, descuento de hermano..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#991b1b]/30"
-            />
-          </div>
-
-          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-900 flex items-start gap-2">
-            <FaClock className="text-emerald-700 mt-0.5 shrink-0" />
-            <div>
-              El vencimiento se calcula automáticamente: <strong>fecha de pago + 31 días</strong>, actualizando el estado del socio a <span className="text-emerald-700 font-bold">AL DÍA</span>.
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="submit" disabled={cargando}
-              className="flex-1 bg-[#991b1b] hover:bg-[#7f1d1d] disabled:opacity-60 text-white py-2.5 rounded-xl font-headline uppercase text-xs tracking-wider transition-colors shadow-sm"
-            >
-              {cargando ? 'Registrando...' : 'Confirmar Cobro'}
-            </button>
-            <button
-              type="button" onClick={onClose}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-title font-bold text-xs text-slate-600 transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Modal Historial de Cuotas del Jugador ─────────────────────────────────── */
-function ModalHistorialJugador({ jugador, onClose }) {
-  const [historial, setHistorial] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let activo = true;
-    const fetchHistorial = async () => {
-      setCargando(true);
-      setError('');
-      try {
-        const res = await api.get(`/cuotas?id_jugador=${jugador.id_jugador}`);
-        if (activo) setHistorial(res.data.data || []);
-      } catch (err) {
-        if (activo) setError('No se pudo cargar el historial de pagos del jugador.');
-      } finally {
-        if (activo) setCargando(false);
-      }
-    };
-    fetchHistorial();
-    return () => { activo = false; };
-  }, [jugador.id_jugador]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
-        <div className="bg-gradient-to-r from-[#151f89] to-[#303a9f] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200 font-bold">Historial de Cuotas</span>
-            <h3 className="font-headline text-lg sm:text-xl uppercase tracking-wide">{jugador?.jugador_nombre}</h3>
-            <p className="text-xs text-blue-100 font-medium mt-0.5">DNI: {jugador?.dni || '—'} · {jugador?.nombre_division}</p>
-          </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-            <FaTimes />
-          </button>
-        </div>
-
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-          {cargando ? (
-            <div className="py-12 text-center text-slate-400 font-title text-sm">Cargando recibos y pagos anteriores...</div>
-          ) : error ? (
-            <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 flex items-center gap-2">
-              <FaExclamationCircle /> {error}
-            </div>
-          ) : historial.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 font-title text-sm space-y-2">
-              <FaCoins className="text-3xl mx-auto text-slate-300" />
-              <p>Este socio no registra cuotas previas en el sistema.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="text-xs font-title font-bold text-slate-500 uppercase tracking-wider">
-                Total de recibos registrados: {historial.length}
-              </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
-                      <th className="p-3">Período</th>
-                      <th className="p-3">Fecha Pago</th>
-                      <th className="p-3">Monto</th>
-                      <th className="p-3">Método</th>
-                      <th className="p-3">Estado</th>
-                      <th className="p-3">Observaciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-title">
-                    {historial.map(c => (
-                      <tr key={c.id_cuota} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-bold text-slate-800">
-                          {MESES[c.periodo_mes]} {c.periodo_anio}
-                        </td>
-                        <td className="p-3 text-slate-600 font-mono">
-                          {formatFecha(c.fecha_pago || c.created_at)}
-                        </td>
-                        <td className="p-3 font-bold text-emerald-700 font-mono">
-                          {formatMoney(c.monto_abonado || c.monto_esperado)}
-                        </td>
-                        <td className="p-3 text-slate-600">
-                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px]">
-                            {c.metodo_pago || 'Efectivo'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            c.estado_pago === 'Pagado' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {c.estado_pago}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-500 max-w-[150px] truncate" title={c.observaciones || ''}>
-                          {c.observaciones || '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 rounded-xl font-title font-bold text-xs text-slate-700 transition-colors"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -611,7 +365,7 @@ function ModalMovimiento({ movimiento, tipoInicial = 'INGRESO', onClose, onSucce
 
 /* ─── Componente Principal FinanzasManager ───────────────────────────────────── */
 export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
-  const [tab, setTab] = useState('cuotas');
+  const [tab, setTab] = useState('cobros');
   const [jugadores, setJugadores] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [resumen, setResumen] = useState(null);
@@ -646,8 +400,11 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const [resAnio, setResAnio] = useState(now.getFullYear());
 
   // Modales
-  const [jugadorCobro, setJugadorCobro] = useState(null);
-  const [jugadorHistorial, setJugadorHistorial] = useState(null);
+  const [jugadorCuenta, setJugadorCuenta] = useState(null);
+  const [mostrarCargarDeuda, setMostrarCargarDeuda] = useState(false);
+  const [mostrarConceptos, setMostrarConceptos] = useState(false);
+  const [vistaCobros, setVistaCobros] = useState('jugadores'); // 'jugadores' | 'planilla'
+  const [conceptosCaja, setConceptosCaja] = useState([]);
   const [movimientoEditar, setMovimientoEditar] = useState(null);
   const [tipoMovimientoModal, setTipoMovimientoModal] = useState('INGRESO');
   const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
@@ -657,9 +414,14 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   const cargarJugadores = useCallback(async () => {
     setCargandoJugadores(true);
     try {
-      const params = divisionFiltro ? `?id_division=${divisionFiltro}` : '';
-      const res = await api.get(`/cuotas/estado-jugadores${params}`);
-      setJugadores(res.data.data || []);
+      const params = new URLSearchParams({ solo_club: 'true' });
+      if (divisionFiltro) params.set('id_division', divisionFiltro);
+      const res = await api.get(`/jugadores?${params.toString()}`);
+      setJugadores((res.data.data || []).map(j => ({
+        ...j,
+        jugador_nombre: nombreJugador(j),
+        equipos_texto: (j.equipos_asignados || []).map(e => e.nombre_equipo).join(', '),
+      })));
     } catch (err) {
       console.error('[FinanzasManager] cargarJugadores:', err);
     } finally {
@@ -708,7 +470,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
   }, [resMes, resAnio]);
 
   useEffect(() => {
-    if (tab === 'cuotas') cargarJugadores();
+    if (tab === 'cobros') cargarJugadores();
     if (tab === 'caja') cargarMovimientos();
     if (tab === 'resumen') cargarResumen();
   }, [tab, cargarJugadores, cargarMovimientos, cargarResumen]);
@@ -717,9 +479,14 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
     return () => clearTimeout(busquedaTimeoutRef.current);
   }, []);
 
+  useEffect(() => {
+    if (tab !== 'caja' || conceptosCaja.length) return;
+    api.get('/cobros/conceptos').then(res => setConceptosCaja(res.data.data || [])).catch(() => {});
+  }, [tab, conceptosCaja.length]);
+
   // Conteos rápidos de cuotas
   const conteos = jugadores.reduce((acc, j) => {
-    const k = j.estado_cuota || 'Sin cuota';
+    const k = j.estado_cuota || 'Al dia';
     acc[k] = (acc[k] || 0) + 1;
     return acc;
   }, {});
@@ -816,7 +583,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
         {/* Pestañas de Navegación */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 overflow-x-auto">
           {[
-            { id: 'cuotas',  label: 'Estado de Cuotas',        icon: FaMoneyBillWave },
+            { id: 'cobros',  label: 'Cobros y Deudas',          icon: FaMoneyBillWave },
             { id: 'caja',    label: 'Libro de Caja (Entradas/Salidas)', icon: FaCoins         },
             { id: 'resumen', label: 'Balance y Tesorería',     icon: FaChartLine     },
           ].map(t => {
@@ -840,16 +607,46 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
         </div>
       </div>
 
-      {/* ═══ TAB 1: ESTADO DE CUOTAS ═══ */}
-      {tab === 'cuotas' && (
+      {/* ═══ TAB 1: COBROS Y DEUDAS ═══ */}
+      {tab === 'cobros' && (
         <div className="space-y-5 animate-fadeIn">
-          {/* Tarjetas resumen */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Acciones y tarjetas resumen */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex rounded-xl border border-slate-300 overflow-hidden bg-white" role="radiogroup" aria-label="Vista de cobros">
+              {[['jugadores', 'Por jugador'], ['planilla', 'Planilla por equipo']].map(([id, label]) => (
+                <button
+                  key={id} type="button" role="radio" aria-checked={vistaCobros === id}
+                  onClick={() => setVistaCobros(id)}
+                  className={`px-3 py-2 text-xs font-title font-bold transition-colors ${
+                    vistaCobros === id ? 'bg-[#151f89] text-white' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setMostrarConceptos(true)}
+              className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl text-slate-700 text-xs font-title font-bold transition-colors"
+            >
+              Conceptos
+            </button>
+            <button
+              onClick={() => setMostrarCargarDeuda(true)}
+              className="flex items-center gap-2 bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-4 py-2 rounded-xl font-headline uppercase text-xs tracking-wider shadow-sm"
+            >
+              <FaPlus /> Cargar deuda
+            </button>
+            </div>
+          </div>
+
+          {vistaCobros === 'planilla' ? <PlanillaEquipo /> : (<>
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { estado: 'Al dia',    icon: FaCheckCircle,       bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', num: 'text-emerald-800' },
-              { estado: 'Pendiente', icon: FaClock,             bg: 'bg-amber-50/70',   border: 'border-amber-200',   text: 'text-amber-700',   num: 'text-amber-800'   },
-              { estado: 'Sin cuota', icon: FaExclamationCircle, bg: 'bg-red-50/70',     border: 'border-red-200',     text: 'text-red-700',     num: 'text-red-800'     },
-              { estado: 'Inactivo',  icon: FaUserSlash,         bg: 'bg-slate-100',     border: 'border-slate-200',   text: 'text-slate-500',   num: 'text-slate-700'   },
+              { estado: 'Al dia',    icon: FaCheckCircle, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', num: 'text-emerald-800' },
+              { estado: 'Pendiente', icon: FaClock,       bg: 'bg-amber-50/70',   border: 'border-amber-200',   text: 'text-amber-700',   num: 'text-amber-800'   },
+              { estado: 'Inactivo',  icon: FaUserSlash,   bg: 'bg-slate-100',     border: 'border-slate-200',   text: 'text-slate-500',   num: 'text-slate-700'   },
             ].map(({ estado, icon: Icon, bg, border, text, num }) => (
               <button
                 key={estado}
@@ -860,10 +657,10 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               >
                 <div className={`${text} mb-1 flex items-center justify-between`}>
                   <Icon className="text-sm" />
-                  <span className="text-[10px] font-mono uppercase font-bold tracking-wider">Filtrar</span>
+                  <span className="text-[10px] font-mono uppercase font-bold tracking-wider hidden sm:inline">Filtrar</span>
                 </div>
                 <div className={`font-headline text-3xl ${num}`}>{conteos[estado] || 0}</div>
-                <div className={`text-xs ${text} font-title font-bold uppercase mt-0.5`}>
+                <div className={`text-[11px] sm:text-xs ${text} font-title font-bold uppercase mt-0.5`}>
                   {ESTADO_CONFIG[estado]?.label}
                 </div>
               </button>
@@ -903,8 +700,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
             >
               <option value="">Todos los estados</option>
               <option value="Al dia">Al día</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Sin cuota">Sin cuota</option>
+              <option value="Pendiente">Con deuda vencida</option>
               <option value="Inactivo">Inactivo</option>
             </select>
             <button
@@ -918,57 +714,48 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
 
           <div id={paginacionCuotas.idLista} className="scroll-mt-24" />
 
-          {/* Vista móvil: Cards de jugadores */}
+          {/* Vista móvil */}
           <div className="block md:hidden space-y-3">
             {cargandoJugadores ? (
-              <div className="p-8 text-center text-slate-400 font-title text-xs">Cargando estado de cuotas...</div>
+              <div className="p-8 text-center text-slate-400 font-title text-xs">Cargando jugadores...</div>
             ) : jugadoresFiltrados.length === 0 ? (
               <div className="p-8 text-center text-slate-400 font-title text-xs">No se encontraron jugadores.</div>
             ) : (
               paginacionCuotas.visibles.map(j => (
                 <div key={j.id_jugador} className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 ${j.es_inactivo ? 'opacity-60' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-bold text-slate-900 text-sm block leading-tight">{j.jugador_nombre}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'} · {j.nombre_division}</span>
+                      <span className="text-[11px] text-slate-400 font-mono break-words">{j.equipos_texto || 'Sin equipo'}</span>
                     </div>
                     <EstadoBadge estado={j.estado_cuota} />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
                     <div>
-                      <span className="text-[10px] text-slate-400 block uppercase font-mono">Vencimiento</span>
-                      <span className={`font-mono font-bold ${
-                        j.estado_cuota === 'Pendiente' ? 'text-red-600' : 'text-slate-800'
-                      }`}>
-                        {formatFecha(j.fecha_vencimiento)}
+                      <span className="text-[10px] text-slate-400 block uppercase font-mono">Debe</span>
+                      <span className={`font-mono font-bold ${Number(j.deuda_vencida) > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                        {formatearMonto(j.deuda_total)}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setJugadorHistorial(j)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-title font-bold transition-colors"
-                      >
-                        Historial
-                      </button>
-                      {!j.es_inactivo && (
-                        <button
-                          onClick={() => setJugadorCobro(j)}
-                          className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3.5 py-1.5 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm"
-                        >
-                          Cobrar
-                        </button>
+                      {Number(j.deuda_vencida) > 0 && (
+                        <span className="block text-[10px] text-red-600">{formatearMonto(j.deuda_vencida)} vencido</span>
                       )}
                     </div>
+                    <button
+                      onClick={() => setJugadorCuenta(j)}
+                      className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3.5 py-1.5 rounded-xl text-xs font-headline uppercase tracking-wider transition-colors shadow-sm"
+                    >
+                      Estado de cuenta
+                    </button>
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          {/* Vista escritorio: Tabla de Socios / Jugadores */}
+          {/* Vista escritorio */}
           <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             {cargandoJugadores ? (
-              <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando estado de cuotas...</div>
+              <div className="p-12 text-center text-slate-400 font-title text-sm">Cargando jugadores...</div>
             ) : jugadoresFiltrados.length === 0 ? (
               <div className="p-12 text-center text-slate-400 font-title text-sm">No se encontraron jugadores.</div>
             ) : (
@@ -977,54 +764,33 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 font-headline text-[11px] text-slate-500 uppercase tracking-wider">
                       <th className="p-3.5">Jugador / Socio</th>
-                      <th className="p-3.5">División</th>
-                      <th className="p-3.5">Último Pago</th>
-                      <th className="p-3.5">Vencimiento</th>
-                      <th className="p-3.5">Estado Cuota</th>
+                      <th className="p-3.5">Equipos</th>
+                      <th className="p-3.5">Debe</th>
+                      <th className="p-3.5">Vencido</th>
+                      <th className="p-3.5">Estado</th>
                       <th className="p-3.5 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-title text-xs">
                     {paginacionCuotas.visibles.map(j => (
-                      <tr
-                        key={j.id_jugador}
-                        className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-50' : ''}`}
-                      >
+                      <tr key={j.id_jugador} className={`hover:bg-slate-50/80 transition-colors ${j.es_inactivo ? 'opacity-50' : ''}`}>
                         <td className="p-3.5">
                           <span className="font-bold text-slate-900 block text-sm">{j.jugador_nombre}</span>
                           <span className="text-[11px] text-slate-400 font-mono">DNI: {j.dni || '—'}</span>
                         </td>
-                        <td className="p-3.5 text-slate-600 font-bold">{j.nombre_division}</td>
-                        <td className="p-3.5 text-slate-500 font-mono">{formatFecha(j.fecha_ultimo_pago)}</td>
-                        <td className="p-3.5">
-                          {j.fecha_vencimiento ? (
-                            <span className={`font-bold font-mono ${
-                              j.estado_cuota === 'Pendiente' ? 'text-red-600' : 'text-slate-800'
-                            }`}>
-                              {formatFecha(j.fecha_vencimiento)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
+                        <td className="p-3.5 text-slate-600 font-bold">{j.equipos_texto || '—'}</td>
+                        <td className="p-3.5 font-mono font-bold text-slate-800">{formatearMonto(j.deuda_total)}</td>
+                        <td className={`p-3.5 font-mono font-bold ${Number(j.deuda_vencida) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                          {formatearMonto(j.deuda_vencida)}
                         </td>
-                        <td className="p-3.5">
-                          <EstadoBadge estado={j.estado_cuota} />
-                        </td>
-                        <td className="p-3.5 text-right space-x-2">
+                        <td className="p-3.5"><EstadoBadge estado={j.estado_cuota} /></td>
+                        <td className="p-3.5 text-right">
                           <button
-                            onClick={() => setJugadorHistorial(j)}
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-title font-bold transition-colors"
+                            onClick={() => setJugadorCuenta(j)}
+                            className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3 py-1.5 rounded-lg text-[11px] font-headline uppercase tracking-wider transition-colors shadow-sm"
                           >
-                            Historial
+                            Estado de cuenta
                           </button>
-                          {!j.es_inactivo && (
-                            <button
-                              onClick={() => setJugadorCobro(j)}
-                              className="bg-[#991b1b] hover:bg-[#7f1d1d] text-white px-3 py-1.5 rounded-lg text-[11px] font-headline uppercase tracking-wider transition-colors shadow-sm"
-                            >
-                              Cobrar
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -1035,6 +801,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
           </div>
 
           {!cargandoJugadores && <Paginacion paginacion={paginacionCuotas} singular="jugador" plural="jugadores" />}
+          </>)}
         </div>
       )}
 
@@ -1071,8 +838,12 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
             >
               <option value="">Todas las categorías</option>
+              {conceptosCaja.length > 0 && (
+                <optgroup label="Cobros a jugadores">
+                  {conceptosCaja.map(c => <option key={c.id_concepto} value={c.nombre}>{c.nombre}</option>)}
+                </optgroup>
+              )}
               <optgroup label="Ingresos">
-                <option value={CATEGORIA_CUOTA}>{CATEGORIA_CUOTA}</option>
                 {CATEGORIAS_ENTRADA.map(c => <option key={c} value={c}>{c}</option>)}
               </optgroup>
               <optgroup label="Gastos">
@@ -1123,7 +894,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                       <span>{formatFecha(m.fecha_gasto)}</span>
                       {!anulado && (
                         <div className="flex items-center gap-2">
-                          {m.categoria !== CATEGORIA_CUOTA && (
+                          {!m.id_pago && !m.id_cuota && (
                             <button
                               onClick={() => {
                                 setMovimientoEditar(m);
@@ -1210,7 +981,7 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                           <td className="p-3.5 text-right">
                             {!anulado && (
                               <div className="flex items-center justify-end gap-1.5">
-                                {m.categoria !== CATEGORIA_CUOTA && (
+                                {!m.id_pago && !m.id_cuota && (
                                   <button
                                     onClick={() => {
                                       setMovimientoEditar(m);
@@ -1345,12 +1116,12 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
                   </div>
                   <div className="mt-3 pt-3 border-t border-emerald-100 space-y-1 text-xs text-slate-600">
                     <div className="flex justify-between">
-                      <span>Cuotas de Jugadores:</span>
-                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_cuotas)}</strong>
+                      <span>Cobros a jugadores:</span>
+                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_cobros)}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span>Entradas del Club:</span>
-                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_entradas)}</strong>
+                      <span>Otros ingresos:</span>
+                      <strong className="text-emerald-700">{formatMoney(resumen.ingresos.total_otros)}</strong>
                     </div>
                   </div>
                 </div>
@@ -1412,6 +1183,19 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
               </div>
 
               {/* Desglose por Categorías */}
+              {resumen.deudas && (
+                <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-amber-700 font-bold">Deuda de jugadores (hoy)</span>
+                    <div className="font-headline text-2xl text-slate-900">{formatMoney(resumen.deudas.pendiente)}</div>
+                  </div>
+                  <div className="text-xs text-slate-600 font-title">
+                    Vencido: <strong className="text-red-700">{formatMoney(resumen.deudas.vencida)}</strong>
+                    {' · '}{resumen.deudas.jugadores_con_deuda_vencida} jugador{resumen.deudas.jugadores_con_deuda_vencida === 1 ? '' : 'es'} con deuda vencida
+                  </div>
+                </div>
+              )}
+
               {resumen.categorias && resumen.categorias.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                   <h3 className="font-headline text-sm uppercase text-slate-800 tracking-wider mb-4 flex items-center gap-2">
@@ -1444,24 +1228,25 @@ export default function FinanzasManager({ divisiones = [], mostrarMensaje }) {
       )}
 
       {/* ── Modales ── */}
-      {jugadorHistorial && (
-        <ModalHistorialJugador
-          jugador={jugadorHistorial}
-          onClose={() => setJugadorHistorial(null)}
+      {jugadorCuenta && (
+        <EstadoCuentaModal
+          jugador={jugadorCuenta}
+          onClose={() => setJugadorCuenta(null)}
+          onCambio={cargarJugadores}
         />
       )}
 
-      {jugadorCobro && (
-        <ModalCobro
-          jugador={jugadorCobro}
-          divisiones={divisiones}
-          onClose={() => setJugadorCobro(null)}
-          onSuccess={(msg) => {
-            mostrarMensaje && mostrarMensaje('exito', msg);
+      {mostrarCargarDeuda && (
+        <CargarDeudaModal
+          onClose={() => setMostrarCargarDeuda(false)}
+          onCargado={(msg) => {
+            mostrarMensaje?.('exito', msg);
             cargarJugadores();
           }}
         />
       )}
+
+      {mostrarConceptos && <ConceptosModal onClose={() => setMostrarConceptos(false)} />}
 
       {mostrarModalMovimiento && (
         <ModalMovimiento

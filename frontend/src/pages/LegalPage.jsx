@@ -5,7 +5,7 @@ import { FaFileContract, FaUserShield } from 'react-icons/fa';
 const CLUB = 'Club Atlético Argentinos del Norte';
 const DOMICILIO = 'Av. Benjamín Aráoz 650, San Miguel de Tucumán, Tucumán, Argentina';
 const EMAIL = 'contacto@argentinosdelnorte.com';
-const ACTUALIZACION = '15 de noviembre de 2026';
+const ACTUALIZACION = '26 de noviembre de 2026';
 
 function Seccion({ titulo, children }) {
   return (
@@ -42,7 +42,7 @@ function Privacidad() {
           'Nombre, apellido, DNI, fecha de nacimiento, teléfono, correo electrónico y, si se carga, fotografía.',
           'Equipos y divisiones en los que participa, número de camiseta y posición.',
           'Partidos jugados, goles y tarjetas.',
-          'Cuotas sociales: período, monto, fecha, método de pago y vencimiento.',
+          'Cobros del club (cuota, inscripción, seguro, indumentaria y otros conceptos): concepto, período, monto, vencimiento, pagos, método de pago y, si corresponde, el motivo de un canje o de una baja.',
         ]} />
         <p><strong>Cuerpo técnico:</strong> nombre, apellido, DNI, teléfono, correo electrónico y función.</p>
         <p>
@@ -59,7 +59,7 @@ function Privacidad() {
         <Lista items={[
           'Administrar el padrón de socios, los planteles y la participación en los torneos.',
           'Publicar fixture, resultados, tablas, goleadores, tarjetas e historial de torneos.',
-          'Gestionar y dejar registro de cuotas, pagos y movimientos de la caja del club.',
+          'Gestionar y dejar registro de lo que cada socio debe y paga, y de los movimientos de la caja del club.',
           'Dar acceso al panel de administración según el rol de cada usuario y proteger el sistema.',
         ]} />
         <p>
@@ -72,15 +72,15 @@ function Privacidad() {
         <p>
           Para registrar a un jugador o socio son obligatorios el nombre, el apellido y el DNI: sin ellos no podemos
           darlo de alta. El resto de los datos es optativo. Si un dato es inexacto, pueden producirse errores en el
-          padrón o en la gestión de cuotas.
+          padrón o en la gestión de cobros.
         </p>
       </Seccion>
 
       <Seccion titulo="5. Qué información es pública">
         <p>
           En el sitio pueden verse el nombre, el apellido, la fotografía si se cargó, el equipo y las estadísticas
-          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento y el estado
-          de cuotas no se publican: solo acceden usuarios autorizados del club.
+          deportivas (goles y tarjetas). El DNI, el teléfono, el correo electrónico, la fecha de nacimiento, las deudas y
+          los pagos no se publican: solo acceden usuarios autorizados del club.
         </p>
       </Seccion>
 
@@ -204,8 +204,8 @@ function Terminos() {
 
       <Seccion titulo="6. Pagos">
         <p>
-          El sitio no procesa pagos ni solicita datos de tarjetas. El panel solo registra los cobros de cuotas que el
-          club recibe por sus propios medios.
+          El sitio no procesa pagos ni solicita datos de tarjetas. El panel solo registra los cobros (cuota,
+          inscripción, seguro y otros conceptos) que el club recibe por sus propios medios.
         </p>
       </Seccion>
 

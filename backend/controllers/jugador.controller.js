@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { respuestaExito, respuestaError } = require('../utils/respuesta');
+const { exprDeuda, sqlDeudaJugador, sqlEstadoCuota } = require('../utils/deudas');
 
 // GET /api/jugadores — Padrón de jugadores. Filtros: ?id_equipo= ?id_division= ?solo_club= ?q=
 const obtenerTodos = async (req, res) => {
@@ -13,13 +14,8 @@ const obtenerTodos = async (req, res) => {
              j.telefono,
              j.email,
              j.es_inactivo,
-             j.fecha_ultimo_pago,
-             j.fecha_vencimiento,
-             CASE
-               WHEN j.es_inactivo = TRUE THEN 'Inactivo'
-               WHEN j.fecha_vencimiento IS NOT NULL AND j.fecha_vencimiento >= CURRENT_DATE THEN 'Al dia'
-               ELSE 'Pendiente'
-             END AS estado_cuota,
+             ${sqlEstadoCuota('j')} AS estado_cuota,
+             ${sqlDeudaJugador('j')},
              j.activo,
              j.created_at,` : '';
 
@@ -83,9 +79,9 @@ const obtenerTodos = async (req, res) => {
 
     if (esAutenticado && estado_cuota) {
       if (estado_cuota === 'pendiente') {
-        sql += ` AND j.es_inactivo = FALSE AND (j.fecha_vencimiento IS NULL OR j.fecha_vencimiento < CURRENT_DATE)`;
+        sql += ` AND j.es_inactivo = FALSE AND ${exprDeuda('j', true)} > 0`;
       } else if (estado_cuota === 'al_dia') {
-        sql += ` AND j.es_inactivo = FALSE AND j.fecha_vencimiento >= CURRENT_DATE`;
+        sql += ` AND j.es_inactivo = FALSE AND ${exprDeuda('j', true)} = 0`;
       } else if (estado_cuota === 'inactivo') {
         sql += ` AND j.es_inactivo = TRUE`;
       } else if (estado_cuota === 'activos') {

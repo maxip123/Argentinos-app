@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
+import { resumenDeudaJugador } from '../../utils/cobros';
 import ConfirmModal from '../ui/ConfirmModal';
 import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
@@ -236,62 +237,11 @@ export default function JugadoresManager({ divisiones = [] }) {
     });
   };
 
-  // Helpers de estado de cuota y vencimiento
-  // El backend calcula el estado por fecha: el día del vencimiento todavía cuenta como al día
+  // Estado de cuota: lo calcula el backend a partir de las deudas vencidas (ver utils/cobros.js)
   const esAlDia = (j) => j.estado_cuota === 'Al dia';
   const esPendiente = (j) => j.estado_cuota === 'Pendiente';
 
-  const formatearVencimiento = (fechaStr, esInactivo) => {
-    if (esInactivo) {
-      return { texto: 'Socio Inactivo', estado: 'inactivo', color: 'text-slate-400', badgeColor: 'bg-slate-100 text-slate-500' };
-    }
-    if (!fechaStr) {
-      return { texto: 'Sin cuota registrada', estado: 'sin_cuota', color: 'text-slate-400', badgeColor: 'bg-amber-50 text-amber-700 border border-amber-200' };
-    }
-
-    const partes = String(fechaStr).split('T')[0].split('-');
-    let fecha;
-    if (partes.length === 3) {
-      fecha = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
-    } else {
-      fecha = new Date(fechaStr);
-    }
-
-    if (isNaN(fecha.getTime())) {
-      return { texto: 'Sin registro', estado: 'sin_cuota', color: 'text-slate-400', badgeColor: 'bg-amber-50 text-amber-700' };
-    }
-
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const fechaComp = new Date(fecha);
-    fechaComp.setHours(0, 0, 0, 0);
-
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const anio = fecha.getFullYear();
-    const fechaFormateada = `${dia}/${mes}/${anio}`;
-
-    if (fechaComp < hoy) {
-      return {
-        texto: `Venció: ${fechaFormateada}`,
-        fechaFormateada,
-        esVencido: true,
-        color: 'text-red-600',
-        badgeColor: 'bg-red-50 text-red-700 border border-red-200',
-        estadoBadge: 'Vencido',
-      };
-    } else {
-      return {
-        texto: `Vence: ${fechaFormateada}`,
-        fechaFormateada,
-        esVencido: false,
-        color: 'text-emerald-700',
-        badgeColor: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-        estadoBadge: 'Al día',
-      };
-    }
-  };
-
+  
   // Métricas para filtros rápidos
   const totalPendientes = jugadores.filter(esPendiente).length;
   const totalAlDia = jugadores.filter(esAlDia).length;
@@ -469,11 +419,11 @@ export default function JugadoresManager({ divisiones = [] }) {
                     </div>
                     <div className="text-right shrink-0">
                       {(() => {
-                        const v = formatearVencimiento(j.fecha_vencimiento, j.es_inactivo);
+                        const v = resumenDeudaJugador(j);
                         return (
                           <div className="space-y-1">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${v.badgeColor}`}>
-                              {j.es_inactivo ? 'Inactivo' : (v.estadoBadge || 'Pendiente')}
+                              {v.badge}
                             </span>
                             <div className={`flex items-center justify-end gap-1 text-[10px] font-mono font-medium ${v.color}`}>
                               <FaCalendarAlt className="text-[9px] opacity-70" />
@@ -612,12 +562,12 @@ export default function JugadoresManager({ divisiones = [] }) {
                       </td>
                       <td className="p-3.5">
                         {(() => {
-                          const v = formatearVencimiento(j.fecha_vencimiento, j.es_inactivo);
+                          const v = resumenDeudaJugador(j);
                           return (
                             <div className="space-y-1">
                               <div>
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${v.badgeColor}`}>
-                                  {j.es_inactivo ? 'Inactivo' : (v.estadoBadge || 'Pendiente')}
+                                  {v.badge}
                                 </span>
                               </div>
                               <div className={`flex items-center gap-1.5 text-[11px] font-mono font-medium ${v.color}`}>
@@ -881,19 +831,19 @@ export default function JugadoresManager({ divisiones = [] }) {
 
               <div className="pt-2">
                 {(() => {
-                  const v = formatearVencimiento(jugadorEditando.fecha_vencimiento, jugadorEditando.es_inactivo);
+                  const v = resumenDeudaJugador(jugadorEditando);
                   return (
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                       <div>
                         <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">Estado Cuota Social</div>
                         <div className="mt-1">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${v.badgeColor}`}>
-                            {jugadorEditando.es_inactivo ? 'Inactivo' : (v.estadoBadge || 'Pendiente')}
+                            {v.badge}
                           </span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">Próximo Vencimiento</div>
+                        <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">Deuda</div>
                         <div className={`flex items-center justify-end gap-1.5 mt-1 text-xs font-mono font-bold ${v.color}`}>
                           <FaCalendarAlt className="text-[11px] opacity-80" />
                           <span>{v.texto}</span>

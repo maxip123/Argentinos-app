@@ -13,7 +13,7 @@ const jugadorRoutes       = require('./routes/jugador.routes');
 const partidoRoutes       = require('./routes/partido.routes');
 const clasificacionRoutes = require('./routes/clasificacion.routes');
 const playoffRoutes       = require('./routes/playoff.routes');
-const cuotaRoutes         = require('./routes/cuota.routes');
+const cobroRoutes         = require('./routes/cobro.routes');
 const sedeRoutes          = require('./routes/sede.routes');
 const gastoRoutes         = require('./routes/gasto.routes');
 const cuerpoTecnicoRoutes = require('./routes/cuerpoTecnico.routes');
@@ -76,7 +76,7 @@ app.use('/api/jugadores',     jugadorRoutes);
 app.use('/api/partidos',      partidoRoutes);
 app.use('/api/clasificacion', clasificacionRoutes);
 app.use('/api/playoff',       playoffRoutes);
-app.use('/api/cuotas',        cuotaRoutes);
+app.use('/api/cobros',        cobroRoutes);
 app.use('/api/sedes',         sedeRoutes);
 app.use('/api/gastos',        gastoRoutes);
 app.use('/api/cuerpo-tecnico', cuerpoTecnicoRoutes);
@@ -98,7 +98,7 @@ app.get('/', (req, res) => {
       'GET    /api/clasificacion/:id_division',
       'GET    /api/playoff/:id_division',
       'GET    /api/sedes',
-      'GET    /api/cuotas (auth requerida)',
+      'GET    /api/cobros/* (auth requerida)',
     ],
   });
 });
