@@ -7,7 +7,7 @@ import Paginacion from '../ui/Paginacion';
 import usePaginacion from '../../hooks/usePaginacion';
 import { formatFecha } from '../../utils/fechas';
 import { agruparPorZona } from '../../utils/zonas';
-import { ETIQUETA_COPA, normalizarLlave, resumenCruce } from '../../utils/playoffs';
+import { ETIQUETA_COPA, normalizarLlave, resumenCruce, detalleCruce, adjuntarPartidos } from '../../utils/playoffs';
 import {
   FaTrophy,
   FaMedal,
@@ -117,11 +117,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
         equipo_visitante: p.equipo_visitante ?? p.visitante_nombre,
       })));
       // Cada cruce lleva sus partidos del snapshot (id_llave) para mostrar ida, vuelta y desempate
-      const partidosSnapshot = torneoSeleccionado.partidos || [];
-      setLlavesPlayoff((torneoSeleccionado.playoffs || []).map((l) => {
-        const propios = partidosSnapshot.filter((p) => p.id_llave && Number(p.id_llave) === Number(l.id_llave));
-        return normalizarLlave(propios.length ? { ...l, partidos: propios } : l);
-      }));
+      setLlavesPlayoff(adjuntarPartidos(torneoSeleccionado.playoffs || [], torneoSeleccionado.partidos || []).map(normalizarLlave));
       setGoleadoresClub(torneoSeleccionado.goleadores_club || []);
       setTarjetasClub(torneoSeleccionado.tarjetas_club || []);
       setCargandoDetalle(false);
@@ -540,10 +536,7 @@ export default function HistorialManager({ onActualizarTorneos }) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {llavesPlayoff.map(llave => {
                   const resumen = resumenCruce(llave);
-                  const detalle = [
-                    ...(llave.formato === 'ida_vuelta' ? resumen.partidos.filter((p) => p.jugado).map((p) => `${p.etiqueta} ${p.local}-${p.visitante}`) : []),
-                    resumen.desempate,
-                  ].filter(Boolean).join(' · ');
+                  const detalle = detalleCruce(llave);
                   return (
                   <div key={llave.id_llave} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-headline uppercase text-slate-500 pb-1 border-b border-slate-200">

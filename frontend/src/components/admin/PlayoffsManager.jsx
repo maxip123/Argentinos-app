@@ -10,6 +10,7 @@ import {
   FORMATOS_CRUCE,
   resumenCruce,
   nombrePartidoCruce,
+  fasesParaCantidad,
 } from '../../utils/playoffs';
 import { formatFecha, desdeInputFechaHora } from '../../utils/fechas';
 import {
@@ -72,14 +73,12 @@ export default function PlayoffsManager({
     if (!divisionSel) return;
     if (mostrarSpinner) setCargando(true);
     try {
-      const [resLlaves, resEquipos, resSedes] = await Promise.all([
+      const [resLlaves, resEquipos] = await Promise.all([
         api.get(`/playoff/${divisionSel}`),
         api.get(`/equipos?id_division=${divisionSel}`),
-        api.get('/sedes'),
       ]);
       setTodasLasLlaves(resLlaves.data.data || []);
       setEquipos(resEquipos.data.data || []);
-      setSedes(resSedes.data.data || []);
     } catch (err) {
       console.error(err);
       mostrarAviso('error', 'Error al cargar los datos del cuadro de playoff.');
@@ -91,6 +90,13 @@ export default function PlayoffsManager({
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+
+  // Las sedes no cambian mientras se arma el cuadro: se cargan una sola vez (para programar partidos)
+  useEffect(() => {
+    api.get('/sedes')
+      .then((res) => setSedes(res.data.data || []))
+      .catch((err) => console.error('[PlayoffsManager] Error al cargar sedes:', err));
+  }, []);
 
   // Copa que se está viendo: las acciones del panel actúan solo sobre ella
   const copas = copasDe(todasLasLlaves);
@@ -634,14 +640,6 @@ export default function PlayoffsManager({
       )}
     </div>
   );
-}
-
-// Rondas que tiene un cuadro de N equipos, de la primera a la final
-const FASES_DESDE = { 32: '16avos de Final', 16: 'Octavos de Final', 8: 'Cuartos de Final', 4: 'Semifinal', 2: 'Final' };
-function fasesParaCantidad(cantidad) {
-  const fases = [];
-  for (let n = cantidad; n >= 2; n /= 2) if (FASES_DESDE[n]) fases.push(FASES_DESDE[n]);
-  return fases;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

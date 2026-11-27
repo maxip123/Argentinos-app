@@ -23,8 +23,9 @@ export function agruparPorZona(filas = []) {
   return ordenados;
 }
 
-// Partido entre equipos de zonas distintas
+// Partido de fase de grupos entre equipos de zonas distintas (los de un cruce del cuadro no cuentan)
 export const esInterzonal = (p) => {
+  if (p.id_llave) return false;
   const a = clave(p.zona_local);
   const b = clave(p.zona_visitante);
   return Boolean(a && b && a !== b);

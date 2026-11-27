@@ -81,6 +81,19 @@ async function validarPartidoCruce(client, llave, partido, idPartidoExcluir = nu
   return otros;
 }
 
+// Qué pasó con el cruce después de recalcularlo, para avisarle a quien cargó el partido
+function avisoDeCruce(llave) {
+  const sinDefinir = llave.formato === 'ida_vuelta' && llave.partidos_jugados === 2 && llave.estado_partido !== 2;
+  const bajas = llave.partidos_dados_de_baja;
+  if (!sinDefinir && !bajas) return null;
+  const partes = ['Partido actualizado.'];
+  if (sinDefinir) partes.push('El global quedó empatado: elegí quién pasa en el partido de vuelta.');
+  if (bajas) {
+    partes.push(`Cambió quién pasa de ronda: se ${bajas === 1 ? 'dio de baja 1 partido programado' : `dieron de baja ${bajas} partidos programados`} de la ronda siguiente.`);
+  }
+  return { sin_definir: sinDefinir, partidos_dados_de_baja: bajas, mensaje: partes.join(' ') };
+}
+
 const responderError = (res, error, mensaje, contexto) => {
   if (error instanceof ErrorPartido || error instanceof ErrorCruce) return respuestaError(res, error.message, error.status);
   console.error(`[partido.controller] ${contexto} error:`, error);
@@ -303,23 +316,17 @@ const actualizar = async (req, res) => {
         penalesVisitante,
       ]
     );
-    let aviso = null;
-    if (partidoActual.id_llave) {
-      const llaveNueva = await recalcularLlave(client, partidoActual.id_llave);
-      const { rows: jugados } = await client.query(
-        `SELECT 1 FROM public.partido WHERE id_llave = $1 AND activo AND estado_partido = 2`, [partidoActual.id_llave]
-      );
-      if (llaveNueva.formato === 'ida_vuelta' && jugados.length === 2 && llaveNueva.estado_partido !== 2) {
-        aviso = 'Partido actualizado. El global quedó empatado: elegí quién pasa en el partido de vuelta.';
-      }
-    }
-    return { partidoActual, partidoActualizado: rows[0], aviso };
+    const avisoCruce = partidoActual.id_llave
+      ? avisoDeCruce(await recalcularLlave(client, partidoActual.id_llave))
+      : null;
+    return { partidoActual, partidoActualizado: rows[0], avisoCruce };
     });
 
-    const { partidoActual, partidoActualizado, aviso } = resultado;
+    const { partidoActual, partidoActualizado, avisoCruce } = resultado;
 
     // Si el partido estaba finalizado o se finalizó, recalcular posiciones de la división
-    if (partidoActual.estado_partido === 2 || partidoActualizado.estado_partido === 2) {
+    // (los partidos de cruce nunca suman a la tabla: no hace falta)
+    if (!partidoActual.id_llave && (partidoActual.estado_partido === 2 || partidoActualizado.estado_partido === 2)) {
       try {
         await query(`SELECT public.recalcular_clasificacion_division($1)`, [partidoActualizado.id_division]);
       } catch (errRecalc) {
@@ -327,7 +334,11 @@ const actualizar = async (req, res) => {
       }
     }
 
-    return respuestaExito(res, partidoActualizado, aviso || 'Partido actualizado correctamente.');
+    return respuestaExito(
+      res,
+      { ...partidoActualizado, ...(avisoCruce && { aviso_cruce: avisoCruce }) },
+      avisoCruce?.mensaje || 'Partido actualizado correctamente.'
+    );
   } catch (error) {
     return responderError(res, error, 'Error al actualizar el partido.', 'actualizar');
   }
@@ -353,13 +364,15 @@ const eliminar = async (req, res) => {
         `UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_partido = $1`,
         [id]
       );
-      if (existente[0].id_llave) await recalcularLlave(client, existente[0].id_llave);
-      return { partido: existente[0], statsRows };
+      const avisoCruce = existente[0].id_llave
+        ? avisoDeCruce(await recalcularLlave(client, existente[0].id_llave))
+        : null;
+      return { partido: existente[0], statsRows, avisoCruce };
     });
-    const { partido, statsRows } = datos;
+    const { partido, statsRows, avisoCruce } = datos;
 
-    // 4. Recalcular tabla de posiciones si estaba finalizado
-    if (partido.estado_partido === 2) {
+    // 4. Recalcular tabla de posiciones si estaba finalizado (los de cruce no suman a la tabla)
+    if (partido.estado_partido === 2 && !partido.id_llave) {
       try {
         await query(`SELECT public.recalcular_clasificacion_division($1)`, [partido.id_division]);
       } catch (errRecalc) {
@@ -376,7 +389,13 @@ const eliminar = async (req, res) => {
       }
     }
 
-    return respuestaExito(res, null, 'Partido eliminado (baja lógica) correctamente. Posiciones y estadísticas recalculadas.');
+    return respuestaExito(
+      res,
+      avisoCruce ? { aviso_cruce: avisoCruce } : null,
+      avisoCruce?.partidos_dados_de_baja
+        ? `Partido eliminado. ${avisoCruce.mensaje.replace('Partido actualizado. ', '')}`
+        : 'Partido eliminado (baja lógica) correctamente. Posiciones y estadísticas recalculadas.'
+    );
   } catch (error) {
     return responderError(res, error, 'Error al eliminar el partido.', 'eliminar');
   }

@@ -81,6 +81,9 @@ function necesitaDesempate(llave, partidos, editado) {
  * Recalcula el cruce (bloqueado con FOR UPDATE), guarda goles/ganador/estado y lleva al ganador
  * al cupo de la ronda siguiente. Si ese cupo cambia y la ronda siguiente ya tiene partidos jugados,
  * lanza ErrorCruce 409; si solo tenía partidos programados, los da de baja.
+ * Devuelve la llave actualizada más:
+ *   partidos_jugados: partidos finalizados del cruce;
+ *   partidos_dados_de_baja: partidos de rondas siguientes que se dieron de baja (en cascada).
  */
 async function recalcularLlave(client, idLlave) {
   const { rows: [llave] } = await client.query(
@@ -91,6 +94,7 @@ async function recalcularLlave(client, idLlave) {
     `SELECT * FROM public.partido WHERE id_llave = $1 AND activo`, [idLlave]
   );
   const r = decidirCruce(llave, partidos);
+  let bajas = 0;
 
   const { rows: [actualizada] } = await client.query(
     `UPDATE public.llave_playoff
@@ -115,16 +119,30 @@ async function recalcularLlave(client, idLlave) {
         throw new ErrorCruce('La ronda siguiente ya se jugó con el ganador anterior. Anulá primero esos partidos.');
       }
       // Los partidos programados de la ronda siguiente eran con otro equipo: ya no corresponden
-      await client.query(
-        `UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_llave = $1 AND activo`, [siguiente.id_llave]
+      const { rows: dadosDeBaja } = await client.query(
+        `UPDATE public.partido SET activo = FALSE, updated_at = NOW() WHERE id_llave = $1 AND activo RETURNING id_partido`,
+        [siguiente.id_llave]
       );
+      bajas += dadosDeBaja.length;
+      if (dadosDeBaja.length) {
+        // Si alguno tenía estadísticas cargadas (por ejemplo, en vivo), los totales de esos jugadores se recalculan
+        const { rows: jugadores } = await client.query(
+          `SELECT DISTINCT id_jugador FROM public.partido_estadistica_jugador WHERE id_partido = ANY($1::bigint[])`,
+          [dadosDeBaja.map((p) => p.id_partido)]
+        );
+        for (const j of jugadores) {
+          await client.query(`SELECT public.sincronizar_estadisticas_jugador($1)`, [j.id_jugador]);
+        }
+      }
       await client.query(
         `UPDATE public.llave_playoff SET ${campo} = $1, updated_at = NOW() WHERE id_llave = $2`, [nuevo, siguiente.id_llave]
       );
-      await recalcularLlave(client, siguiente.id_llave);
+      const cascada = await recalcularLlave(client, siguiente.id_llave);
+      bajas += cascada.partidos_dados_de_baja;
     }
   }
-  return actualizada;
+  const partidosJugados = partidos.filter((p) => Number(p.estado_partido) === 2).length;
+  return { ...actualizada, partidos_jugados: partidosJugados, partidos_dados_de_baja: bajas };
 }
 
 module.exports = { decidirCruce, necesitaDesempate, recalcularLlave, ErrorCruce, MENSAJE_EMPATE };

@@ -312,8 +312,8 @@ export default function AdminPage() {
         });
       }
 
-      // Si al corregir la ida el global quedó empatado, el backend avisa que falta elegir quién pasa en la vuelta
-      const avisoCruce = /global quedó empatado/.test(resResultado.data?.mensaje || '') ? resResultado.data.mensaje : null;
+      // Partido de un cruce: el backend avisa si el cruce quedó sin definir o si se dieron de baja partidos de la ronda siguiente
+      const avisoCruce = resResultado.data?.data?.aviso_cruce?.mensaje;
       mostrarMensaje('exito', avisoCruce || 'Resultado y estadísticas guardadas. La tabla de posiciones se recalculó automáticamente.');
       setPartidoEditando(null);
       setPlantelPartido([]);
@@ -426,8 +426,10 @@ export default function AdminPage() {
       onConfirm: async () => {
         setCargandoAccion(true);
         try {
-          await api.delete(`/partidos/${p.id_partido}`);
-          mostrarMensaje('exito', 'Partido eliminado correctamente. Tabla de posiciones recalculada.');
+          const resBaja = await api.delete(`/partidos/${p.id_partido}`);
+          mostrarMensaje('exito', resBaja.data?.data?.aviso_cruce?.partidos_dados_de_baja
+            ? resBaja.data.mensaje
+            : 'Partido eliminado correctamente. Tabla de posiciones recalculada.');
           cargarPartidos();
           setModalConfirmacion(prev => ({ ...prev, isOpen: false }));
         } catch (err) {

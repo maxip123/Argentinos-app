@@ -9,6 +9,8 @@ import {
   ganadorDeLlave,
   normalizarLlave,
   resumenCruce,
+  detalleCruce,
+  adjuntarPartidos,
 } from '../../utils/playoffs';
 
 // partidos: en el historial, los partidos del snapshot (con id_llave) para mostrar el detalle de cada cruce
@@ -44,12 +46,7 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], partidos:
     );
   }
 
-  const todasLasLlaves = llavesRecibidas.map((l) => {
-    const llave = normalizarLlave(l);
-    if (Array.isArray(llave.partidos) || !Array.isArray(partidosHistorial)) return llave;
-    const propios = partidosHistorial.filter((p) => p.id_llave && Number(p.id_llave) === Number(llave.id_llave));
-    return propios.length ? { ...llave, partidos: propios } : llave;
-  });
+  const todasLasLlaves = adjuntarPartidos(llavesRecibidas, partidosHistorial).map(normalizarLlave);
   const copas = copasDe(todasLasLlaves);
   const copaActiva = copas.includes(copaElegida) ? copaElegida : copas[0];
   const hayCopas = copaActiva !== 'Unica';
@@ -152,12 +149,7 @@ export default function PlayoffBracket({ llaves: llavesRecibidas = [], partidos:
                       const ganadorId = ganadorDeLlave(llave);
                       const penales = esPorPenales(llave);
                       const resumen = resumenCruce(llave);
-                      const jugados = resumen.partidos.filter((p) => p.jugado);
-                      // Detalle de ida y vuelta, y desempate si lo hubo
-                      const detalle = [
-                        ...(llave.formato === 'ida_vuelta' ? jugados.map((p) => `${p.etiqueta} ${p.local}-${p.visitante}`) : []),
-                        resumen.desempate,
-                      ].filter(Boolean).join(' · ');
+                      const detalle = detalleCruce(llave);
                       const localGano =
                         ganadorId !== null &&
                         ganadorId === Number(llave.id_equipo_local);

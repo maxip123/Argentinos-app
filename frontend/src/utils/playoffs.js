@@ -136,6 +136,31 @@ export const necesitaDesempateFront = (partido, golesLocal, golesVisitante) => {
   return totalLocal === totalVisitante;
 };
 
+// Rondas de un cuadro de N equipos, de la primera a la final (mismos nombres que genera el backend)
+const FASE_POR_CANTIDAD = { 32: '16avos de Final', 16: 'Octavos de Final', 8: 'Cuartos de Final', 4: 'Semifinal', 2: 'Final' };
+export const fasesParaCantidad = (cantidad) => {
+  const fases = [];
+  for (let n = cantidad; n >= 2; n /= 2) if (FASE_POR_CANTIDAD[n]) fases.push(FASE_POR_CANTIDAD[n]);
+  return fases;
+};
+
+// Detalle de un cruce para mostrar debajo del global: "Ida 1-1 · Vuelta 2-2 · (pasa X)"
+export const detalleCruce = (llave) => {
+  const r = resumenCruce(llave);
+  return [
+    ...(llave.formato === 'ida_vuelta' ? r.partidos.filter((p) => p.jugado).map((p) => `${p.etiqueta} ${p.local}-${p.visitante}`) : []),
+    r.desempate,
+  ].filter(Boolean).join(' · ');
+};
+
+// Snapshots del historial: los partidos de cada cruce vienen aparte (con id_llave); se los cuelga de su llave.
+// Las llaves que ya traen partidos (API en vivo) quedan como están.
+export const adjuntarPartidos = (llaves = [], partidos = []) => llaves.map((l) => {
+  if (Array.isArray(l.partidos) || !Array.isArray(partidos)) return l;
+  const propios = partidos.filter((p) => p.id_llave && Number(p.id_llave) === Number(l.id_llave));
+  return propios.length ? { ...l, partidos: propios } : l;
+});
+
 // Valores iniciales del formulario de desempate a partir del partido guardado
 export const desempateInicial = (p) => ({
   id_equipo_desempate: p?.id_equipo_desempate ? String(p.id_equipo_desempate) : '',

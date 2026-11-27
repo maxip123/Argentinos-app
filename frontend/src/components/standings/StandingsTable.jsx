@@ -27,6 +27,9 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
     );
   }
 
+  const grupos = agruparPorZona(clasificacion);
+  const hayZonas = grupos.length > 1 || grupos[0]?.zona !== null;
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -45,7 +48,7 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
               <th className="py-3.5 px-4 text-center font-headline text-[#151f89] text-base" title="Puntos">PTS</th>
             </tr>
           </thead>
-          {agruparPorZona(clasificacion).map((grupo) => (
+          {grupos.map((grupo) => (
           <tbody key={grupo.titulo || 'tabla'} className="font-body text-sm text-slate-800 divide-y divide-slate-100">
             {grupo.titulo && (
               <tr className="bg-slate-100/80">
@@ -53,8 +56,9 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
               </tr>
             )}
             {grupo.filas.map((fila, index) => {
-              // Con zonas, la posición se cuenta dentro de cada zona
+              // Con zonas, la posición se cuenta dentro de cada zona; el bloque "Sin zona" no lleva medallas
               const pos = index + 1;
+              const medalla = grupo.titulo && !grupo.zona ? 0 : pos;
               const esClub = fila.es_argentinos_del_norte;
               const difGol = fila.diferencia_gol;
 
@@ -69,15 +73,15 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
                 >
                   {/* Posición con medalla */}
                   <td className="py-3.5 px-3 text-center">
-                    {pos === 1 ? (
+                    {medalla === 1 ? (
                       <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FFDF00] to-[#D4AF37] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#DAA520]/50 font-bold">
                         1
                       </div>
-                    ) : pos === 2 ? (
+                    ) : medalla === 2 ? (
                       <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#E0E0E0] to-[#BDBDBD] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#9E9E9E]/50 font-bold">
                         2
                       </div>
-                    ) : pos === 3 ? (
+                    ) : medalla === 3 ? (
                       <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#CD7F32] to-[#A0522D] text-white flex items-center justify-center font-headline text-xs mx-auto shadow-sm border border-[#8B4513]/50 font-bold">
                         3
                       </div>
@@ -160,7 +164,7 @@ export default function StandingsTable({ clasificacion = [], cargando = false })
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-[#D4AF37]"></span>
-            Líder del torneo
+            {hayZonas ? 'Líder de cada zona' : 'Líder del torneo'}
           </span>
         </div>
         <span>PJ: Jugados | PG: Ganados | PE: Empatados | PP: Perdidos | DG: Diferencia de Gol | PTS: Puntos</span>
